@@ -59,17 +59,17 @@ test('hall pack: 29 hall items, rules that name the boxed-in seat, event style, 
   await expect(walkway).toHaveAttribute('data-status', 'fail');
 
   // Theatre style asks for less floor per guest; the choice is remembered for the report.
-  await page.locator('select[name="hall-style"]').selectOption('theatre');
+  await page.locator('select[name="activity-style"]').selectOption('theatre');
   await expect(page.locator('[data-rule="area-per-guest"]')).toContainText('٠٫٧ م²');
   await expect(page.getByTestId('save-state')).toHaveText('محفوظ');
   await page.getByRole('link', { name: 'التقرير' }).click();
   const rules = page.getByTestId('report-rules');
-  await expect(page.getByLabel('قواعد القاعة')).toContainText('مسرح أو محاضرة');
+  await expect(page.getByLabel('قواعد النشاط')).toContainText('مسرح أو محاضرة');
   await expect(rules.locator('[data-rule="walkway"]')).toHaveAttribute('data-status', 'fail');
   await expect(page.getByTestId('report-verdict')).toContainText('قواعد');
   await page.screenshot({ path: 'e2e-results/report-rules.png', fullPage: true });
   await page.getByRole('link', { name: 'رجوع للتصميم' }).click();
-  await expect(page.locator('select[name="hall-style"]')).toHaveValue('theatre');
+  await expect(page.locator('select[name="activity-style"]')).toHaveValue('theatre');
   await page.screenshot({ path: 'e2e-results/rules.png' });
 });
 

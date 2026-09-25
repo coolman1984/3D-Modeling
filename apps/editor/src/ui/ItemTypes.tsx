@@ -1,5 +1,5 @@
 import { fromUnit, toUnit, type Id, type ItemDefinition, type Project } from '@space-planner/core';
-import { missingStarterItems, ROUND_SHAPES, SHAPES, shapeOf, type ShapeKey } from '@space-planner/starter';
+import { missingPackItems, ROUND_SHAPES, SHAPES, shapeOf, type PackId, type ShapeKey } from '@space-planner/starter';
 import { useState } from 'react';
 import { formatLength } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
@@ -45,14 +45,20 @@ function draftOf(definition: ItemDefinition): Draft {
 const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false };
 
 /** The project's item types: add a copy to the plan, or create and edit types with real sizes. */
+/** How each pack's items are named on the "bring in" button. */
+const PACK_ITEMS: Record<PackId, string> = { hall: 'القاعات', office: 'المكاتب' };
+
 export function ItemTypesPanel({
   project,
+  pack,
   onAdd,
   dispatch,
   editing,
   setEditing,
 }: {
   project: Project;
+  /** The activity pack whose missing items can be brought in. */
+  pack: PackId;
   onAdd: (definition: ItemDefinition) => void;
   dispatch: (a: Action) => void;
   editing: Id | 'new' | null;
@@ -61,9 +67,9 @@ export function ItemTypesPanel({
   const [filter, setFilter] = useState('');
   const words = filter.trim().split(/\s+/).filter(Boolean);
   const definitions = Object.values(project.catalog).filter((d) => words.every((w) => d.name.includes(w)));
-  // Hall items this project does not have yet (older projects, or ones deleted by hand).
+  // The pack's items this project does not have yet (older projects, another activity, or deleted by hand).
   const taken = takenIds(project);
-  const missing = missingStarterItems(project).filter((d) => !taken.has(d.id));
+  const missing = missingPackItems(project, pack).filter((d) => !taken.has(d.id));
   const current = editing === 'new' ? EMPTY : editing ? project.catalog[editing] : undefined;
   return (
     <section className="panel" aria-label="الأصناف">
@@ -95,7 +101,7 @@ export function ItemTypesPanel({
           className="wide"
           onClick={() => dispatch({ type: 'command', command: { type: 'batch', commands: missing.map((definition) => ({ type: 'catalog.define', definition })) } })}
         >
-          هات أصناف القاعات الناقصة ({new Intl.NumberFormat('ar-EG').format(missing.length)})
+          هات أصناف {PACK_ITEMS[pack]} الناقصة ({new Intl.NumberFormat('ar-EG').format(missing.length)})
         </button>
       )}
       <input className="wide" name="catalog-filter" type="search" placeholder="دوّر على صنف…" value={filter} onChange={(e) => setFilter(e.target.value)} />

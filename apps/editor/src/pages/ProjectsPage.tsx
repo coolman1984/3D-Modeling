@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, subscribe, type ProjectSummary } from '../api.js';
+import { PACKS, type PackId } from '@space-planner/starter';
 import { NumberField } from '../ui/Fields.js';
 
 function when(iso: string): string {
@@ -13,6 +14,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
   const [width, setWidth] = useState<number | undefined>(12);
   const [depth, setDepth] = useState<number | undefined>(9);
   const [ceiling, setCeiling] = useState<number | undefined>(3);
+  const [activity, setActivity] = useState<PackId>('hall');
   const [message, setMessage] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -27,6 +29,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
       name: name.trim() || 'مشروع جديد',
       width_m: width ?? 12,
       depth_m: depth ?? 9,
+      activity,
       ...(ceiling === undefined ? {} : { ceiling_m: ceiling }),
     });
     open(project.id);
@@ -49,6 +52,16 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
           <NumberField name="new-width" label="العرض" unit="م" value={width} min={1} max={500} onChange={setWidth} />
           <NumberField name="new-depth" label="الطول" unit="م" value={depth} min={1} max={500} onChange={setDepth} />
           <NumberField name="new-ceiling" label="السقف" unit="م" value={ceiling} min={0.5} max={50} allowEmpty onChange={setCeiling} />
+          <label className="field">
+            <span>النشاط</span>
+            <select name="new-activity" value={activity} onChange={(e) => setActivity(e.target.value as PackId)}>
+              {PACKS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button type="button" className="primary" onClick={() => void create()}>
             اعمل المشروع
           </button>

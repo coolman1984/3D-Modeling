@@ -18,7 +18,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { checkHall, HALL_STYLES, hallStyle, newHall, ROUND_SHAPES, SHAPES, type RuleResult } from '@space-planner/starter';
+import { checkPack, detectPack, newRoom, packOf, PACKS, ROUND_SHAPES, SHAPES, type PackId, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -163,28 +163,34 @@ export function describeProject(project: Project): string {
   for (const issue of issues) lines.push(`  ${describeIssue(project, issue)}`);
   const metrics = measureProject(project);
   lines.push(`Metrics: ${metrics.seats} seats, ${metrics.itemCount} items, floor ${toSquareMetres(metrics.floorArea).toFixed(2)} m², occupied ${(metrics.occupancy * 100).toFixed(1)}%`);
-  lines.push(...describeRules(project, 'banquet'));
+  lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-/** Hall rules (guidance from the hall pack) as short English lines for agents. */
-function describeRules(project: Project, style: string): string[] {
-  const spec = hallStyle(style);
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office' };
+
+/** The activity pack's rules (guidance) as short English lines for agents. */
+function describeRules(project: Project, packId: PackId = detectPack(project), style?: string): string[] {
+  const pack = packOf(packId);
+  const styleId = pack.styles.some((s) => s.id === style) ? style! : pack.styles[0]!.id;
   const line = (r: RuleResult): string => {
-    if (r.status === 'unknown') return `  ${r.code}: unknown (${r.reason === 'no-doors' ? 'no doors' : 'no seats'})`;
+    if (r.status === 'unknown') return `  ${r.code}: unknown (${r.reason === 'no-doors' ? 'no doors' : r.reason === 'no-desks' ? 'no desks' : 'no seats'})`;
     const cmOf = (v: number | undefined) => `${toUnit(v ?? 0, 'cm')} cm`;
     switch (r.code) {
       case 'walkway':
         return `  walkway ${cmOf(r.required)} from every seat to a door: ${r.status}${r.entityIds.length ? ` — no way out for ${r.entityIds.join(', ')}` : ''}`;
       case 'area-per-guest':
-        return `  floor per guest: ${r.measured} m² (needs ${r.required}): ${r.status}`;
+      case 'area-per-person':
+        return `  floor per ${r.code === 'area-per-guest' ? 'guest' : 'person'}: ${r.measured} m² (needs ${r.required}): ${r.status}`;
+      case 'workstations':
+        return `  desks with a chair: ${r.measured} of ${r.required}: ${r.status}${r.entityIds.length ? ` — no chair at ${r.entityIds.join(', ')}` : ''}`;
       case 'exits':
         return `  exits: ${r.measured} door(s) (needs ${r.required}): ${r.status}`;
       case 'door-width':
         return `  total door width: ${cmOf(r.measured)} (needs ${cmOf(r.required)}): ${r.status}`;
     }
   };
-  return [`Hall rules (${spec.id}):`, ...checkHall(project, spec.id).map(line)];
+  return [`${PACK_NAMES[pack.id]} rules (${styleId}):`, ...checkPack(project, pack.id, styleId).map(line)];
 }
 
 function afterChange(project: Project, what: string): string {
@@ -212,7 +218,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a new rectangular room project with the starter catalog and one door centred on the south wall. Returns the new project id.',
+    description: 'Create a new rectangular room project with one door centred on the south wall, furnished with the catalog of an activity: "hall" (event hall, default) or "office". Returns the new project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -220,6 +226,7 @@ export const TOOLS: readonly ToolDef[] = [
         width_m: { type: 'number', description: 'West→east size in metres.' },
         depth_m: { type: 'number', description: 'South→north size in metres.' },
         ceiling_m: { type: 'number', description: 'Ceiling height in metres, if known.' },
+        activity: { type: 'string', enum: PACKS.map((p) => p.id) },
       },
       required: ['name', 'width_m', 'depth_m'],
       additionalProperties: false,
@@ -228,7 +235,7 @@ export const TOOLS: readonly ToolDef[] = [
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
       if (width < 1 || depth < 1 || width > 500 || depth > 500) throw new ToolError('room sides must be between 1 and 500 m');
-      const project = ctx.store.createProject(newHall(str(input, 'name'), width, depth, num(input, 'ceiling_m', true)), ctx.actor);
+      const project = ctx.store.createProject(newRoom(str(input, 'name'), width, depth, num(input, 'ceiling_m', true), packOf(str(input, 'activity', true)).id), ctx.actor);
       return `Created ${project.id}.\n\n${describeProject(project)}`;
     },
   },
@@ -501,10 +508,15 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'check_project',
-    description: `List design issues (overlaps, blocked doors, items outside the room, missing clearance, too tall) with how far off each is, key metrics, and the hall rules (walkway from every seat to a door, floor per guest, exits, door width) for an event style: ${HALL_STYLES.map((s) => s.id).join(', ')} (default banquet).`,
+    description: `List design issues (overlaps, blocked doors, items outside the room, missing clearance, too tall) with how far off each is, key metrics, and the activity's rules (walkway from every seat to a door, floor per person, desks with chairs for offices, exits, door width). activity: ${PACKS.map((p) => p.id).join(' or ')} (default: read from the catalog); style: ${PACKS.map((p) => `${p.id}: ${p.styles.map((s) => s.id).join(', ')}`).join('; ')}.`,
     inputSchema: {
       type: 'object',
-      properties: { project_id: projectId, hall_style: { type: 'string', enum: HALL_STYLES.map((s) => s.id) } },
+      properties: {
+        project_id: projectId,
+        activity: { type: 'string', enum: PACKS.map((p) => p.id) },
+        style: { type: 'string', enum: PACKS.flatMap((p) => p.styles.map((s) => s.id)) },
+        hall_style: { type: 'string', description: 'Same as style, for halls (kept for older agents).' },
+      },
       required: ['project_id'],
       additionalProperties: false,
     },
@@ -513,7 +525,8 @@ export const TOOLS: readonly ToolDef[] = [
       const issues = checkProject(project);
       const metrics = measureProject(project);
       const head = `Revision ${project.revision}: ${metrics.seats} seats, ${metrics.itemCount} items, occupied ${(metrics.occupancy * 100).toFixed(1)}%.`;
-      const rules = describeRules(project, str(input, 'hall_style', true) || 'banquet').join('\n');
+      const activity = str(input, 'activity', true) ? packOf(str(input, 'activity', true)).id : detectPack(project);
+      const rules = describeRules(project, activity, str(input, 'style', true) || str(input, 'hall_style', true)).join('\n');
       return `${head}\n${issues.length === 0 ? 'No issues.' : issues.map((i) => describeIssue(project, i)).join('\n')}\n${rules}`;
     },
   },

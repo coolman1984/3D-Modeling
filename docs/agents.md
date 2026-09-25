@@ -9,13 +9,13 @@ the planner tools.
 | Tool | What it does |
 |---|---|
 | `list_projects` | All projects with id, name, revision, item count |
-| `create_project` | New rectangular room with the starter catalog |
+| `create_project` | New rectangular room as a hall or an office (`activity`), with that activity's catalog |
 | `get_project` | Room, doors, columns, item types, every item, issues, metrics |
 | `set_room` | Size, ceiling, doors on walls, columns |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
 | `place_items` / `move_items` / `remove_items` | Edit the layout (each call is one revision); `height_m` raises an item off the floor |
 | `apply_commands` | Raw core commands, for anything else |
-| `check_project` | Design issues with amounts, plus metrics |
+| `check_project` | Design issues with amounts, metrics, and the activity's rules (`activity`, `style`) |
 | `get_history` / `restore_revision` | Read the history, bring back a version |
 
 Units: metres for positions, centimetres for sizes. x grows east, y grows north, rotation is

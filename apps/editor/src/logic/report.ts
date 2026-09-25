@@ -9,7 +9,8 @@ import {
   type Size3,
   type Tick,
 } from '@space-planner/core';
-import { checkHall, hallStyle, type HallStyle, type RuleResult } from '@space-planner/starter';
+import { checkPack, packOf, type RuleResult } from '@space-planner/starter';
+import { activityOf, type Activity } from './activity.js';
 import { describeIssue, describeRule, ISSUE_TITLES, RULE_TITLES } from './messages.js';
 
 /** One line of the client's bill of materials; `key` is the number drawn on the plan. */
@@ -58,16 +59,17 @@ export interface ReportData {
   readonly keyOf: Readonly<Record<Id, number>>;
   readonly issues: readonly ReportIssue[];
   readonly counts: { readonly error: number; readonly warning: number; readonly info: number };
-  /** The event style the hall rules were checked for. */
-  readonly style: { readonly id: HallStyle; readonly label: string };
+  /** The activity and style the rules were checked for, e.g. "قاعة مناسبات", "مسرح أو محاضرة". */
+  readonly activity: { readonly pack: string; readonly label: string; readonly style: string; readonly styleLabel: string };
   readonly rules: readonly (ReportIssue & { readonly code: RuleResult['code']; readonly status: RuleResult['status'] })[];
   /** 'ready' only when nothing is wrong or unknown and every hall rule passes. */
   readonly verdict: 'ready' | 'check' | 'problems';
 }
 
-export function buildReport(project: Project, styleId: HallStyle = 'banquet'): ReportData {
-  const style = hallStyle(styleId);
-  const rules = checkHall(project, style.id);
+export function buildReport(project: Project, chosen: Activity = activityOf('hall', null)): ReportData {
+  const activity = activityOf(chosen.pack, chosen.style);
+  const pack = packOf(activity.pack);
+  const rules = checkPack(project, pack.id, activity.style);
   const metrics = measureProject(project);
   const issues = checkProject(project);
   const box = boundsOf(project.space.boundary);
@@ -107,7 +109,7 @@ export function buildReport(project: Project, styleId: HallStyle = 'banquet'): R
     keyOf,
     issues: issues.map((issue) => ({ severity: issue.severity, title: ISSUE_TITLES[issue.code], text: describeIssue(project, issue) })),
     counts,
-    style: { id: style.id, label: style.label },
+    activity: { pack: pack.id, label: pack.label, style: activity.style, styleLabel: pack.styles.find((s) => s.id === activity.style)!.label },
     rules: rules.map((rule) => ({
       code: rule.code,
       status: rule.status,

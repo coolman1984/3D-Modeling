@@ -1,5 +1,29 @@
 # TASKS
 
+## Done: T4 — office pack, with no change to the core
+
+**Done means:**
+1. `packages/core` is untouched (`git diff` of `packages/core` is empty for this stage).
+2. An office pack beside the hall pack: an office catalog (desks, office and meeting chairs,
+   meeting tables, storage, printer, whiteboard, phone booth, lounge…) and office rules for two
+   styles (open-plan office, meeting room):
+   - a 90 cm walkway from every seat to a door (the same general rule as halls);
+   - floor area per person;
+   - every desk has a chair;
+   - exits and door width for the number of people.
+3. Packs are one list (`PACKS`): each has a name, catalog, styles and a check. A project's pack
+   is worked out from its catalog, and the person can change it in the rules panel.
+4. New projects are created as a hall or an office (projects page and agent tool).
+5. The rules panel, the "bring in missing items" button, the report and the agent all follow
+   the project's pack.
+6. Reference tests with hand-computed numbers for the office rules; a browser journey for an
+   office from creation to report; `pnpm check` passes.
+
+- [x] Starter: shared rules module, office catalog + rules, packs list, detect, new room per pack
+- [x] Server: create with activity, rules per pack in get_project / check_project
+- [x] Editor: projects page choice, rules panel with activity + style, missing items per pack, report
+- [x] Tests, decision 0006, README, TASKS, confirm core untouched, commit, push
+
 ## Done: T3b — hall pack: catalog, hall rules, rules in the report; camera-relative arrows
 
 **Done means:**
@@ -64,6 +88,14 @@
 - [x] Editor: keyboard map, precision panel, selection panel
 - [x] Report page + print styles + editor link
 - [x] Tests (logic, e2e), decision record 0004, README, review, commit, push
+
+## Found along the way (T4)
+
+- The core needed no change at all: the hall rules moved into a shared rules module in the
+  starter package, and the office pack is built from it.
+- A planted bug showed the "shared items count for neither pack" step in pack detection could
+  never change the answer (shared items count equally for both); removed.
+- Not confirmed: office thresholds are common guidance, not Egyptian labour-law figures.
 
 ## Found along the way (T3b)
 
@@ -131,7 +163,7 @@
 
 ## Next
 
-- T4 office pack: a small office catalog and rules, with no change to the core (proves the base is general).
+- T5: accounts and a shared server (so the activity choice and projects are shared between devices).
 - A proper 3D model for the kosha (platform + couple sofa + backdrop).
 
 ## Later

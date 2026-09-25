@@ -12,7 +12,8 @@ import { useEffect, useState } from 'react';
 import { CONTROL_LIMITS, copyOffset, DEFAULT_CONTROLS, sanitizeControls, type ControlSettings } from '../logic/controls.js';
 import { formatArea, formatCount, formatDegrees, formatLength, formatPercent } from '../logic/format.js';
 import { describeIssue, describeRule, ISSUE_TITLES, RULE_TITLES } from '../logic/messages.js';
-import { HALL_STYLES, type HallStyle, type RuleResult } from '@space-planner/starter';
+import { packOf, PACKS, type RuleResult } from '@space-planner/starter';
+import { activityOf, type Activity } from '../logic/activity.js';
 import type { Action } from '../logic/session.js';
 import {
   alignCommands,
@@ -346,39 +347,52 @@ export function MetricsPanel({ metrics }: { metrics: Metrics }) {
 
 const RULE_BADGE = { pass: ['ok', 'تمام'], fail: ['warning', 'محتاج مراجعة'], unknown: ['info', 'مش معروف'] } as const;
 
-/** The hall pack's rules for the chosen event style; a failed walkway rule selects its seats. */
-export function HallRulesPanel({
+/** The activity pack's rules for the chosen activity and style; clicking a failed rule selects what it names. */
+export function RulesPanel({
   project,
   rules,
-  style,
-  onStyle,
+  activity,
+  onActivity,
   dispatch,
 }: {
   project: Project;
   rules: readonly RuleResult[];
-  style: HallStyle;
-  onStyle: (style: HallStyle) => void;
+  activity: Activity;
+  onActivity: (activity: Activity) => void;
   dispatch: (a: Action) => void;
 }) {
   const failed = rules.filter((r) => r.status === 'fail').length;
+  const pack = packOf(activity.pack);
   return (
-    <section className="panel" aria-label="قواعد القاعة">
+    <section className="panel" aria-label="قواعد النشاط">
       <h2>
-        قواعد القاعة{' '}
+        قواعد {pack.label}{' '}
         <span className={`badge ${failed ? 'warning' : 'ok'}`} data-testid="rules-count">
           {failed ? formatCount(failed) : 'تمام'}
         </span>
       </h2>
-      <label className="field">
-        <span>نوع المناسبة</span>
-        <select name="hall-style" value={style} onChange={(e) => onStyle(e.target.value as HallStyle)}>
-          {HALL_STYLES.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="fields">
+        <label className="field">
+          <span>النشاط</span>
+          <select name="activity" value={activity.pack} onChange={(e) => onActivity(activityOf(e.target.value, null))}>
+            {PACKS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>النوع</span>
+          <select name="activity-style" value={activity.style} onChange={(e) => onActivity(activityOf(activity.pack, e.target.value))}>
+            {pack.styles.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <ul className="issues rules">
         {rules.map((rule) => {
           const [className, word] = RULE_BADGE[rule.status];

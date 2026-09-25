@@ -141,6 +141,22 @@ describe('agent tools', () => {
     expect(store.history(project.id)[0]?.actor).toBe('agent:test');
   });
 
+  it('creates an office with the office catalog and checks it against the office rules', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'مكتب', width_m: 8, depth_m: 6, ceiling_m: 3, activity: 'office' }).text;
+    const id = /Created (\S+)\./.exec(created)![1]!;
+    expect(store.getProject(id)!.catalog['desk-140']).toBeDefined();
+    expect(created).toContain('Office rules (open-plan):');
+    // A desk at (2, 3) facing north, and a chair 30 cm in front of it: 48 m² for one person.
+    runTool(ctx, 'place_items', { project_id: id, items: [{ definition_id: 'desk-140', x_m: 2, y_m: 3 }, { definition_id: 'office-chair', x_m: 2, y_m: 3.65, rotation_deg: 180 }] });
+    const checked = runTool(ctx, 'check_project', { project_id: id, style: 'meeting' }).text;
+    expect(checked).toContain('Office rules (meeting):');
+    expect(checked).toContain('desks with a chair: 1 of 1: pass');
+    expect(checked).toContain('floor per person: 48 m² (needs 2): pass');
+    // The same project checked as a hall uses the hall's rules.
+    expect(runTool(ctx, 'check_project', { project_id: id, activity: 'hall' }).text).toContain('Hall rules (banquet):');
+  });
+
   it('gives round tables a round footprint, so chairs can circle them', () => {
     const ctx = { store, actor: 'agent:test' };
     const project = store.createProject(demoHall(), 'human');

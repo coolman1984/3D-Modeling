@@ -63,6 +63,8 @@ export const REJECTION_MESSAGES: Readonly<Record<RejectCode, string>> = {
 export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   walkway: 'ممر من كل كرسي لباب',
   'area-per-guest': 'مساحة لكل ضيف',
+  'area-per-person': 'مساحة لكل فرد',
+  workstations: 'كل مكتب له كرسي',
   exits: 'عدد المخارج',
   'door-width': 'عرض الأبواب',
 };
@@ -71,7 +73,10 @@ const squareMetres = (v: number) => `${new Intl.NumberFormat('ar-EG', { maximumF
 
 /** One sentence per hall rule, with the measured and required numbers. */
 export function describeRule(project: Project, rule: RuleResult): string {
-  if (rule.status === 'unknown') return rule.reason === 'no-doors' ? 'مفيش باب في القاعة، فمفيش طريق للخروج نقيسه.' : 'مفيش كراسي في التصميم لسه.';
+  if (rule.status === 'unknown') {
+    if (rule.reason === 'no-doors') return 'مفيش باب في المكان، فمفيش طريق للخروج نقيسه.';
+    return rule.reason === 'no-desks' ? 'مفيش مكاتب في التصميم لسه.' : 'مفيش كراسي في التصميم لسه.';
+  }
   const guests = measureProject(project).seats;
   const count = (n: number) => new Intl.NumberFormat('ar-EG').format(n);
   switch (rule.code) {
@@ -84,9 +89,17 @@ export function describeRule(project: Project, rule: RuleResult): string {
     }
     case 'area-per-guest':
       return `نصيب الضيف ${squareMetres(rule.measured ?? 0)} من الأرض، والمطلوب ${squareMetres(rule.required ?? 0)} على الأقل.`;
+    case 'area-per-person':
+      return `نصيب الفرد ${squareMetres(rule.measured ?? 0)} من الأرض، والمطلوب ${squareMetres(rule.required ?? 0)} على الأقل.`;
+    case 'workstations': {
+      if (rule.status === 'pass') return `كل المكاتب (${count(rule.required ?? 0)}) ليها كرسي قدامها.`;
+      const names = rule.entityIds.slice(0, 4).map((id) => entityName(project, id)).join('، ');
+      const more = rule.entityIds.length > 4 ? ` و${count(rule.entityIds.length - 4)} غيرهم` : '';
+      return `${count(rule.entityIds.length)} من ${count(rule.required ?? 0)} مكتب من غير كرسي قريب: ${names}${more}.`;
+    }
     case 'exits':
-      return `${count(guests)} ضيف محتاجين ${count(rule.required ?? 0)} باب على الأقل، والموجود ${count(rule.measured ?? 0)}.`;
+      return `${count(guests)} فرد محتاجين ${count(rule.required ?? 0)} باب على الأقل، والموجود ${count(rule.measured ?? 0)}.`;
     case 'door-width':
-      return `${count(guests)} ضيف محتاجين أبواب عرضها كلها ${formatLength(rule.required ?? 0)} على الأقل، والموجود ${formatLength(rule.measured ?? 0)}.`;
+      return `${count(guests)} فرد محتاجين أبواب عرضها كلها ${formatLength(rule.required ?? 0)} على الأقل، والموجود ${formatLength(rule.measured ?? 0)}.`;
   }
 }

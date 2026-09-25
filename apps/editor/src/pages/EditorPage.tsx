@@ -34,9 +34,9 @@ import { AgentPanel } from '../ui/AgentPanel.js';
 import { Tabs } from '../ui/Fields.js';
 import { HistoryPanel } from '../ui/HistoryPanel.js';
 import { ItemTypesPanel } from '../ui/ItemTypes.js';
-import { ControlsPanel, HallRulesPanel, IssuesPanel, MetricsPanel, SelectionPanel } from '../ui/Panels.js';
-import { checkHall, type HallStyle } from '@space-planner/starter';
-import { loadHallStyle, saveHallStyle } from '../logic/hallStyle.js';
+import { ControlsPanel, IssuesPanel, MetricsPanel, RulesPanel, SelectionPanel } from '../ui/Panels.js';
+import { checkPack } from '@space-planner/starter';
+import { loadActivity, saveActivity, type Activity } from '../logic/activity.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
 import { View3D } from '../ui/View3D.js';
@@ -106,8 +106,8 @@ function Editor({ initial }: { initial: Project }) {
   const checked = useDeferredValue(shown);
   const issues = useMemo(() => checkProject(checked), [checked]);
   const metrics = useMemo(() => measureProject(checked), [checked]);
-  const [hallStyle, setHallStyle] = useState<HallStyle>(() => loadHallStyle(initial.id));
-  const rules = useMemo(() => checkHall(checked, hallStyle), [checked, hallStyle]);
+  const [activity, setActivity] = useState<Activity>(() => loadActivity(initial));
+  const rules = useMemo(() => checkPack(checked, activity.pack, activity.style), [checked, activity]);
 
   const load = useCallback((next: Project, message?: string) => {
     dispatch({ type: 'load', project: next });
@@ -393,7 +393,7 @@ function Editor({ initial }: { initial: Project }) {
         {startTab === 'items' && (
           <>
             <SelectionPanel project={project} selectedIds={session.selectedIds} controls={controls} dispatch={dispatch} onEditType={setEditingType} />
-            <ItemTypesPanel project={project} onAdd={addItem} dispatch={dispatch} editing={editingType} setEditing={setEditingType} />
+            <ItemTypesPanel project={project} pack={activity.pack} onAdd={addItem} dispatch={dispatch} editing={editingType} setEditing={setEditingType} />
           </>
         )}
         {startTab === 'room' && <RoomPanel project={project} dispatch={dispatch} />}
@@ -449,13 +449,13 @@ function Editor({ initial }: { initial: Project }) {
         {endTab === 'check' && (
           <>
             <IssuesPanel project={shown} issues={issues} dispatch={dispatch} />
-            <HallRulesPanel
+            <RulesPanel
               project={checked}
               rules={rules}
-              style={hallStyle}
-              onStyle={(style) => {
-                setHallStyle(style);
-                saveHallStyle(project.id, style);
+              activity={activity}
+              onActivity={(next) => {
+                setActivity(next);
+                saveActivity(project.id, next);
               }}
               dispatch={dispatch}
             />
