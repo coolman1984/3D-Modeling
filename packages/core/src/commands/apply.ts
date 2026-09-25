@@ -63,6 +63,7 @@ function applyInner(project: Project, command: Command): Outcome {
 
     case 'item.move':
     case 'item.rotate':
+    case 'item.elevate':
     case 'item.lock': {
       const item = project.items[command.id];
       if (!item) return reject('not-found', `no item "${command.id}"`);
@@ -78,6 +79,14 @@ function applyInner(project: Project, command: Command): Outcome {
         if (!isPoint(command.to)) return reject('invalid-payload', 'target must be integer ticks within 1 km');
         updated = { ...item, position: { x: command.to.x, y: command.to.y } };
         inverse = { type: 'item.move', id: item.id, to: item.position };
+      } else if (command.type === 'item.elevate') {
+        const to: unknown = command.to;
+        if (typeof to !== 'number' || !Number.isInteger(to) || to < 0 || to > MAX_COORDINATE) {
+          return reject('invalid-payload', 'elevation must be integer ticks from 0 to 1 km');
+        }
+        const { elevation: _old, ...rest } = item;
+        updated = to === 0 ? rest : { ...rest, elevation: to };
+        inverse = { type: 'item.elevate', id: item.id, to: item.elevation ?? 0 };
       } else {
         if (!isIntegerAngle(command.to)) return reject('invalid-payload', 'angle must be integer millidegrees');
         updated = { ...item, rotation: normalizeAngle(command.to) };

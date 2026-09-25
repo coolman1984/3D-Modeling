@@ -333,6 +333,7 @@ const COMMAND_WORDS: Record<string, string> = {
   'item.add': 'إضافة',
   'item.move': 'تحريك',
   'item.rotate': 'لف',
+  'item.elevate': 'رفع',
   'item.remove': 'مسح',
   'item.lock': 'قفل',
   'catalog.define': 'تعريف صنف',

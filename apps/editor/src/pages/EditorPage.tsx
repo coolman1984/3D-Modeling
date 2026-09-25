@@ -1,26 +1,40 @@
 import {
+  apply,
   boundsOf,
   checkProject,
   fromUnit,
   measureProject,
-  normalizeAngle,
   serializeProject,
+  type Command,
   type Id,
   type ItemDefinition,
+  type ItemInstance,
   type Project,
 } from '@space-planner/core';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { actorName, api, subscribe } from '../api.js';
+import { acceleratedStep, copyOffset, keyIntent, loadControls, saveControls, type ControlSettings } from '../logic/controls.js';
 import { nextId } from '../logic/ids.js';
 import { REJECTION_MESSAGES } from '../logic/messages.js';
 import { findFreeSpot } from '../logic/placement.js';
 import { reduce, startSession, visibleProject } from '../logic/session.js';
+import {
+  duplicateCommands,
+  elevateCommands,
+  lockCommands,
+  moveCommands,
+  pasteCommands,
+  removeCommands,
+  rotateCommands,
+  takenIds,
+  toBatch,
+} from '../logic/transform.js';
 import { toWorld, type Viewport } from '../logic/viewport.js';
 import { AgentPanel } from '../ui/AgentPanel.js';
 import { Tabs } from '../ui/Fields.js';
 import { HistoryPanel } from '../ui/HistoryPanel.js';
 import { ItemTypesPanel } from '../ui/ItemTypes.js';
-import { Inspector, IssuesPanel, MetricsPanel } from '../ui/Panels.js';
+import { ControlsPanel, IssuesPanel, MetricsPanel, SelectionPanel } from '../ui/Panels.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
 import { View3D } from '../ui/View3D.js';
@@ -33,7 +47,7 @@ const SNAP_OPTIONS = [
 ];
 
 type ViewMode = 'plan' | '3d' | 'split';
-type StartTab = 'items' | 'room';
+type StartTab = 'items' | 'room' | 'controls';
 type EndTab = 'check' | 'history' | 'agent';
 
 function download(name: string, text: string): void {
@@ -70,7 +84,11 @@ export function EditorPage({ projectId }: { projectId: string }) {
 function Editor({ initial }: { initial: Project }) {
   const [session, dispatch] = useReducer(reduce, initial, startSession);
   const [viewport, setViewport] = useState<Viewport | null>(null);
-  const [snapStep, setSnapStep] = useState(fromUnit(5, 'cm'));
+  const [controls, setControlsState] = useState<ControlSettings>(loadControls);
+  const setControls = useCallback((next: ControlSettings) => {
+    setControlsState(next);
+    saveControls(next);
+  }, []);
   const [notice, setNotice] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('plan');
   const [startTab, setStartTab] = useState<StartTab>('items');
@@ -82,8 +100,10 @@ function Editor({ initial }: { initial: Project }) {
 
   const project = session.history.project;
   const shown = useMemo(() => visibleProject(session), [session]);
-  const issues = useMemo(() => checkProject(shown), [shown]);
-  const metrics = useMemo(() => measureProject(shown), [shown]);
+  // Checks can lag a frame behind a drag, so moving stays smooth in large halls.
+  const checked = useDeferredValue(shown);
+  const issues = useMemo(() => checkProject(checked), [checked]);
+  const metrics = useMemo(() => measureProject(checked), [checked]);
 
   const load = useCallback((next: Project, message?: string) => {
     dispatch({ type: 'load', project: next });
@@ -130,14 +150,7 @@ function Editor({ initial }: { initial: Project }) {
   }, [session.rejection]);
 
   const addItem = (definition: ItemDefinition) => {
-    const taken = new Set([
-      ...Object.keys(project.items),
-      ...Object.keys(project.catalog),
-      project.id,
-      ...project.space.doors.map((d) => d.id),
-      ...project.space.obstacles.map((o) => o.id),
-    ]);
-    const id = nextId(definition.id, taken);
+    const id = nextId(definition.id, takenIds(project));
     const room = boundsOf(project.space.boundary);
     let spot = { x: (room.minX + room.maxX) / 2, y: (room.minY + room.maxY) / 2 };
     const box = canvasBox.current;
@@ -146,41 +159,105 @@ function Editor({ initial }: { initial: Project }) {
       if (centre.x > room.minX && centre.x < room.maxX && centre.y > room.minY && centre.y < room.maxY) spot = centre;
     }
     const item = { id, definitionId: definition.id, rotation: 0, locked: false };
-    const position = findFreeSpot(project, item, definition, spot, Math.max(snapStep, fromUnit(25, 'cm')));
-    dispatch({ type: 'command', command: { type: 'item.add', item: { ...item, position } }, select: id });
+    const position = findFreeSpot(project, item, definition, spot, Math.max(controls.grid, fromUnit(25, 'cm')));
+    dispatch({ type: 'command', command: { type: 'item.add', item: { ...item, position } }, select: [id] });
   };
 
+  // Keyboard: a held arrow (or PageUp/PageDown) shows the move live and saves it as one step
+  // when the key is released, so a long press is one line in the history, not fifty.
+  const nudge = useRef<{ dx: number; dy: number; dz: number; repeats: number } | null>(null);
+  const clipboard = useRef<readonly ItemInstance[]>([]);
   useEffect(() => {
+    const typing = (event: Event) => event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName);
+    const ids = session.selectedIds;
+    const run = (command: Command | null, select?: readonly Id[]) => command && dispatch({ type: 'command', command, ...(select ? { select } : {}) });
+    const endNudge = () => {
+      if (!nudge.current) return;
+      nudge.current = null;
+      dispatch({ type: 'preview-commit' });
+    };
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      const ctrl = event.ctrlKey || event.metaKey;
-      const key = event.key.toLowerCase();
-      const selected = session.selectedId ? project.items[session.selectedId] : undefined;
-      if (ctrl && key === 'z') {
+      if (typing(event)) return;
+      const intent = keyIntent({ key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey }, controls);
+      if (!intent) return;
+      if (intent.kind === 'nudge' || intent.kind === 'raise') {
+        if (ids.length === 0) return;
         event.preventDefault();
-        dispatch({ type: event.shiftKey ? 'redo' : 'undo' });
-      } else if (ctrl && key === 'y') {
-        event.preventDefault();
-        dispatch({ type: 'redo' });
-      } else if (key === 'escape') {
-        dispatch(session.drag ? { type: 'drag-cancel' } : { type: 'select', id: null });
-      } else if (selected && (key === 'delete' || key === 'backspace')) {
-        event.preventDefault();
-        dispatch({ type: 'command', command: { type: 'item.remove', id: selected.id }, select: null });
-      } else if (selected && (key === 'r' || key === 'ق')) {
-        const to = normalizeAngle(selected.rotation + (event.shiftKey ? 90_000 : -90_000));
-        dispatch({ type: 'command', command: { type: 'item.rotate', id: selected.id, to } });
-      } else if (selected && key.startsWith('arrow')) {
-        event.preventDefault();
-        const step = fromUnit(event.shiftKey ? 10 : 1, 'cm');
-        const d = { arrowup: [0, step], arrowdown: [0, -step], arrowleft: [-step, 0], arrowright: [step, 0] }[key];
-        if (d) dispatch({ type: 'command', command: { type: 'item.move', id: selected.id, to: { x: selected.position.x + d[0]!, y: selected.position.y + d[1]! } } });
+        if (session.preview && !nudge.current) return; // a mouse gesture is running
+        const n = nudge.current ?? { dx: 0, dy: 0, dz: 0, repeats: 0 };
+        const k = acceleratedStep(1, event.repeat ? n.repeats + 1 : 0, controls.keyAcceleration);
+        const next =
+          intent.kind === 'nudge'
+            ? { ...n, dx: n.dx + intent.dx * k, dy: n.dy + intent.dy * k, repeats: event.repeat ? n.repeats + 1 : 0 }
+            : { ...n, dz: n.dz + intent.dz * k, repeats: event.repeat ? n.repeats + 1 : 0 };
+        nudge.current = next;
+        const move = moveCommands(project, ids, { x: next.dx, y: next.dy });
+        const moved = move ? apply(project, move) : null;
+        const raise = elevateCommands(moved?.ok ? moved.project : project, ids, next.dz);
+        dispatch({ type: 'preview', command: toBatch([move, raise].filter((c): c is Command => c !== null)) });
+        return;
+      }
+      // Leave the browser's own copy and paste alone when there is nothing of ours to copy.
+      if ((intent.kind === 'copy' || intent.kind === 'cut') && ids.length === 0) return;
+      if (intent.kind === 'paste' && clipboard.current.length === 0) return;
+      event.preventDefault();
+      endNudge();
+      switch (intent.kind) {
+        case 'undo':
+        case 'redo':
+          dispatch({ type: intent.kind });
+          break;
+        case 'escape':
+          dispatch(session.preview ? { type: 'preview-cancel' } : { type: 'select', ids: [] });
+          break;
+        case 'select-all':
+          dispatch({ type: 'select', ids: Object.keys(project.items) });
+          break;
+        case 'delete':
+          run(removeCommands(project, ids), []);
+          break;
+        case 'rotate':
+          run(rotateCommands(project, ids, intent.by));
+          break;
+        case 'lock':
+          run(lockCommands(project, ids, !ids.every((id) => project.items[id]?.locked)));
+          break;
+        case 'duplicate': {
+          const copy = duplicateCommands(project, ids, copyOffset(controls));
+          run(copy.command, copy.ids);
+          break;
+        }
+        case 'copy':
+        case 'cut':
+          clipboard.current = ids.map((id) => project.items[id]).filter((i): i is ItemInstance => i !== undefined);
+          if (clipboard.current.length > 0) setNotice(`اتنسخ ${clipboard.current.length} عنصر.`);
+          if (intent.kind === 'cut') run(removeCommands(project, ids), []);
+          break;
+        case 'paste': {
+          const pasted = pasteCommands(project, clipboard.current, copyOffset(controls));
+          run(pasted.command, pasted.ids);
+          // The next paste lands one more step away, like drawing apps.
+          clipboard.current = clipboard.current.map((i) => ({ ...i, position: { x: i.position.x + copyOffset(controls).x, y: i.position.y + copyOffset(controls).y } }));
+          break;
+        }
+        case 'frame':
+          setViewport(null);
+          setFitToken((n) => n + 1);
+          break;
       }
     };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'].includes(event.key)) endNudge();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [session.selectedId, session.drag, project]);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', endNudge);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', endNudge);
+    };
+  }, [session.selectedIds, session.preview, project, controls]);
 
   const [renaming, setRenaming] = useState(false);
   const saving = session.outbox.length > 0;
@@ -253,17 +330,26 @@ function Editor({ initial }: { initial: Project }) {
           </button>
           <label className="field compact">
             <span>المغناطيس</span>
-            <select value={snapStep} onChange={(e) => setSnapStep(Number(e.target.value))}>
+            <select value={SNAP_OPTIONS.some((o) => o.ticks === controls.grid) ? controls.grid : 'other'} onChange={(e) => e.target.value !== 'other' && setControls({ ...controls, grid: Number(e.target.value) })}>
               {SNAP_OPTIONS.map((o) => (
                 <option key={o.ticks} value={o.ticks}>
                   {o.label}
                 </option>
               ))}
+              {!SNAP_OPTIONS.some((o) => o.ticks === controls.grid) && <option value="other">مخصوص</option>}
             </select>
           </label>
           <button type="button" onClick={() => download(`${project.name}.json`, serializeProject(project))}>
             صدّر ملف
           </button>
+          <a
+            className={`button${saving ? ' disabled' : ''}`}
+            href={saving ? undefined : `#/p/${project.id}/report`}
+            aria-disabled={saving}
+            title="تقرير للعميل جاهز للطباعة"
+          >
+            التقرير
+          </a>
         </div>
         <p className="notice" role="status">
           {notice}
@@ -276,15 +362,21 @@ function Editor({ initial }: { initial: Project }) {
           tabs={[
             { id: 'items', label: 'العناصر' },
             { id: 'room', label: 'القاعة' },
+            { id: 'controls', label: 'الدقة والسرعة' },
           ]}
         />
-        {startTab === 'items' ? (
+        {startTab === 'items' && (
           <>
+            <SelectionPanel project={project} selectedIds={session.selectedIds} controls={controls} dispatch={dispatch} onEditType={setEditingType} />
             <ItemTypesPanel project={project} onAdd={addItem} dispatch={dispatch} editing={editingType} setEditing={setEditingType} />
-            <Inspector project={project} selectedId={session.selectedId} dispatch={dispatch} onEditType={setEditingType} />
           </>
-        ) : (
-          <RoomPanel project={project} dispatch={dispatch} />
+        )}
+        {startTab === 'room' && <RoomPanel project={project} dispatch={dispatch} />}
+        {startTab === 'controls' && (
+          <>
+            <ControlsPanel controls={controls} onChange={setControls} />
+            <SelectionPanel project={project} selectedIds={session.selectedIds} controls={controls} dispatch={dispatch} onEditType={setEditingType} />
+          </>
         )}
       </aside>
       <main className={`canvas view-${view}`} ref={canvasBox}>
@@ -292,19 +384,21 @@ function Editor({ initial }: { initial: Project }) {
           <div className="pane">
             <PlanCanvas
               project={shown}
+              saved={project}
               issues={issues}
-              selectedId={session.selectedId}
-              snapStep={snapStep}
+              selectedIds={session.selectedIds}
+              controls={controls}
               viewport={viewport}
               onViewport={setViewport}
               dispatch={dispatch}
             />
-            <p className="hint">اسحب العناصر بالماوس · العجلة للتكبير · اسحب الأرضية للتحريك · R للّف · Delete للمسح</p>
+            <p className="hint">اسحب العناصر · اسحب الأرضية للاختيار بمربع · الزرار الأوسط أو اليمين أو المسطرة للتحريك · العجلة للتكبير · الأسهم للتحريك الدقيق</p>
           </div>
         )}
         {view !== 'plan' && (
           <div className="pane">
-            <View3D project={shown} issues={issues} selectedId={session.selectedId} onSelect={(id) => dispatch({ type: 'select', id })} fitToken={fitToken} />
+            <View3D project={shown} saved={project} issues={issues} selectedIds={session.selectedIds} controls={controls} dispatch={dispatch} fitToken={fitToken} />
+            <p className="hint">اسحب العنصر يتحرك على الأرض · Shift + سحب يرفعه وينزّله · اسحب الفاضي عشان تلف حوالين القاعة · الزرار اليمين للتحريك</p>
           </div>
         )}
       </main>

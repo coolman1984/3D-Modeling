@@ -234,6 +234,7 @@ describe('property: any command sequence can be fully undone and redone', () => 
     fc.record({ type: fc.constant('item.rotate' as const), id, to: fc.integer({ min: -720_000, max: 720_000 }) }),
     fc.record({ type: fc.constant('item.remove' as const), id }),
     fc.record({ type: fc.constant('item.lock' as const), id, locked: fc.boolean() }),
+    fc.record({ type: fc.constant('item.elevate' as const), id, to: fc.oneof(fc.constant(0), fc.integer({ min: 0, max: m(3) })) }),
     fc
       .record({ id, def: fc.constantFrom('def-chair', 'def-table'), x: coord, y: coord })
       .map(({ id, def, x, y }) => ({ type: 'item.add' as const, item: place(id, def, x, y) })),

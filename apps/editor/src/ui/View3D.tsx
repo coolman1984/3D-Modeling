@@ -1,14 +1,22 @@
-import { boundsOf, readRoom, type Id, type Issue, type ItemDefinition, type Project, type Vec2 } from '@space-planner/core';
+import { boundsOf, type Id, type Issue, type ItemDefinition, type Project, type Vec2 } from '@space-planner/core';
 import { shapeOf, type ShapeKey } from '@space-planner/starter';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { ControlSettings } from '../logic/controls.js';
+import type { Action } from '../logic/session.js';
+import { snapMove } from '../logic/snap.js';
+import { elevateCommands, movable, moveCommands } from '../logic/transform.js';
 
 interface Props {
+  /** What to draw: the saved project with any change in progress on top. */
   readonly project: Project;
+  /** The saved project: drags are measured from here. */
+  readonly saved: Project;
   readonly issues: readonly Issue[];
-  readonly selectedId: Id | null;
-  readonly onSelect: (id: Id | null) => void;
+  readonly selectedIds: readonly Id[];
+  readonly controls: ControlSettings;
+  readonly dispatch: (action: Action) => void;
   /** Bump to re-frame the whole room. */
   readonly fitToken: number;
 }
@@ -36,6 +44,75 @@ const COLORS = {
   error: 0xc62828,
   warning: 0xb86e00,
 };
+
+/**
+ * Put the camera where the whole room is in view, looking down at it from the south, and aim
+ * the sun's shadows at it. Returns the point the camera looks at.
+ */
+function frameRoom(scene: THREE.Scene, camera: THREE.PerspectiveCamera, room: { minX: number; minY: number; maxX: number; maxY: number }, aspect: number): THREE.Vector3 {
+  const centre = new THREE.Vector3(mt((room.minX + room.maxX) / 2), 0, -mt((room.minY + room.maxY) / 2));
+  const size = Math.max(mt(room.maxX - room.minX), mt(room.maxY - room.minY), 2);
+  // Narrow panes (side-by-side view) need the camera further back to keep the room in frame.
+  const back = aspect < 1.2 ? 1.05 / aspect : 1;
+  camera.position.set(centre.x + size * 0.15 * back, size * 0.95 * back, centre.z + size * 1.05 * back);
+  camera.lookAt(centre);
+  const sun = scene.children.find((c) => (c as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight | undefined;
+  if (sun) {
+    sun.position.set(centre.x - size * 0.4, size * 1.2, centre.z + size * 0.6);
+    sun.target.position.copy(centre);
+    const cam = sun.shadow.camera;
+    cam.left = cam.bottom = -size;
+    cam.right = cam.top = size;
+    cam.far = size * 4;
+    cam.updateProjectionMatrix();
+  }
+  return centre;
+}
+
+function lights(scene: THREE.Scene): void {
+  scene.background = new THREE.Color(0xe9ecf0);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b2a8, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0005;
+  scene.add(sun, sun.target);
+}
+
+/**
+ * A still picture of the whole room (PNG data URL) for reports, or null when the browser
+ * cannot draw 3D. Uses its own renderer, so it works without an open 3D view.
+ */
+export function renderSnapshot(project: Project, issues: readonly Issue[], width: number, height: number): string | null {
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  } catch {
+    return null;
+  }
+  try {
+    renderer.setPixelRatio(2);
+    renderer.setSize(width, height, false);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    lights(scene);
+    const content = buildScene(project, issues, [], false);
+    scene.add(content);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 2000);
+    frameRoom(scene, camera, boundsOf(project.space.boundary), width / height);
+    renderer.render(scene, camera);
+    const url = renderer.domElement.toDataURL('image/png');
+    disposeTree(content);
+    return url;
+  } catch {
+    return null;
+  } finally {
+    renderer.dispose();
+    renderer.forceContextLoss(); // browsers allow only a few live 3D canvases
+  }
+}
 
 /** Plan (x east, y north, z up) → three.js (X east, Y up, Z south). */
 const at = (p: Vec2, height = 0) => new THREE.Vector3(mt(p.x), height, -mt(p.y));
@@ -197,7 +274,7 @@ function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THR
   }
 }
 
-function buildScene(project: Project, issues: readonly Issue[], selectedId: Id | null, fullWalls: boolean): THREE.Group {
+function buildScene(project: Project, issues: readonly Issue[], selectedIds: readonly Id[], fullWalls: boolean): THREE.Group {
   const group = new THREE.Group();
   const ceiling = project.space.ceilingHeight === undefined ? 3 : mt(project.space.ceilingHeight);
   const wallHeight = fullWalls ? ceiling : Math.min(1.1, ceiling);
@@ -244,11 +321,11 @@ function buildScene(project: Project, issues: readonly Issue[], selectedId: Id |
     const definition: ItemDefinition | undefined = project.catalog[item.definitionId];
     if (!definition) continue;
     const model = buildModel(shapeOf(definition.category), mt(definition.size.w), mt(definition.size.d), mt(definition.size.h));
-    model.position.copy(at(item.position));
+    model.position.copy(at(item.position, mt(item.elevation ?? 0)));
     model.rotation.y = (item.rotation / 1000) * (Math.PI / 180);
     model.userData.itemId = item.id;
     model.traverse((o) => (o.userData.itemId = item.id));
-    if (item.id === selectedId) tint(model, COLORS.selected, 0.45);
+    if (selectedIds.includes(item.id)) tint(model, COLORS.selected, 0.45);
     else if (severity.get(item.id) === 'error') tint(model, COLORS.error, 0.55);
     else if (severity.get(item.id) === 'warning') tint(model, COLORS.warning, 0.35);
     model.name = 'item';
@@ -257,8 +334,12 @@ function buildScene(project: Project, issues: readonly Issue[], selectedId: Id |
   return group;
 }
 
-/** The same project as a 3D model: orbit with the mouse, click to select, save a picture. */
-export function View3D({ project, issues, selectedId, onSelect, fitToken }: Props) {
+/**
+ * The same project as a 3D model. Drag empty space to orbit (right button pans, wheel zooms);
+ * drag an item to slide it over the floor, Shift+drag to raise or lower it, Alt for precision;
+ * click / Shift-click selects. Every drag is one saved change.
+ */
+export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const three = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -269,8 +350,9 @@ export function View3D({ project, issues, selectedId, onSelect, fitToken }: Prop
   } | null>(null);
   const [fullWalls, setFullWalls] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
+  // The event handlers are set up once; they read the latest props through this ref.
+  const latest = useRef({ saved, selectedIds, settings, dispatch });
+  latest.current = { saved, selectedIds, settings, dispatch };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -289,13 +371,7 @@ export function View3D({ project, issues, selectedId, onSelect, fitToken }: Prop
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xe9ecf0);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b2a8, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.8);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.bias = -0.0005;
-    scene.add(sun, sun.target);
+    lights(scene);
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -318,27 +394,116 @@ export function View3D({ project, issues, selectedId, onSelect, fitToken }: Prop
       renderer.render(scene, camera);
     });
 
-    // Click (not drag) selects the item under the pointer.
-    let down: { x: number; y: number } | null = null;
-    const onDown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY });
-    const onUp = (e: PointerEvent) => {
-      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      const pointer = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
-      const ray = new THREE.Raycaster();
-      ray.setFromCamera(pointer, camera);
-      const content = three.current?.content;
-      const hit = content ? ray.intersectObjects(content.children, true).find((h) => h.object.userData.itemId) : undefined;
-      onSelectRef.current((hit?.object.userData.itemId as Id | undefined) ?? null);
+    const canvas = renderer.domElement;
+    const ray = new THREE.Raycaster();
+    const rayAt = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      ray.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
+      return ray;
     };
-    renderer.domElement.addEventListener('pointerdown', onDown);
-    renderer.domElement.addEventListener('pointerup', onUp);
+    const itemAt = (e: PointerEvent): Id | null => {
+      const content = three.current?.content;
+      const hit = content ? rayAt(e).intersectObjects(content.children, true).find((h) => h.object.userData.itemId) : undefined;
+      return (hit?.object.userData.itemId as Id | undefined) ?? null;
+    };
+    const onPlane = (e: PointerEvent, height: number): THREE.Vector3 | null =>
+      rayAt(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -height), new THREE.Vector3());
+
+    type Drag = {
+      ids: Id[];
+      pointerId: number;
+      start: { x: number; y: number };
+      planeHeight: number;
+      from: THREE.Vector3;
+      lastY: number;
+      rise: number;
+      /** Metres per screen pixel at the item's distance, for raising with the mouse. */
+      perPixel: number;
+      moved: boolean;
+    };
+    let drag: Drag | null = null;
+    let click: { x: number; y: number; id: Id | null; additive: boolean; wasSelected: boolean } | null = null;
+
+    // Runs before the camera controls (capture phase), so grabbing an item never orbits the camera.
+    const onDown = (e: PointerEvent) => {
+      const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+      const id = e.button === 0 ? itemAt(e) : null;
+      const { saved: p, selectedIds: selection, dispatch: send } = latest.current;
+      click = { x: e.clientX, y: e.clientY, id, additive, wasSelected: id !== null && selection.includes(id) };
+      if (!id) return;
+      e.stopImmediatePropagation();
+      let ids = selection.includes(id) ? [...selection] : [id];
+      if (additive && !selection.includes(id)) ids = [...selection, id];
+      if (!selection.includes(id)) send({ type: 'select', ids: [id], mode: additive ? 'add' : 'replace' });
+      const moving = movable(p, ids).map((i) => i.id);
+      const item = p.items[id];
+      if (moving.length === 0 || !item) return;
+      const planeHeight = mt(item.elevation ?? 0);
+      const from = onPlane(e, planeHeight);
+      if (!from) return;
+      const distance = camera.position.distanceTo(from);
+      const perPixel = (2 * distance * Math.tan((camera.fov * Math.PI) / 360)) / Math.max(1, canvas.clientHeight);
+      drag = { ids: moving, pointerId: e.pointerId, start: { x: e.clientX, y: e.clientY }, planeHeight, from, lastY: e.clientY, rise: 0, perPixel, moved: false };
+      canvas.setPointerCapture(e.pointerId);
+      controls.enabled = false;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.pointerId) {
+        if (e.buttons === 0) canvas.style.cursor = itemAt(e) ? 'grab' : '';
+        return;
+      }
+      if (!drag.moved && Math.hypot(e.clientX - drag.start.x, e.clientY - drag.start.y) < 3) return;
+      drag.moved = true;
+      canvas.style.cursor = 'grabbing';
+      const { saved: p, settings: s, dispatch: send } = latest.current;
+      const speed = e.altKey ? s.fineDragSpeed : s.dragSpeed;
+      const free = e.altKey || e.ctrlKey || e.metaKey;
+      if (e.shiftKey) {
+        // Raise / lower: up the screen is up in the room.
+        drag.rise += -(e.clientY - drag.lastY) * drag.perPixel * TICKS_PER_METRE * speed;
+        drag.lastY = e.clientY;
+        const step = free ? 1 : s.raiseStep;
+        send({ type: 'preview', command: elevateCommands(p, drag.ids, Math.round(drag.rise / step) * step) });
+        return;
+      }
+      drag.lastY = e.clientY;
+      const to = onPlane(e, drag.planeHeight);
+      if (!to) return;
+      const raw = { x: (to.x - drag.from.x) * TICKS_PER_METRE * speed, y: -(to.z - drag.from.z) * TICKS_PER_METRE * speed };
+      const { delta } = snapMove(p, drag.ids, raw, { grid: free ? 1 : s.grid, guides: false, threshold: 0 });
+      send({ type: 'preview', command: moveCommands(p, drag.ids, delta) });
+    };
+    const onUp = (e: PointerEvent) => {
+      const { dispatch: send } = latest.current;
+      if (drag && e.pointerId === drag.pointerId) {
+        const moved = drag.moved;
+        drag = null;
+        controls.enabled = true;
+        canvas.releasePointerCapture(e.pointerId);
+        canvas.style.cursor = '';
+        if (moved) {
+          send({ type: 'preview-commit' });
+          click = null;
+          return;
+        }
+      }
+      // A click (not a drag): pick the item under the pointer, or clear on empty space.
+      if (!click || Math.hypot(e.clientX - click.x, e.clientY - click.y) > 4) return;
+      const { id, additive, wasSelected } = click;
+      click = null;
+      if (id && wasSelected) send({ type: 'select', ids: [id], mode: additive ? 'toggle' : 'replace' });
+      else if (!id && !additive) send({ type: 'select', ids: [] });
+    };
+    canvas.addEventListener('pointerdown', onDown, { capture: true });
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
 
     return () => {
       observer.disconnect();
       renderer.setAnimationLoop(null);
-      renderer.domElement.removeEventListener('pointerdown', onDown);
-      renderer.domElement.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointerdown', onDown, { capture: true });
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerup', onUp);
       controls.dispose();
       if (three.current?.content) disposeTree(three.current.content);
       renderer.dispose();
@@ -355,10 +520,11 @@ export function View3D({ project, issues, selectedId, onSelect, fitToken }: Prop
       t.scene.remove(t.content);
       disposeTree(t.content);
     }
-    t.content = buildScene(project, issues, selectedId, fullWalls);
+    t.content = buildScene(project, issues, selectedIds, fullWalls);
     t.scene.add(t.content);
     hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length));
-  }, [project, issues, selectedId, fullWalls]);
+    hostRef.current?.setAttribute('data-selected', selectedIds.join(' '));
+  }, [project, issues, selectedIds, fullWalls]);
 
   // Frame the room when asked, and when the room itself changes size.
   const room = boundsOf(project.space.boundary);
@@ -366,25 +532,10 @@ export function View3D({ project, issues, selectedId, onSelect, fitToken }: Prop
   useEffect(() => {
     const t = three.current;
     if (!t) return;
-    const centre = new THREE.Vector3(mt((room.minX + room.maxX) / 2), 0, -mt((room.minY + room.maxY) / 2));
-    const size = Math.max(mt(room.maxX - room.minX), mt(room.maxY - room.minY), 2);
-    // Narrow panes (side-by-side view) need the camera further back to keep the room in frame.
     const host = hostRef.current;
     const aspect = host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
-    const back = aspect < 1.2 ? 1.05 / aspect : 1;
-    t.camera.position.set(centre.x + size * 0.15 * back, size * 0.95 * back, centre.z + size * 1.05 * back);
-    t.controls.target.copy(centre);
+    t.controls.target.copy(frameRoom(t.scene, t.camera, room, aspect));
     t.controls.update();
-    const sun = t.scene.children.find((c) => (c as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight | undefined;
-    if (sun) {
-      sun.position.set(centre.x - size * 0.4, size * 1.2, centre.z + size * 0.6);
-      sun.target.position.copy(centre);
-      const cam = sun.shadow.camera;
-      cam.left = cam.bottom = -size;
-      cam.right = cam.top = size;
-      cam.far = size * 4;
-      cam.updateProjectionMatrix();
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomKey, fitToken]);
 

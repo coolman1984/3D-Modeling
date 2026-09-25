@@ -74,16 +74,16 @@ describe('session', () => {
     ({
       type: 'command',
       command: { type: 'item.add', item: { id, definitionId: 'chair', position: { x, y }, rotation: 0, locked: false } },
-      select: id,
+      select: [id],
     }) as const;
 
   it('adds and selects through commands, and undoes', () => {
     let s = startSession(demoHall());
     s = reduce(s, addChair('chair-1', m(7), m(6)));
-    expect(s.selectedId).toBe('chair-1');
+    expect(s.selectedIds).toEqual(['chair-1']);
     s = reduce(s, { type: 'undo' });
     expect(s.history.project.items['chair-1']).toBeUndefined();
-    expect(s.selectedId).toBeNull();
+    expect(s.selectedIds).toEqual([]);
     s = reduce(s, { type: 'redo' });
     expect(s.history.project.items['chair-1']).toBeDefined();
   });
@@ -91,12 +91,12 @@ describe('session', () => {
   it('previews a drag without touching history, then commits one move', () => {
     let s = reduce(startSession(demoHall()), addChair('chair-1', m(7), m(6)));
     const revision = s.history.project.revision;
-    s = reduce(s, { type: 'drag-move', id: 'chair-1', to: { x: m(1.3), y: m(0.4) } });
-    s = reduce(s, { type: 'drag-move', id: 'chair-1', to: { x: m(1.4), y: m(0.4) } });
+    s = reduce(s, { type: 'preview', command: { type: 'item.move', id: 'chair-1', to: { x: m(1.3), y: m(0.4) } } });
+    s = reduce(s, { type: 'preview', command: { type: 'item.move', id: 'chair-1', to: { x: m(1.4), y: m(0.4) } } });
     expect(s.history.project.revision).toBe(revision);
     expect(visibleProject(s).items['chair-1']?.position).toEqual({ x: m(1.4), y: m(0.4) });
     expect(checkProject(visibleProject(s)).map((i) => i.code)).toContain('door-blocked');
-    s = reduce(s, { type: 'drag-end' });
+    s = reduce(s, { type: 'preview-commit' });
     expect(s.history.project.revision).toBe(revision + 1);
     expect(s.history.undoStack).toHaveLength(2);
     s = reduce(s, { type: 'undo' });
@@ -105,8 +105,8 @@ describe('session', () => {
 
   it('a drag that ends where it started records nothing', () => {
     let s = reduce(startSession(demoHall()), addChair('chair-1', m(7), m(6)));
-    s = reduce(s, { type: 'drag-move', id: 'chair-1', to: { x: m(7), y: m(6) } });
-    s = reduce(s, { type: 'drag-end' });
+    s = reduce(s, { type: 'preview', command: { type: 'item.move', id: 'chair-1', to: { x: m(7), y: m(6) } } });
+    s = reduce(s, { type: 'preview-commit' });
     expect(s.history.undoStack).toHaveLength(1);
   });
 
@@ -123,8 +123,8 @@ describe('session', () => {
     const project = s.history.project;
     const [issue] = checkProject(project);
     expect(describeIssue(project, issue!)).toBe('كرسي (chair-1) فوق العمود (column-1) بمقدار ١٢٫٥ سم.');
-    s = reduce(s, { type: 'select', id: 'ghost' });
-    expect(s.selectedId).toBeNull();
+    s = reduce(s, { type: 'select', ids: ['ghost'] });
+    expect(s.selectedIds).toEqual([]);
   });
 });
 

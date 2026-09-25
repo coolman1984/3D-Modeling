@@ -13,7 +13,7 @@ the planner tools.
 | `get_project` | Room, doors, columns, item types, every item, issues, metrics |
 | `set_room` | Size, ceiling, doors on walls, columns |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
-| `place_items` / `move_items` / `remove_items` | Edit the layout (each call is one revision) |
+| `place_items` / `move_items` / `remove_items` | Edit the layout (each call is one revision); `height_m` raises an item off the floor |
 | `apply_commands` | Raw core commands, for anything else |
 | `check_project` | Design issues with amounts, plus metrics |
 | `get_history` / `restore_revision` | Read the history, bring back a version |

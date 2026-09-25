@@ -64,6 +64,9 @@ interface Placed {
   readonly bodyBox: Aabb;
   readonly zone: Polygon;
   readonly zoneBox: Aabb;
+  /** Underside and top above the floor. */
+  readonly bottom: Tick;
+  readonly top: Tick;
 }
 
 interface Shape {
@@ -103,7 +106,9 @@ export function checkProject(project: Project): Issue[] {
       const definition = project.catalog[item.definitionId]!;
       const body = itemPolygon(item, definition);
       const zone = itemClearancePolygon(item, definition);
-      return { item, definition, body, bodyBox: boundsOf(body), zone, zoneBox: boundsOf(zone) };
+      const bottom = item.elevation ?? 0;
+      const top = bottom + definition.size.h;
+      return { item, definition, body, bodyBox: boundsOf(body), zone, zoneBox: boundsOf(zone), bottom, top };
     });
   const obstacles: Shape[] = space.obstacles.map((o) => ({ id: o.id, polygon: o.polygon, box: boundsOf(o.polygon) }));
   const doors: Shape[] = space.doors.map((d) => {
@@ -128,8 +133,8 @@ export function checkProject(project: Project): Issue[] {
       if (conflict) issues.push(issue('door-blocked', [id, d.id], conflict.depth, conflict.region));
     }
 
-    if (space.ceilingHeight !== undefined && p.definition.size.h > space.ceilingHeight) {
-      issues.push(issue('too-tall', [id], p.definition.size.h - space.ceilingHeight));
+    if (space.ceilingHeight !== undefined && p.top > space.ceilingHeight) {
+      issues.push(issue('too-tall', [id], p.top - space.ceilingHeight));
     }
 
     // Clearance: the zone must stay inside the room and free of other items and obstacles.
@@ -140,7 +145,7 @@ export function checkProject(project: Project): Issue[] {
         issues.push(issue('clearance', [id], undefined, p.zone)); // against a wall: only the item is named
       }
       for (const other of placed) {
-        if (other === p || !aabbsWithin(p.zoneBox, other.bodyBox)) continue;
+        if (other === p || !stacked(p, other) || !aabbsWithin(p.zoneBox, other.bodyBox)) continue;
         if (convexOverlap(p.body, other.body).overlaps) continue; // already reported as overlap
         const conflict = convexConflict(p.zone, other.body);
         if (conflict) issues.push(issue('clearance', [id, other.item.id], conflict.depth, conflict.region));
@@ -158,7 +163,7 @@ export function checkProject(project: Project): Issue[] {
     for (let j = i + 1; j < placed.length; j++) {
       const a = placed[i]!;
       const b = placed[j]!;
-      if (!aabbsWithin(a.bodyBox, b.bodyBox)) continue;
+      if (!stacked(a, b) || !aabbsWithin(a.bodyBox, b.bodyBox)) continue;
       const conflict = convexConflict(a.body, b.body);
       if (conflict) issues.push(issue('overlap', [a.item.id, b.item.id], conflict.depth, conflict.region));
     }
@@ -171,6 +176,16 @@ export function checkProject(project: Project): Issue[] {
       CODE_ORDER.indexOf(a.code) - CODE_ORDER.indexOf(b.code) ||
       compareIds(a.entityIds, b.entityIds),
   );
+}
+
+/**
+ * True when two items share some height, so they can collide. An item hung above another
+ * (a lamp over a table, a shelf over a desk) does not clash with it or take its clearance.
+ * Doors, columns and blocked zones are still checked at any height: the core does not know
+ * how tall a door opening is, so it stays on the safe side.
+ */
+function stacked(a: Placed, b: Placed): boolean {
+  return a.bottom < b.top && b.bottom < a.top;
 }
 
 /** Plain code-unit comparison: identical on every machine, unlike locale-aware sorting. */

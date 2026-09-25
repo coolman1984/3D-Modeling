@@ -84,4 +84,9 @@ export interface ItemInstance {
   readonly position: Vec2;
   readonly rotation: MilliDeg;
   readonly locked: boolean;
+  /**
+   * Height of the item's underside above the floor (a shelf on a wall, a lamp over a table).
+   * Missing means on the floor; stored only when above zero so floor items keep their old form.
+   */
+  readonly elevation?: Tick;
 }

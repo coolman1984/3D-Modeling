@@ -22,7 +22,10 @@ export interface Metrics {
   readonly floorArea: SquareTicks;
   /** Floor covered by item footprints; where items overlap the shared area is counted once. */
   readonly occupiedArea: SquareTicks;
-  /** Footprint area counted twice because items overlap. Zero in any design without overlap errors. */
+  /**
+   * Footprint area counted twice because items overlap in plan. Zero in any design without
+   * overlap errors, unless items are hung above one another (see `ItemInstance.elevation`).
+   */
   readonly overlapArea: SquareTicks;
   /** occupiedArea / floorArea, between 0 and 1 (0 for an empty floor). */
   readonly occupancy: number;

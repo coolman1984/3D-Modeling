@@ -134,7 +134,7 @@ const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight'] as cons
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
 const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing'] as const;
 const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint'] as const;
-const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked'] as const;
+const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked', 'elevation'] as const;
 const POINT_FIELDS = ['x', 'y'] as const;
 
 /**
@@ -265,6 +265,7 @@ function checkItem(c: Collector, value: unknown, path: string, key?: string, def
   c.point(item.position, `${path}.position`);
   c.angle(item.rotation, `${path}.rotation`);
   if (typeof item.locked !== 'boolean') c.add('wrong-type', `${path}.locked`, 'expected true or false');
+  if (item.elevation !== undefined) c.integer(item.elevation, `${path}.elevation`, 1, MAX_COORDINATE); // 0 is stored as absent
 }
 
 /** Throw a CoreError listing every problem unless the value is a sound project. */

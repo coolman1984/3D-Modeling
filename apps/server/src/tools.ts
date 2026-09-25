@@ -154,9 +154,9 @@ export function describeProject(project: Project): string {
     lines.push(`  ${d.id} | ${d.name} | ${d.category} | ${toUnit(d.size.w, 'cm')}×${toUnit(d.size.d, 'cm')}×${toUnit(d.size.h, 'cm')} | ${[c.front, c.back, c.left, c.right].map((v) => toUnit(v, 'cm')).join('/')} | ${d.seats ?? 0} | ${d.footprint ?? 'rect'}`);
   }
   const items = Object.values(project.items);
-  lines.push(`Items (${items.length}) (id | type | x m | y m | rotation°${items.some((i) => i.locked) ? ' | locked' : ''}):`);
+  lines.push(`Items (${items.length}) (id | type | x m | y m | rotation° | height above floor m${items.some((i) => i.locked) ? ' | locked' : ''}):`);
   for (const i of items) {
-    lines.push(`  ${i.id} | ${i.definitionId} | ${toUnit(i.position.x, 'm')} | ${toUnit(i.position.y, 'm')} | ${i.rotation / 1000}${i.locked ? ' | locked' : ''}`);
+    lines.push(`  ${i.id} | ${i.definitionId} | ${toUnit(i.position.x, 'm')} | ${toUnit(i.position.y, 'm')} | ${i.rotation / 1000} | ${toUnit(i.elevation ?? 0, 'm')}${i.locked ? ' | locked' : ''}`);
   }
   const issues = checkProject(project);
   lines.push(`Issues (${issues.length}):`);
@@ -353,7 +353,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'place_items',
-    description: 'Place new items (one revision for the whole list). Positions are the item centre in metres; rotation in degrees counter-clockwise (0 = front faces north, 180 = faces south). Ids are generated when omitted.',
+    description: 'Place new items (one revision for the whole list). Positions are the item centre in metres; rotation in degrees counter-clockwise (0 = front faces north, 180 = faces south). height_m raises an item off the floor (a lamp, a wall shelf); items hung above others do not clash with them. Ids are generated when omitted.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -367,6 +367,7 @@ export const TOOLS: readonly ToolDef[] = [
               x_m: { type: 'number' },
               y_m: { type: 'number' },
               rotation_deg: { type: 'number' },
+              height_m: { type: 'number' },
               id: { type: 'string' },
             },
             required: ['definition_id', 'x_m', 'y_m'],
@@ -385,9 +386,17 @@ export const TOOLS: readonly ToolDef[] = [
       const commands: Command[] = specs.map((s) => {
         const definitionId = str(s, 'definition_id');
         const id = typeof s.id === 'string' && s.id ? s.id : nextId(definitionId, taken);
+        const elevation = metres(num(s, 'height_m', true) ?? 0);
         return {
           type: 'item.add',
-          item: { id, definitionId, position: { x: metres(num(s, 'x_m')), y: metres(num(s, 'y_m')) }, rotation: degrees(num(s, 'rotation_deg', true) ?? 0), locked: false },
+          item: {
+            id,
+            definitionId,
+            position: { x: metres(num(s, 'x_m')), y: metres(num(s, 'y_m')) },
+            rotation: degrees(num(s, 'rotation_deg', true) ?? 0),
+            locked: false,
+            ...(elevation === 0 ? {} : { elevation }),
+          },
         };
       });
       const updated = commit(ctx, project, commands, str(input, 'summary', true) || `إضافة ${commands.length} عنصر`);
@@ -396,7 +405,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'move_items',
-    description: 'Move and/or rotate existing items (one revision). Give only the fields to change.',
+    description: 'Move, rotate and/or raise existing items (one revision). Give only the fields to change; height_m is the underside above the floor (0 = on the floor).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -405,7 +414,7 @@ export const TOOLS: readonly ToolDef[] = [
           type: 'array',
           items: {
             type: 'object',
-            properties: { id: { type: 'string' }, x_m: { type: 'number' }, y_m: { type: 'number' }, rotation_deg: { type: 'number' } },
+            properties: { id: { type: 'string' }, x_m: { type: 'number' }, y_m: { type: 'number' }, rotation_deg: { type: 'number' }, height_m: { type: 'number' } },
             required: ['id'],
           },
         },
@@ -427,6 +436,7 @@ export const TOOLS: readonly ToolDef[] = [
           commands.push({ type: 'item.move', id, to: { x, y } });
         }
         if (mv.rotation_deg !== undefined) commands.push({ type: 'item.rotate', id, to: degrees(num(mv, 'rotation_deg')) });
+        if (mv.height_m !== undefined) commands.push({ type: 'item.elevate', id, to: metres(num(mv, 'height_m')) });
       }
       if (commands.length === 0) throw new ToolError('nothing to change');
       const updated = commit(ctx, project, commands, str(input, 'summary', true) || 'تحريك عناصر');
@@ -453,7 +463,7 @@ export const TOOLS: readonly ToolDef[] = [
   {
     name: 'apply_commands',
     description:
-      'Advanced: apply raw core commands atomically (lengths in ticks: 1 tick = 0.1 mm, so metres × 10000; angles in millidegrees). Types: item.add {item}, item.move {id,to}, item.rotate {id,to}, item.remove {id}, item.lock {id,locked}, catalog.define {definition}, catalog.remove {id}, space.set {space}, project.rename {name}, batch {commands}.',
+      'Advanced: apply raw core commands atomically (lengths in ticks: 1 tick = 0.1 mm, so metres × 10000; angles in millidegrees). Types: item.add {item}, item.move {id,to}, item.rotate {id,to}, item.elevate {id,to}, item.remove {id}, item.lock {id,locked}, catalog.define {definition}, catalog.remove {id}, space.set {space}, project.rename {name}, batch {commands}.',
     inputSchema: {
       type: 'object',
       properties: { project_id: projectId, commands: { type: 'array', items: { type: 'object' } }, summary },

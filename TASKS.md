@@ -1,5 +1,49 @@
 # TASKS
 
+## Done: T3a — printable client report + professional move controls (2D and 3D)
+
+**Done means:**
+1. A report page (`#/p/<id>/report`) shows, ready to print on A4: project name and date, room
+   sizes, a drawn plan, a 3D picture, the headline numbers, the bill of materials (sizes, count,
+   seats) and every issue in plain words. A "print" button prints it; the editor links to it.
+2. Items can be raised off the floor (core: optional `elevation`, `item.elevate` command,
+   height and overlap checks aware of it; old saves still open; agents get the same tool).
+3. Selection: click, Shift/Ctrl-click to add or remove, box select by dragging empty floor,
+   Ctrl+A, Escape. Moving, rotating and deleting work on the whole selection.
+4. Mouse in 2D: smooth drag with grid snapping and smart guides (edges and centres of other
+   items and walls), Shift locks to one axis, Alt drags slowly for precision, a rotation handle
+   with angle snapping (Shift = free), live readout of the move; pan with the middle button,
+   right button or Space+drag; wheel zooms.
+5. Mouse in 3D: drag items across the floor, Shift+drag raises and lowers, click / Shift-click
+   selects; the camera still orbits when dragging empty space.
+6. Keyboard (both views): arrows nudge by the step (Shift = big step, Alt = fine step);
+   holding an arrow speeds up and is saved as one history step; PageUp/PageDown raise and lower;
+   R / Shift+R and [ ] rotate; Ctrl+D duplicates; Ctrl+C / Ctrl+V copy and paste; L locks.
+7. A "precision and speed" panel: grid step, nudge / big / fine steps, angle step, raise step,
+   drag speed, key repeat speed, guides on/off; remembered in the browser. A selection panel
+   with exact X / Y / height / angle, move-by fields, align and distribute.
+8. Every change still goes through core commands, one gesture = one revision.
+9. `pnpm check` passes; new logic has reference and property tests; browser journeys cover
+   the report, box select, keyboard nudge and 3D drag.
+
+- [x] Core: `elevation`, `item.elevate`, checks, validation, tests
+- [x] Server: `elevate` in agent tools; docs/agents.md
+- [x] Editor logic: multi-selection session with previews, transform helpers, guides, settings
+- [x] Editor 2D: selection, marquee, drag/rotate handle, guides, readout, pan buttons
+- [x] Editor 3D: drag on floor, raise, multi-select
+- [x] Editor: keyboard map, precision panel, selection panel
+- [x] Report page + print styles + editor link
+- [x] Tests (logic, e2e), decision record 0004, README, review, commit, push
+
+## Found along the way (T3a)
+
+- The core measures overlap depth as the overlap length along the best separating axis, not the
+  distance to push apart; a new test first assumed the latter (kept the core's meaning).
+- A planted bug in the "hung above" clearance rule and one in guide selection were not caught at
+  first; tests were added for both.
+- Not confirmed here: printing on a real printer (checked with the browser's A4 PDF output),
+  and touchpad pinch zoom on a real laptop.
+
 ## Done: T2 — full local app (3D, projects, history, database, AI agents)
 
 **Done means:**
@@ -47,7 +91,8 @@
 
 ## Next
 
-- T3 hall pack: printable client report (plan, 3D picture, bill of materials, issues), hall rules.
+- T3b hall pack: 20–30 hall items in the starter catalog, hall rules (aisle widths, area per guest,
+  guests per door), the rules' results in the report; arrows relative to the camera in 3D.
 
 ## Later
 

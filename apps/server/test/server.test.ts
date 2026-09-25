@@ -123,7 +123,15 @@ describe('agent tools', () => {
     expect(placed.text).toContain('Placed 2 item(s): bar-1, chair-1');
     const described = runTool(ctx, 'get_project', { project_id: project.id }).text;
     expect(described).toContain('Room: 14.00 m wide');
-    expect(described).toContain('bar-1 | bar | 7 | 9.5 | 180');
+    expect(described).toContain('bar-1 | bar | 7 | 9.5 | 180 | 0');
+    // Raise the chair 1.2 m (as if on a platform) and bring it back down, one revision each.
+    expect(runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: 1.2 }] }).isError).toBe(false);
+    expect(store.getProject(project.id)!.items['chair-1']?.elevation).toBe(m(1.2));
+    expect(runTool(ctx, 'get_project', { project_id: project.id }).text).toContain('chair-1 | chair | 1 | 1 | 0 | 1.2');
+    expect(store.history(project.id)[0]?.summary).toBe('تحريك عناصر');
+    runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: 0 }] });
+    expect(store.getProject(project.id)!.items['chair-1']).not.toHaveProperty('elevation');
+    expect(runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: -1 }] }).isError).toBe(true);
     expect(store.history(project.id)[0]?.actor).toBe('agent:test');
   });
 

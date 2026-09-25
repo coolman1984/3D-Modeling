@@ -13,7 +13,7 @@ Project to work on: ${projectId}
 
 How to work:
 1. Call get_project first. Coordinates are metres from the south-west corner (x east, y north);
-   an item's position is its centre; rotation is degrees counter-clockwise, 0 = front faces north.
+   an item's position is its centre; rotation is degrees counter-clockwise, 0 = front faces north; height_m lifts an item off the floor (lamps, wall shelves).
 2. If the specification describes the room (size, ceiling, doors, columns), apply it with set_room.
 3. Make sure every item type you need exists with realistic sizes and clearances (define_item).
    Use the category that matches the object so the 3D view draws it properly.
