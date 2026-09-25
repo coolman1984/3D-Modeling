@@ -5,3 +5,5 @@ export * from './geometry/index.js';
 export * from './model/index.js';
 export * from './commands/index.js';
 export * from './checks/index.js';
+export * from './metrics/index.js';
+export * from './io/index.js';
