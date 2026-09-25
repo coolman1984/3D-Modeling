@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Newsreader:opsz,wght@6..72,300..600&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+html,body{margin:0;height:100%;background:#f3f2ee}
+*{box-sizing:border-box}
+a{color:#2b54d0;text-decoration:none}a:hover{color:#1d3c9e}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #2b54d0;outline-offset:1px}
+@keyframes atr-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes atr-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div style="height:100vh;min-height:680px;display:flex;flex-direction:column;background:#f3f2ee;color:#1a1917;font-family:Geist,'Helvetica Neue',Helvetica,sans-serif;font-size:13px;overflow:hidden;-webkit-font-smoothing:antialiased">
+
+<!-- Top bar -->
+<header style="height:50px;flex:none;display:flex;align-items:center;gap:18px;padding:0 14px 0 20px;background:#f8f7f4;border-bottom:1px solid #e9e6e0;position:relative;z-index:5">
+  <a href="Atrium%20Projects%20v2.dc.html" title="All projects" style="display:flex;align-items:center;gap:10px;color:#1a1917">
+    <span style="width:20px;height:20px;border:1.5px solid #1a1917;display:flex;align-items:center;justify-content:center"><span style="width:8px;height:8px;background:#1a1917"></span></span>
+    <span style="font-family:Newsreader,Georgia,serif;font-size:20px;letter-spacing:-.01em">Atrium</span>
+  </a>
+  <nav style="display:flex;align-items:center;gap:8px;font-size:13.5px;min-width:0;flex:0 1 auto;overflow:hidden">
+    <a href="Atrium%20Projects%20v2.dc.html" style="display:flex;align-items:center;gap:4px;color:#5e5a52"><iconify-icon icon="ph:caret-left-light" width="15"></iconify-icon>Projects</a>
+    <span style="width:1px;height:14px;background:#d6d2c9"></span>
+    <span style="font-family:Newsreader,Georgia,serif;font-size:17px;letter-spacing:-.005em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">Al Noor Wedding — Grand Hall</span>
+    <span style="display:{{ wideFlex }};align-items:center;gap:6px;color:#5e5a52;font-size:12.5px;white-space:nowrap;margin-left:6px">
+      <span style="width:6px;height:6px;border-radius:50%;background:{{ save.dot }};animation:{{ save.anim }}"></span>{{ save.label }}
+    </span>
+  </nav>
+  <div style="display:flex;gap:2px">
+    <button onClick="{{ undo }}" disabled="{{ undoOff }}" title="Undo · Ctrl Z" style="width:32px;height:32px;border:0;background:transparent;border-radius:4px;color:#1a1917;display:flex;align-items:center;justify-content:center;opacity:{{ undoOp }}" style-hover="background:#efede8"><iconify-icon icon="ph:arrow-u-up-left-light" width="17"></iconify-icon></button>
+    <button onClick="{{ redo }}" disabled="{{ redoOff }}" title="Redo · Ctrl Y" style="width:32px;height:32px;border:0;background:transparent;border-radius:4px;color:#1a1917;display:flex;align-items:center;justify-content:center;opacity:{{ redoOp }}" style-hover="background:#efede8"><iconify-icon icon="ph:arrow-u-up-right-light" width="17"></iconify-icon></button>
+  </div>
+  <div style="flex:1"></div>
+  <div role="group" aria-label="View" style="display:flex;padding:2px;background:#ecebe6;border-radius:6px;gap:2px;flex:none">
+    <sc-for list="{{ viewTabs }}" as="v" hint-placeholder-count="3">
+      <button onClick="{{ v.onClick }}" aria-pressed="{{ v.on }}" style-hover="color:#1a1917" style="height:28px;padding:0 14px;border:0;border-radius:4px;display:flex;align-items:center;gap:7px;font-size:13px;background:{{ v.bg }};color:{{ v.fg }};box-shadow:{{ v.sh }};transition:background .15s">
+        <iconify-icon icon="{{ v.icon }}" width="15"></iconify-icon>{{ v.label }}
+      </button>
+    </sc-for>
+  </div>
+  <a href="Atrium%20Report%20v2.dc.html" style="height:32px;padding:0 12px;display:flex;align-items:center;gap:7px;color:#1a1917;border-radius:4px;font-size:13px" style-hover="background:#efede8;color:#1a1917"><iconify-icon icon="ph:file-text-light" width="16"></iconify-icon><span style="display:{{ wideDisp }};white-space:nowrap">Client report</span></a>
+  <button onClick="{{ toggleAI }}" style="height:32px;padding:0 13px;display:flex;align-items:center;gap:7px;border:1px solid {{ aiBtn.bd }};background:{{ aiBtn.bg }};color:{{ aiBtn.fg }};border-radius:4px;font-size:13px">
+    <iconify-icon icon="ph:sparkle-light" width="15"></iconify-icon><span style="white-space:nowrap">AI Planner</span>
+    <sc-if value="{{ aiRunning }}"><span style="width:6px;height:6px;border-radius:50%;background:#2b54d0;animation:atr-pulse 1s infinite"></span></sc-if>
+  </button>
+  <div style="position:relative">
+    <button onClick="{{ toggleMore }}" title="More actions" style="width:32px;height:32px;border:0;background:transparent;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#1a1917" style-hover="background:#efede8"><iconify-icon icon="ph:dots-three-light" width="18"></iconify-icon></button>
+    <sc-if value="{{ moreOpen }}">
+      <div style="position:absolute;right:0;top:38px;width:230px;background:#fff;border:1px solid #e3e0d8;border-radius:6px;box-shadow:0 12px 32px rgba(26,25,23,.10);padding:6px;animation:atr-in .14s ease-out;z-index:20">
+        <sc-for list="{{ moreItems }}" as="m">
+          <button onClick="{{ m.onClick }}" style="width:100%;height:34px;border:0;background:transparent;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:4px;color:{{ m.fg }};font-size:13px;text-align:left" style-hover="background:#f3f2ee">
+            <iconify-icon icon="{{ m.icon }}" width="15"></iconify-icon><span style="flex:1">{{ m.label }}</span><span style="color:#8b867c;font-size:11.5px">{{ m.key }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+</header>
+
+<sc-if value="{{ offline }}">
+  <div role="status" style="flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;background:#f8f0dc;border-bottom:1px solid #eadcb6;color:#6b4600;font-size:12.5px">
+    <iconify-icon icon="ph:wifi-slash-light" width="15"></iconify-icon>
+    <span><strong style="font-weight:600">Connection lost.</strong> Your last 3 changes are kept on this device and will sync when the server is back.</span>
+    <span style="flex:1"></span>
+    <button style="height:26px;padding:0 10px;border:1px solid #d9c38d;background:transparent;border-radius:4px;color:#6b4600;font-size:12px">Try again</button>
+  </div>
+</sc-if>
+
+<div style="flex:1;min-height:0;display:flex">
+
+  <!-- Tool rail -->
+  <aside style="width:64px;flex:none;background:#f8f7f4;border-right:{{ railLine }};display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:2px">
+    <sc-for list="{{ rail }}" as="r" hint-placeholder-count="5">
+      <button onClick="{{ r.onClick }}" aria-pressed="{{ r.on }}" title="{{ r.label }}" style="position:relative;width:52px;height:56px;border:0;border-radius:6px;background:{{ r.bg }};color:{{ r.fg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:10.5px;letter-spacing:.01em;font-weight:{{ r.fw }}" style-hover="color:#1a1917;background:#efeee9">
+        <span style="position:absolute;left:-6px;top:14px;bottom:14px;width:2px;border-radius:1px;background:{{ r.bar }}"></span><iconify-icon icon="{{ r.icon }}" width="21"></iconify-icon>{{ r.label }}
+      </button>
+    </sc-for>
+    <div style="flex:1"></div>
+    <a href="Atrium%20Settings%20v2.dc.html" title="Settings" style="width:40px;height:40px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#5e5a52" style-hover="background:#efede8;color:#1a1917"><iconify-icon icon="ph:gear-six-light" width="18"></iconify-icon></a>
+  </aside>
+
+  <!-- Contextual left panel -->
+  <sc-if value="{{ leftOpen }}" hint-placeholder-val="{{ true }}">
+  <aside style="width:{{ leftW }}px;flex:none;background:#f8f7f4;border-right:1px solid #e9e6e0;display:flex;flex-direction:column;min-height:0;animation:atr-in .16s ease-out">
+    <div style="display:flex;align-items:flex-end;padding:22px 20px 16px">
+      <h2 style="margin:0;flex:1;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:28px;line-height:1.05;letter-spacing:-.015em">{{ leftTitle }}</h2>
+      <button onClick="{{ closeLeft }}" title="Collapse panel" style="width:28px;height:28px;border:0;background:transparent;border-radius:4px;color:#5e5a52;display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="ph:sidebar-simple-light" width="16"></iconify-icon></button>
+    </div>
+
+    <!-- Library -->
+    <sc-if value="{{ isLib }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:0 20px 12px">
+        <div style="position:relative">
+          <iconify-icon icon="ph:magnifying-glass-light" width="15" style="position:absolute;left:11px;top:10px;color:#8b867c"></iconify-icon>
+          <input value="{{ q }}" onChange="{{ onSearch }}" placeholder="Search {{ typeCount }} item types" aria-label="Search item types" style="width:100%;height:36px;padding:0 10px 0 34px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;color:#1a1917;outline:none" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)">
+        </div>
+        <div role="tablist" style="display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:14px">
+          <sc-for list="{{ cats }}" as="c" hint-placeholder-count="7">
+            <button onClick="{{ c.onClick }}" role="tab" aria-selected="{{ c.on }}" style="border:0;background:transparent;padding:4px 0;font-size:13px;color:{{ c.fg }};border-bottom:1.5px solid {{ c.bd }}">{{ c.name }} <span style="color:#8b867c;font-size:11.5px">{{ c.count }}</span></button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;overflow:auto;padding:2px 14px 16px">
+        <sc-if value="{{ libEmpty }}">
+          <div style="padding:40px 12px;text-align:center;color:#5e5a52">
+            <div style="font-family:Newsreader,Georgia,serif;font-size:18px;color:#1a1917">{{ libEmptyTitle }}</div>
+            <div style="margin-top:6px;font-size:12.5px;line-height:1.5">{{ libEmptyText }}</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ libLoading }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px">
+            <sc-for list="{{ skel }}" as="k"><div style="padding:6px"><div style="height:88px;border-radius:4px;background:#efeee9;animation:atr-pulse 1.4s infinite"></div><div style="height:10px;width:70%;margin:10px 0 0;background:#efeee9;border-radius:2px;animation:atr-pulse 1.4s infinite"></div><div style="height:8px;width:45%;margin:6px 0 0;background:#f1f0ec;border-radius:2px"></div></div></sc-for>
+          </div>
+        </sc-if>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px">
+          <sc-for list="{{ tiles }}" as="tl" hint-placeholder-count="6">
+            <button onClick="{{ tl.onClick }}" draggable="true" title="Click to place · drag onto the plan" style="border:0;background:transparent;border-radius:6px;padding:6px 6px 10px;text-align:left;display:flex;flex-direction:column;color:#1a1917;transition:background .12s" style-hover="background:#efeee9" style-active="background:#e6ecfc">
+              <span style="height:88px;display:flex;align-items:center;justify-content:center;background:#fdfcfa;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(26,25,23,.05)">
+                <span style="display:{{ tl.roundDisp }};width:{{ tl.sz }}px;height:{{ tl.sz }}px;border-radius:50%;border:1.3px solid #1a1917;outline:1.3px dotted #7a756c;outline-offset:4px;background:#fdfcfa"></span>
+                <span style="display:{{ tl.rectDisp }};width:{{ tl.w }}px;height:{{ tl.h }}px;border:1.3px solid #1a1917;background:{{ tl.fill }}"></span>
+              </span>
+              <span style="padding:10px 2px 0;display:flex;flex-direction:column;gap:3px">
+                <span style="font-size:12.5px;font-weight:500;line-height:1.25">{{ tl.name }}</span>
+                <span style="font-size:11.5px;color:#7a756c;line-height:1.35;font-variant-numeric:tabular-nums">{{ tl.dims }}</span>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #e9e6e0;display:flex;align-items:center;gap:10px">
+        <button onClick="{{ openNewType }}" style="height:32px;padding:0 12px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;display:flex;align-items:center;gap:6px;font-size:13px;color:#1a1917" style-hover="border-color:#1a1917"><iconify-icon icon="ph:plus-light" width="15"></iconify-icon>New item type</button>
+        <span style="color:#8b867c;font-size:12px">Click a tile to place</span>
+      </div>
+    </sc-if>
+
+    <!-- Objects -->
+    <sc-if value="{{ isObjects }}">
+      <div style="padding:0 20px 10px;color:#5e5a52;font-size:12.5px">{{ objSummary }}</div>
+      <div style="flex:1;min-height:0;overflow:auto;padding:0 12px 16px">
+        <sc-for list="{{ objGroups }}" as="g">
+          <div style="margin-top:10px">
+            <div style="display:flex;align-items:center;padding:6px 8px;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">
+              <span style="flex:1">{{ g.name }} · {{ g.count }}</span>
+              <button onClick="{{ g.selectAll }}" style="border:0;background:transparent;color:#2b54d0;font-size:11.5px;text-transform:none;letter-spacing:0">Select all</button>
+            </div>
+            <sc-for list="{{ g.rows }}" as="o">
+              <button onClick="{{ o.onClick }}" style="width:100%;height:32px;border:0;border-radius:4px;background:{{ o.bg }};display:flex;align-items:center;gap:10px;padding:0 8px;color:{{ o.fg }};font-size:13px;text-align:left" style-hover="background:#efede8">
+                <span style="width:34px;color:#8b867c;font-size:11.5px;font-variant-numeric:tabular-nums">{{ o.id }}</span>
+                <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.name }}</span>
+                <iconify-icon icon="{{ o.sevIcon }}" width="13" style="color:{{ o.sevColor }}"></iconify-icon>
+                <iconify-icon icon="{{ o.lockIcon }}" width="13" style="color:#8b867c"></iconify-icon>
+              </button>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- Space -->
+    <sc-if value="{{ isSpace }}">
+      <div style="flex:1;min-height:0;overflow:auto;padding:0 20px 20px">
+        <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin:6px 0 10px">Room dimensions</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <sc-for list="{{ roomFields }}" as="f">
+            <div style="position:relative">
+              <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#8b867c;pointer-events:none">{{ f.k }}</span>
+              <input defaultValue="{{ f.v }}" onChange="{{ spaceChange }}" aria-label="{{ f.label }}" style="width:100%;height:34px;padding:0 32px 0 {{ f.pad }}px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;color:#1a1917;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)">
+              <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#8b867c;pointer-events:none">{{ f.unit }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <p style="margin:8px 0 0;color:#5e5a52;font-size:12px;line-height:1.5">Floor area 384 m². Measured inside the walls.</p>
+
+        <div style="height:1px;background:#e9e6e0;margin:20px 0 16px"></div>
+        <div style="display:flex;align-items:center;margin-bottom:10px">
+          <div style="flex:1;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Doors · 3</div>
+          <button onClick="{{ spaceChange }}" style="border:0;background:transparent;color:#2b54d0;font-size:12.5px;display:flex;align-items:center;gap:4px"><iconify-icon icon="ph:plus-light" width="14"></iconify-icon>Add door</button>
+        </div>
+        <sc-for list="{{ doorRows }}" as="d">
+          <div style="border-top:1px solid #f0eee9;padding:10px 0">
+            <button onClick="{{ d.toggle }}" style="width:100%;border:0;background:transparent;padding:0;display:flex;align-items:center;gap:10px;text-align:left;color:#1a1917">
+              <span style="width:26px;height:26px;border:1px solid #e3e0d8;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#5e5a52"><iconify-icon icon="ph:door-open-light" width="14"></iconify-icon></span>
+              <span style="flex:1"><span style="font-weight:500">{{ d.id }}</span> <span style="color:#5e5a52">· {{ d.wall }}</span><br><span style="color:#8b867c;font-size:12px">{{ d.line }}</span></span>
+              <iconify-icon icon="{{ d.chev }}" width="15" style="color:#8b867c"></iconify-icon>
+            </button>
+            <sc-if value="{{ d.open }}">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+                <sc-for list="{{ d.fields }}" as="f">
+                  <div style="position:relative">
+                    <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#8b867c;pointer-events:none">{{ f.k }}</span>
+                    <input defaultValue="{{ f.v }}" onChange="{{ spaceChange }}" aria-label="{{ f.k }}" style="width:100%;height:34px;padding:0 30px 0 {{ f.pad }}px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)">
+                    <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#8b867c;pointer-events:none">cm</span>
+                  </div>
+                </sc-for>
+                <select onChange="{{ spaceChange }}" aria-label="Swing" style="grid-column:1/-1;height:34px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;padding:0 8px;color:#1a1917"><option>{{ d.swing }}</option><option>Outward · hinge north</option><option>Double door</option><option>Opening only</option></select>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+
+        <div style="height:1px;background:#e9e6e0;margin:12px 0 16px"></div>
+        <div style="display:flex;align-items:center;margin-bottom:10px">
+          <div style="flex:1;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Columns · 4</div>
+          <button onClick="{{ spaceChange }}" style="border:0;background:transparent;color:#2b54d0;font-size:12.5px;display:flex;align-items:center;gap:4px"><iconify-icon icon="ph:plus-light" width="14"></iconify-icon>Add column</button>
+        </div>
+        <sc-for list="{{ colRows }}" as="c">
+          <div style="display:grid;grid-template-columns:36px 1fr 1fr 58px;gap:6px;align-items:center;padding:4px 0">
+            <span style="font-weight:500;font-size:12.5px">{{ c.id }}</span>
+            <div style="position:relative"><span style="position:absolute;left:8px;top:8px;font-size:11px;color:#8b867c">X</span><input defaultValue="{{ c.x }}" onChange="{{ spaceChange }}" aria-label="{{ c.id }} X" style="width:100%;height:30px;padding:0 6px 0 22px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:12.5px;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff"></div>
+            <div style="position:relative"><span style="position:absolute;left:8px;top:8px;font-size:11px;color:#8b867c">Y</span><input defaultValue="{{ c.y }}" onChange="{{ spaceChange }}" aria-label="{{ c.id }} Y" style="width:100%;height:30px;padding:0 6px 0 22px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:12.5px;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff"></div>
+            <span style="color:#5e5a52;font-size:12px;text-align:right">{{ c.size }}</span>
+          </div>
+        </sc-for>
+
+        <div style="height:1px;background:#e9e6e0;margin:16px 0 14px"></div>
+        <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin-bottom:8px">More structure</div>
+        <sc-for list="{{ futureRows }}" as="fr">
+          <div style="display:flex;align-items:center;gap:10px;height:34px;color:#8b867c">
+            <iconify-icon icon="{{ fr.icon }}" width="15"></iconify-icon><span style="flex:1">{{ fr.label }}</span><span style="font-size:11.5px">Coming later</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #e9e6e0;display:flex;align-items:center;gap:8px;background:{{ spaceBar.bg }}">
+        <span style="flex:1;font-size:12.5px;color:{{ spaceBar.fg }}">{{ spaceBar.label }}</span>
+        <button onClick="{{ spaceReset }}" disabled="{{ spaceClean }}" style="height:32px;padding:0 12px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:13px;color:#1a1917;opacity:{{ spaceBar.op }}" style-hover="border-color:#1a1917">Reset</button>
+        <button onClick="{{ spaceApply }}" disabled="{{ spaceClean }}" style="height:32px;padding:0 12px;border:0;background:#1a1917;color:#fff;border-radius:4px;font-size:13px;opacity:{{ spaceBar.op }}" style-hover="background:#35332f;color:#fff">Apply changes</button>
+      </div>
+    </sc-if>
+
+    <!-- Layers -->
+    <sc-if value="{{ isLayers }}">
+      <div style="flex:1;min-height:0;overflow:auto;padding:0 12px 16px">
+        <sc-for list="{{ layerRows }}" as="l">
+          <div style="display:flex;align-items:center;gap:10px;height:42px;padding:0 8px;border-bottom:1px solid #f0eee9;color:{{ l.fg }}">
+            <iconify-icon icon="{{ l.icon }}" width="16" style="color:#5e5a52"></iconify-icon>
+            <span style="flex:1"><span style="font-size:13px">{{ l.name }}</span> <span style="color:#8b867c;font-size:12px">{{ l.count }}</span></span>
+            <button onClick="{{ l.lock }}" title="Lock layer" style="width:28px;height:28px;border:0;background:transparent;border-radius:4px;color:#8b867c;display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="{{ l.lockIcon }}" width="14"></iconify-icon></button>
+            <button onClick="{{ l.toggle }}" title="Show or hide" aria-pressed="{{ l.visible }}" style="width:28px;height:28px;border:0;background:transparent;border-radius:4px;color:#1a1917;display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="{{ l.eye }}" width="15"></iconify-icon></button>
+          </div>
+        </sc-for>
+        <p style="margin:14px 8px 0;color:#5e5a52;font-size:12px;line-height:1.5">Hidden layers are still checked. They are left out of the plan, the 3D view and the report.</p>
+      </div>
+    </sc-if>
+
+    <!-- Precision -->
+    <sc-if value="{{ isPrecision }}">
+      <div style="flex:1;min-height:0;overflow:auto;padding:0 20px 20px">
+        <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin:6px 0 10px">Grid</div>
+        <div style="display:flex;padding:3px;background:#efede8;border-radius:6px;gap:2px">
+          <sc-for list="{{ gridOpts }}" as="o">
+            <button onClick="{{ o.onClick }}" aria-pressed="{{ o.on }}" style="flex:1;height:28px;border:0;border-radius:4px;background:{{ o.bg }};color:{{ o.fg }};box-shadow:{{ o.sh }};font-size:12.5px">{{ o.label }}</button>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-direction:column">
+          <sc-for list="{{ toggles }}" as="t">
+            <button onClick="{{ t.onClick }}" role="switch" aria-checked="{{ t.on }}" style="display:flex;align-items:center;gap:12px;min-height:44px;border:0;border-bottom:1px solid #f0eee9;background:transparent;padding:0;text-align:left;color:#1a1917">
+              <span style="flex:1"><span style="font-size:13px">{{ t.label }}</span><br><span style="font-size:12px;color:#5e5a52">{{ t.hint }}</span></span>
+              <span style="width:30px;height:18px;border-radius:9px;background:{{ t.track }};position:relative;transition:background .15s;flex:none"><span style="position:absolute;top:2px;left:{{ t.knob }}px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s"></span></span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin:22px 0 10px">Keyboard movement</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <sc-for list="{{ stepFields }}" as="f">
+            <label style="display:flex;flex-direction:column;gap:5px;font-size:12px;color:#5e5a52">{{ f.label }}
+              <div style="position:relative"><input defaultValue="{{ f.v }}" style="width:100%;height:34px;padding:0 34px 0 10px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;color:#1a1917;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)"><span style="position:absolute;right:10px;top:10px;font-size:11.5px;color:#8b867c">{{ f.unit }}</span></div>
+            </label>
+          </sc-for>
+        </div>
+        <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin:22px 0 6px">Shortcuts</div>
+        <sc-for list="{{ shortcuts }}" as="s">
+          <div style="display:flex;align-items:center;height:30px;font-size:12.5px;color:#5e5a52"><span style="flex:1">{{ s.label }}</span><span style="padding:2px 6px;border:1px solid #e3e0d8;border-radius:3px;background:#fff;color:#1a1917;font-size:11.5px">{{ s.key }}</span></div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </aside>
+  </sc-if>
+
+  <!-- Workspace -->
+  <main style="flex:1;min-width:0;position:relative;display:grid;grid-template-columns:{{ cols }};background:#eeede8">
+
+    <!-- 2D plan -->
+    <section aria-label="Plan" style="position:relative;display:{{ planDisp }};min-width:0;overflow:hidden;border-right:{{ splitLine }}">
+      <div style="position:absolute;left:24px;top:18px;z-index:2">
+        <div style="font-family:Newsreader,Georgia,serif;font-size:23px;letter-spacing:-.01em;line-height:1.1">Plan</div>
+        <div style="color:#6f6a61;font-size:12px;margin-top:4px;white-space:nowrap">24.00 × 16.00 m · Ceiling 4.50 m</div>
+      </div>
+      <sc-if value="{{ previewing }}">
+        <div style="position:absolute;left:50%;top:18px;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:12px;padding:6px 6px 6px 14px;background:#1a1917;color:#fff;border-radius:6px;font-size:12.5px;animation:atr-in .16s">
+          <iconify-icon icon="ph:eye-light" width="14"></iconify-icon>{{ previewLabel }}
+          <button onClick="{{ restorePreview }}" style="height:26px;padding:0 10px;border:0;border-radius:4px;background:#fff;color:#1a1917;font-size:12px">Restore revision</button>
+          <button onClick="{{ exitPreview }}" style="height:26px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:#d8d5cf;font-size:12px">Exit</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ aiRunning }}">
+        <div style="position:absolute;left:50%;top:18px;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:10px;padding:7px 14px;background:#fff;border:1px solid #cfd9f6;color:#1a1917;border-radius:6px;font-size:12.5px;box-shadow:0 4px 14px rgba(43,84,208,.08)">
+          <span style="width:7px;height:7px;border-radius:50%;background:#2b54d0;animation:atr-pulse 1s infinite"></span>AI Planner is editing · {{ aiStepLabel }}
+        </div>
+      </sc-if>
+      <sc-if value="{{ libLoading }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:3;color:#6f6a61"><span style="width:180px;height:2px;background:#e3e0d8;overflow:hidden;border-radius:1px"><span style="display:block;width:40%;height:100%;background:#2b54d0;animation:atr-pulse 1s infinite"></span></span>Loading plan · revision 42</div></sc-if>
+      <div onPointerDown="{{ bgDown }}" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:76px 48px 64px">
+        <div data-plan="1" style="box-shadow:0 1px 2px rgba(26,25,23,.05),0 12px 40px rgba(26,25,23,.05);position:relative;width:min(100%, calc((100vh - 290px) * 1.5));aspect-ratio:3/2;container-type:inline-size;transform:scale({{ zoom }});transition:transform .2s ease;background-color:#faf9f6;background-image:linear-gradient(to right, rgba(26,25,23,.075) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.075) 1px, transparent 1px),linear-gradient(to right, rgba(26,25,23,.03) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.03) 1px, transparent 1px);background-size:calc(100% / 24) calc(100% / 16),calc(100% / 24) calc(100% / 16),calc(100% / 48) calc(100% / 32),calc(100% / 48) calc(100% / 32)">
+          <!-- rulers -->
+          <sc-for list="{{ rulerX }}" as="r"><span style="position:absolute;top:-3.4cqw;left:{{ r.p }}%;transform:translateX(-50%);font-size:max(9px,.8cqw);color:#8b867c;font-variant-numeric:tabular-nums">{{ r.label }}</span><span style="position:absolute;top:-1.9cqw;left:{{ r.p }}%;width:1px;height:.6cqw;background:#b9b4aa"></span></sc-for>
+          <sc-for list="{{ rulerY }}" as="r"><span style="position:absolute;left:-3.6cqw;top:{{ r.p }}%;transform:translateY(-50%);font-size:max(9px,.8cqw);color:#8b867c;font-variant-numeric:tabular-nums">{{ r.label }}</span></sc-for>
+          <!-- clearance zones -->
+          <sc-for list="{{ pl.clears }}" as="c"><div style="position:absolute;left:{{ c.l }}%;top:{{ c.t }}%;width:{{ c.w }}%;height:{{ c.h }}%;background:{{ c.c }};background-image:repeating-linear-gradient(45deg, rgba(26,25,23,.07) 0 1px, transparent 1px 6px);pointer-events:none"></div></sc-for>
+          <!-- walls -->
+          <div style="position:absolute;left:-.9cqw;right:-.9cqw;top:-.9cqw;height:.9cqw;background:#1a1917"></div>
+          <div style="position:absolute;left:-.9cqw;right:-.9cqw;bottom:-.9cqw;height:.9cqw;background:#1a1917"></div>
+          <div style="position:absolute;left:-.9cqw;top:0;bottom:0;width:.9cqw;background:#1a1917"></div>
+          <div style="position:absolute;right:-.9cqw;top:0;bottom:0;width:.9cqw;background:#1a1917"></div>
+          <!-- doors -->
+          <sc-for list="{{ pl.doors }}" as="d">
+            <div style="position:absolute;left:{{ d.glS }};top:{{ d.gtS }};width:{{ d.gwS }};height:{{ d.ghS }};background:#faf9f6"></div>
+            <div title="{{ d.id }}" style="position:absolute;left:{{ d.l }}%;top:{{ d.t }}%;width:{{ d.w }}%;height:{{ d.h }}%;border-left:{{ d.leafL }};border-top:{{ d.leafT }};border-right:{{ d.arcR }};border-bottom:{{ d.arcB }};border-radius:{{ d.rad }};pointer-events:none"></div>
+          </sc-for>
+          <!-- columns -->
+          <sc-for list="{{ pl.cols }}" as="c"><div title="{{ c.id }}" style="position:absolute;left:{{ c.l }}%;top:{{ c.t }}%;width:{{ c.w }}%;height:{{ c.h }}%;background:#1a1917"></div></sc-for>
+          <!-- chairs -->
+          <sc-for list="{{ pl.seats }}" as="s"><div style="position:absolute;left:{{ s.l }}%;top:{{ s.t }}%;width:{{ s.w }}%;height:{{ s.h }}%;border:{{ s.bd }};background:{{ s.bg }};border-radius:2px 2px 30% 30%;transform:rotate({{ s.a }}deg);pointer-events:none"></div></sc-for>
+          <!-- items -->
+          <sc-for list="{{ shapes }}" as="it">
+            <div onPointerDown="{{ it.down }}" title="{{ it.title }}" style="position:absolute;left:{{ it.l }}%;top:{{ it.t }}%;width:{{ it.w }}%;height:{{ it.h }}%;background:{{ it.bg }};border:{{ it.bd }};border-radius:{{ it.r }};display:flex;align-items:center;justify-content:center;gap:.3cqw;color:{{ it.fg }};font-size:{{ it.fs }};letter-spacing:.02em;cursor:{{ it.cursor }};user-select:none;touch-action:none;transition:background .12s" style-hover="outline:1px solid #8ea3e3;outline-offset:2px">
+              <span style="display:{{ it.lockDisp }};align-items:center"><iconify-icon icon="ph:lock-simple-light" style="font-size:.9cqw"></iconify-icon></span>{{ it.label }}
+            </div>
+          </sc-for>
+          <!-- guides + dims -->
+          <sc-if value="{{ roomy }}"><sc-for list="{{ guides }}" as="g"><div style="position:absolute;left:{{ g.l }};top:{{ g.t }};width:{{ g.w }};height:{{ g.h }};background:#2b54d0;opacity:.7;pointer-events:none"></div><span style="position:absolute;left:{{ g.ll }};top:{{ g.lt }};padding:2px 6px;background:#2b54d0;color:#fff;border-radius:3px;font-size:max(10px,.8cqw);white-space:nowrap;pointer-events:none">{{ g.label }}</span></sc-for></sc-if>
+          <sc-if value="{{ roomy }}"><sc-for list="{{ dimLines }}" as="m"><div style="position:absolute;left:{{ m.l }};top:{{ m.t }};width:{{ m.w }};height:{{ m.h }};border-top:{{ m.bt }};border-left:{{ m.bl }};pointer-events:none"></div><span style="position:absolute;left:{{ m.ll }};top:{{ m.lt }};transform:translate(-50%,-50%);padding:1px 5px;background:#faf9f6;color:#2b54d0;white-space:nowrap;font-size:max(10px,.8cqw);font-variant-numeric:tabular-nums;pointer-events:none">{{ m.label }}</span></sc-for></sc-if>
+          <!-- selection frame -->
+          <sc-if value="{{ hasSelBox }}">
+            <div style="position:absolute;left:{{ selBox.l }}%;top:{{ selBox.t }}%;width:{{ selBox.w }}%;height:{{ selBox.h }}%;outline:1px {{ selBox.style }} #2b54d0;outline-offset:.45cqw;pointer-events:none">
+              <sc-for list="{{ handles }}" as="h"><span style="position:absolute;left:{{ h.l }};top:{{ h.t }};width:7px;height:7px;margin:-3.5px 0 0 -3.5px;background:#fff;border:1px solid #2b54d0"></span></sc-for>
+              <span style="display:{{ chipDisp }};position:absolute;left:50%;top:calc(100% + 1.6cqw);transform:translateX(-50%);padding:2px 7px;background:#2b54d0;color:#fff;border-radius:3px;font-size:max(10px,.8cqw);white-space:nowrap;font-variant-numeric:tabular-nums">{{ selBox.label }}</span>
+            </div>
+          </sc-if>
+          <!-- issue badges -->
+          <sc-for list="{{ pl.badges }}" as="b"><span title="Has a validation finding" style="position:absolute;left:{{ b.l }}%;top:{{ b.t }}%;transform:translate(-40%,-60%);width:max(11px,1.3cqw);height:max(11px,1.3cqw);border-radius:50%;background:{{ b.bg }};border:1.5px solid {{ b.bd }};color:{{ b.fg }};display:flex;align-items:center;justify-content:center;pointer-events:none"><iconify-icon icon="{{ b.icon }}" style="font-size:max(9px,.8cqw)"></iconify-icon></span></sc-for>
+          <!-- scale bar -->
+          <div style="position:absolute;left:0;top:calc(100% + 2.2cqw);display:flex;align-items:center;gap:8px;font-size:max(10px,.8cqw);color:#5e5a52;pointer-events:none">
+            <span style="width:calc(100cqw / 12);height:5px;border:1px solid #1a1917;border-top:0"></span>2 m
+            <span style="margin-left:14px">N ↑</span>
+          </div>
+        </div>
+      </div>
+      <div style="position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:2px;padding:3px;background:rgba(248,247,244,.94);border:1px solid rgba(26,25,23,.06);border-radius:8px;box-shadow:0 1px 2px rgba(26,25,23,.05),0 6px 20px rgba(26,25,23,.05)">
+        <button onClick="{{ zoomOut }}" title="Zoom out" style="width:30px;height:30px;border:0;background:transparent;border-radius:4px;display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="ph:minus-light" width="15"></iconify-icon></button>
+        <span style="width:44px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums">{{ zoomLabel }}</span>
+        <button onClick="{{ zoomIn }}" title="Zoom in" style="width:30px;height:30px;border:0;background:transparent;border-radius:4px;display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="ph:plus-light" width="15"></iconify-icon></button>
+        <span style="width:1px;height:18px;background:#e3e0d8;margin:0 2px"></span>
+        <button onClick="{{ fit }}" title="Fit room · F" style="width:30px;height:30px;border:0;background:transparent;border-radius:4px;display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="ph:corners-out-light" width="15"></iconify-icon></button>
+      </div>
+    </section>
+
+    <!-- 3D view -->
+    <section aria-label="3D view" data-scene-pane="1" style="position:relative;display:{{ sceneDisp }};min-width:0;overflow:hidden;background:radial-gradient(ellipse at 50% 40%, #f7f6f2 0%, #e9e7e1 100%)">
+      <div style="position:absolute;left:24px;top:18px;z-index:2">
+        <div style="font-family:Newsreader,Georgia,serif;font-size:23px;letter-spacing:-.01em;line-height:1.1">{{ camLabel }}</div>
+        <div style="color:#6f6a61;font-size:12px;margin-top:4px">Section at 1.20 m · Drag to orbit · Scroll to zoom</div>
+      </div>
+      <div style="position:absolute;inset:0;perspective:3400px;perspective-origin:50% 30%">
+        <div style="position:absolute;left:50%;top:52%;width:960px;height:640px;margin:-320px 0 0 -480px;transform-style:preserve-3d;transform:{{ sceneT }};transition:transform .5s cubic-bezier(.2,.7,.2,1)">
+          <div style="position:absolute;inset:0;background-color:#f7f6f2;background-image:linear-gradient(to right, rgba(26,25,23,.06) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.06) 1px, transparent 1px);background-size:40px 40px;box-shadow:0 0 0 1px #d9d5cc"></div>
+          <sc-for list="{{ sc.discs }}" as="c">
+            <div onClick="{{ c.onClick }}" style="position:absolute;left:{{ c.l }}px;top:{{ c.t }}px;width:{{ c.w }}px;height:{{ c.w }}px;border-radius:50%;background:rgba(26,25,23,.10);transform-style:preserve-3d;cursor:pointer">
+              <div style="position:absolute;inset:0;border-radius:50%;background:{{ c.top }};border:{{ c.bd }};transform:{{ c.zt }}"></div>
+            </div>
+          </sc-for>
+          <sc-for list="{{ sc.boxes }}" as="b">
+            <div onClick="{{ b.onClick }}" style="position:absolute;left:{{ b.l }}px;top:{{ b.t }}px;width:{{ b.w }}px;height:{{ b.h }}px;transform-style:preserve-3d">
+              <div style="position:absolute;inset:0;background:{{ b.top }};outline:{{ b.bdTop }};transform:{{ b.zt }}"></div>
+              <div style="position:absolute;left:0;top:100%;width:100%;height:{{ b.z }}px;background:{{ b.frontC }};transform-origin:top center;transform:rotateX(90deg)"></div>
+              <div style="position:absolute;left:{{ b.sl }};right:{{ b.sr }};top:0;width:{{ b.z }}px;height:100%;background:{{ b.sideC }};transform-origin:{{ b.so }};transform:{{ b.st }}"></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:2px;padding:3px;background:rgba(248,247,244,.94);border:1px solid rgba(26,25,23,.06);border-radius:8px;box-shadow:0 1px 2px rgba(26,25,23,.05),0 6px 20px rgba(26,25,23,.05)">
+        <sc-for list="{{ camTools }}" as="c" hint-placeholder-count="8">
+          <button onClick="{{ c.onClick }}" title="{{ c.label }}" aria-pressed="{{ c.on }}" style="width:32px;height:30px;border:0;border-radius:4px;background:{{ c.bg }};color:{{ c.fg }};display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="{{ c.icon }}" width="15"></iconify-icon></button>
+          <span style="display:{{ c.sep }};width:1px;height:18px;background:#e3e0d8;margin:0 2px"></span>
+        </sc-for>
+      </div>
+    </section>
+
+    <sc-if value="{{ hasToast }}">
+      <div role="status" style="position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:9px 14px;background:#1a1917;color:#f3f2ee;border-radius:6px;font-size:12.5px;animation:atr-in .16s ease-out;z-index:6;white-space:nowrap">
+        <iconify-icon icon="{{ toast.icon }}" width="15"></iconify-icon>{{ toast.text }}
+      </div>
+    </sc-if>
+  </main>
+
+  <!-- Right inspector -->
+  <aside style="width:{{ rightW }}px;flex:none;background:#f8f7f4;border-left:1px solid #e9e6e0;display:flex;flex-direction:column;min-height:0;transition:width .2s ease">
+
+    <sc-if value="{{ inspector }}" hint-placeholder-val="{{ true }}">
+      <div role="tablist" style="display:flex;gap:24px;padding:0 24px;height:48px;align-items:stretch;border-bottom:1px solid #e9e6e0;flex:none">
+        <sc-for list="{{ rightTabs }}" as="t" hint-placeholder-count="3">
+          <button onClick="{{ t.onClick }}" role="tab" aria-selected="{{ t.on }}" style="border:0;background:transparent;padding:0;font-size:13.5px;color:{{ t.fg }};font-weight:{{ t.fw }};border-bottom:1.5px solid {{ t.bd }};margin-bottom:-1px;display:flex;align-items:center;gap:7px">
+            {{ t.label }}<span style="display:{{ t.badgeDisp }};min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#b93a2e;color:#fff;font-size:11px;align-items:center;justify-content:center">{{ t.badge }}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="flex:1;min-height:0;overflow:auto">
+
+      <!-- Properties: nothing selected -->
+      <sc-if value="{{ showSummary }}">
+        <div style="padding:28px 24px 12px">
+          <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Event hall · Wedding banquet</div>
+          <h3 style="margin:10px 0 0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:34px;letter-spacing:-.02em;line-height:1">Grand Hall</h3>
+          <div style="color:#6f6a61;margin-top:8px">Nothing selected. Click an item to edit it.</div>
+        </div>
+        <div style="padding:8px 24px">
+          <sc-for list="{{ facts }}" as="f"><div style="display:flex;align-items:baseline;padding:9px 0;border-bottom:1px solid #f0eee9"><span style="flex:1;color:#5e5a52">{{ f.k }}</span><span style="font-variant-numeric:tabular-nums">{{ f.v }}</span></div></sc-for>
+        </div>
+        <div style="margin:20px 24px;padding:16px 18px;background:{{ valBox.bg }};border-radius:6px">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:500;color:{{ valBox.fg }}"><iconify-icon icon="{{ valBox.icon }}" width="16"></iconify-icon>{{ valBox.title }}</div>
+          <div style="margin-top:6px;color:#5e5a52;font-size:12.5px;line-height:1.5">{{ valBox.text }}</div>
+          <button onClick="{{ openReview }}" style="margin-top:12px;height:30px;padding:0 12px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:12.5px;color:#1a1917" style-hover="border-color:#1a1917">Open review</button>
+        </div>
+        <div style="padding:8px 24px 28px">
+          <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin-bottom:6px">Quantities</div>
+          <sc-for list="{{ bom }}" as="b"><div style="display:flex;padding:7px 0;border-bottom:1px solid #f0eee9"><span style="flex:1">{{ b.name }}</span><span style="color:#5e5a52;font-variant-numeric:tabular-nums">× {{ b.n }}</span></div></sc-for>
+        </div>
+      </sc-if>
+
+      <!-- Properties: one selected -->
+      <sc-if value="{{ showOne }}">
+        <div style="padding:26px 24px 10px">
+          <div style="display:flex;align-items:center;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">
+            <span style="flex:1">{{ p.cat }} · {{ p.id }}</span>
+            <span style="display:{{ p.lockDisp }};align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-size:12px;color:#5e5a52"><iconify-icon icon="ph:lock-simple-light" width="12"></iconify-icon>Locked</span>
+          </div>
+          <h3 style="margin:10px 0 0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:31px;letter-spacing:-.018em;line-height:1.05;text-wrap:balance">{{ p.name }}</h3>
+          <div style="color:#5e5a52;margin-top:4px">{{ p.sub }}</div>
+          <div style="display:flex;gap:2px;margin:18px 0 0 -8px">
+            <sc-for list="{{ p.actions }}" as="a">
+              <button onClick="{{ a.onClick }}" title="{{ a.label }}" aria-label="{{ a.label }}" style="width:36px;height:34px;border:0;border-radius:4px;background:{{ a.bg }};color:{{ a.fg }};display:flex;align-items:center;justify-content:center" style-hover="background:#efede8"><iconify-icon icon="{{ a.icon }}" width="16"></iconify-icon></button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ p.hasIssue }}">
+            <button onClick="{{ openReview }}" style="margin-top:14px;width:100%;border:1px solid {{ p.issueBd }};background:{{ p.issueBg }};border-radius:4px;padding:10px 12px;display:flex;gap:10px;text-align:left;color:#1a1917">
+              <iconify-icon icon="{{ p.issueIcon }}" width="16" style="color:{{ p.issueFg }};margin-top:1px"></iconify-icon>
+              <span style="flex:1;font-size:12.5px;line-height:1.45"><strong style="font-weight:500">{{ p.issueTitle }}</strong><br><span style="color:#5e5a52">{{ p.issueFix }}</span></span>
+            </button>
+          </sc-if>
+        </div>
+        <sc-for list="{{ p.groups }}" as="g">
+          <div style="padding:20px 24px 0;margin-top:4px;border-top:1px solid #f0eee9">
+            <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin-bottom:10px">{{ g.title }}</div>
+            <div style="display:grid;grid-template-columns:{{ g.cols }};gap:6px">
+              <sc-for list="{{ g.fields }}" as="f">
+                <div style="position:relative">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#8b867c;pointer-events:none">{{ f.k }}</span>
+                  <input value="{{ f.v }}" onChange="{{ f.onChange }}" readOnly="{{ f.ro }}" aria-label="{{ f.label }}" style="width:100%;height:34px;padding:0 30px 0 26px;border:1px solid transparent;border-radius:4px;background:{{ f.bg }};font:inherit;font-size:13px;color:{{ f.fg }};outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)">
+                  <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#8b867c;pointer-events:none">{{ f.unit }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <p style="margin:8px 0 14px;color:#7a756c;font-size:12px;line-height:1.45;display:{{ g.hintDisp }}">{{ g.hint }}</p>
+          </div>
+        </sc-for>
+        <div style="padding:18px 24px 28px;border-top:1px solid #f0eee9">
+          <button onClick="{{ openEditType }}" style="border:0;background:transparent;padding:0;color:#2b54d0;font-size:13px;display:flex;align-items:center;gap:6px"><iconify-icon icon="ph:pencil-simple-line-light" width="14"></iconify-icon>Edit item type · applies to {{ p.sameCount }} placed</button>
+        </div>
+      </sc-if>
+
+      <!-- Properties: many selected -->
+      <sc-if value="{{ showMulti }}">
+        <div style="padding:26px 24px 12px">
+          <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Multiple selection</div>
+          <h3 style="margin:10px 0 0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:31px;letter-spacing:-.018em;line-height:1.05">{{ multi.title }}</h3>
+          <div style="color:#5e5a52;margin-top:4px">{{ multi.sub }}</div>
+        </div>
+        <sc-for list="{{ multiGroups }}" as="g">
+          <div style="padding:16px 24px 6px">
+            <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin-bottom:10px">{{ g.title }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
+              <sc-for list="{{ g.btns }}" as="b">
+                <button onClick="{{ b.onClick }}" title="{{ b.label }}" aria-label="{{ b.label }}" style="width:42px;height:38px;border:0;background:#efeee9;border-radius:4px;color:#1a1917;display:flex;align-items:center;justify-content:center" style-hover="background:#e6ecfc;color:#2b54d0" style-active="background:#d8e1fa"><iconify-icon icon="{{ b.icon }}" width="17"></iconify-icon></button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="padding:18px 24px">
+          <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c;margin-bottom:4px">Actions</div>
+          <sc-for list="{{ multiActions }}" as="a">
+            <button onClick="{{ a.onClick }}" style="width:100%;height:36px;border:0;border-bottom:1px solid #f0eee9;background:transparent;display:flex;align-items:center;gap:10px;padding:0;color:{{ a.fg }};font-size:13px;text-align:left" style-hover="color:#2b54d0"><iconify-icon icon="{{ a.icon }}" width="15"></iconify-icon><span style="flex:1">{{ a.label }}</span><span style="color:#8b867c;font-size:11.5px">{{ a.key }}</span></button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- Review -->
+      <sc-if value="{{ showReview }}">
+        <div style="display:grid;grid-template-columns:{{ countCols }};padding:0 12px;border-bottom:1px solid #e9e6e0">
+          <sc-for list="{{ counts }}" as="c" hint-placeholder-count="4">
+            <button onClick="{{ c.onClick }}" style="min-width:0;border:0;border-radius:4px;background:{{ c.bg }};padding:20px 0 16px 12px;text-align:left;color:#1a1917" style-hover="background:#f3f2ee">
+              <div style="font-family:Newsreader,Georgia,serif;font-size:{{ countSize }}px;line-height:.9;letter-spacing:-.02em;color:{{ c.fg }};font-variant-numeric:tabular-nums">{{ c.n }}</div>
+              <div style="display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:#5e5a52;white-space:nowrap"><iconify-icon icon="{{ c.icon }}" width="12" style="color:{{ c.fg }}"></iconify-icon>{{ c.label }}</div>
+            </button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ allClear }}">
+          <div style="padding:36px 24px;text-align:center">
+            <iconify-icon icon="ph:check-circle-light" width="26" style="color:#2d7446"></iconify-icon>
+            <div style="font-family:Newsreader,Georgia,serif;font-size:21px;margin-top:8px">No issues found</div>
+            <div style="color:#5e5a52;margin-top:4px;font-size:12.5px">Every check passes for this plan.</div>
+          </div>
+        </sc-if>
+        <sc-for list="{{ reviewGroups }}" as="g">
+          <div style="border-bottom:1px solid #f0eee9">
+            <div style="display:flex;align-items:center;padding:18px 24px 6px">
+              <span style="flex:1;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">{{ g.name }}</span>
+              <span style="font-size:11.5px;color:#8b867c;white-space:nowrap">{{ g.passed }}</span>
+            </div>
+            <sc-for list="{{ g.findings }}" as="f">
+              <button onClick="{{ f.onClick }}" style="width:100%;border:0;background:{{ f.bg }};padding:12px 24px 16px;display:flex;gap:12px;text-align:left;color:#1a1917;box-shadow:inset 2px 0 0 {{ f.edge }};transition:background .12s" style-hover="background:#f3f2ee">
+                <iconify-icon icon="{{ f.icon }}" width="16" style="color:{{ f.fg }};margin-top:2px;flex:none"></iconify-icon>
+                <span style="flex:1;min-width:0">
+                  <span style="display:block;font-weight:500;font-size:13.5px;line-height:1.3">{{ f.title }}</span>
+                  <span style="display:block;color:#5e5a52;font-size:12.5px;margin-top:2px">{{ f.sevLabel }} · {{ f.where }}</span>
+                  <span style="display:block;position:relative;height:3px;background:#ebe8e1;margin:10px 0 6px;border-radius:2px"><span style="position:absolute;left:0;top:0;bottom:0;width:{{ f.meterW }};background:{{ f.fg }};border-radius:2px"></span><span style="position:absolute;right:0;top:-3px;width:1px;height:9px;background:#1a1917"></span></span>
+                  <span style="display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px"><strong style="flex:1;font-weight:500;color:{{ f.fg }};white-space:nowrap">{{ f.gap }}</strong><span style="color:#5e5a52;white-space:nowrap">Required {{ f.need }}</span></span>
+                  <span style="display:block;color:#5e5a52;font-size:12px;margin-top:6px;line-height:1.45">{{ f.fix }}</span>
+                </span>
+              </button>
+            </sc-for>
+            <sc-for list="{{ g.unknown }}" as="u">
+              <div style="display:flex;gap:12px;padding:6px 20px 12px;color:#5e5a52;font-size:12.5px"><iconify-icon icon="ph:question-light" width="15" style="flex:none;margin-top:1px"></iconify-icon><span><span style="color:#1a1917">Unknown · {{ u.title }}</span><br>{{ u.text }}</span></div>
+            </sc-for>
+            <div style="height:6px"></div>
+          </div>
+        </sc-for>
+        <div style="padding:28px 24px 32px">
+          <h4 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:26px;letter-spacing:-.015em">Planning rules</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 6px">
+            <label style="display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:#8b867c">Activity<select style="height:32px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;padding:0 6px;color:#1a1917"><option>Event hall</option><option>Office</option></select></label>
+            <label style="display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:#8b867c">Planning style<select style="height:32px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;padding:0 6px;color:#1a1917"><option>Wedding banquet</option><option>Conference · theatre</option><option>Gala dinner</option><option>Standing reception</option></select></label>
+          </div>
+          <sc-for list="{{ rules }}" as="r">
+            <div style="padding:12px 0;border-bottom:1px solid #f0eee9;display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:start">
+              <iconify-icon icon="{{ r.icon }}" width="15" style="color:{{ r.fg }};margin-top:2px"></iconify-icon>
+              <div>
+                <div style="font-size:13px;font-weight:{{ r.fw }};color:{{ r.tc }}">{{ r.name }}</div>
+                <div style="font-size:12px;color:#5e5a52;margin-top:3px;font-variant-numeric:tabular-nums">Measured {{ r.measured }} · Required {{ r.required }}</div>
+                <div style="display:{{ r.noteDisp }};font-size:12px;color:#b93a2e;margin-top:3px">{{ r.note }}</div>
+              </div>
+              <span style="font-size:11.5px;color:{{ r.fg }};font-weight:500">{{ r.status }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- History -->
+      <sc-if value="{{ showHistory }}">
+        <div style="padding:22px 24px 8px;color:#6f6a61;font-size:12.5px;line-height:1.5">Every change is saved as a revision. Preview any revision before restoring it.</div>
+        <div style="padding:6px 16px 28px">
+          <sc-for list="{{ revs }}" as="h">
+            <div style="position:relative;display:flex;gap:12px;padding:14px 8px;border-radius:6px;background:{{ h.bg }};transition:background .12s" style-hover="background:#f3f2ee">
+              <span style="position:absolute;left:21px;top:40px;bottom:-12px;width:1px;background:#e9e6e0;display:{{ h.lineDisp }}"></span>
+              <span style="width:26px;height:26px;flex:none;border-radius:{{ h.avR }};background:{{ h.avBg }};color:{{ h.avFg }};display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;position:relative;z-index:1">{{ h.initials }}<iconify-icon icon="{{ h.avIcon }}" width="13"></iconify-icon></span>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:500">{{ h.who }}</span><span style="font-size:11.5px;color:#8b867c">{{ h.via }}</span><span style="flex:1"></span><span style="font-size:11.5px;color:#8b867c;font-variant-numeric:tabular-nums">#{{ h.rev }}</span></div>
+                <div style="margin-top:2px;font-size:13px;line-height:1.4">{{ h.what }}</div>
+                <div style="margin-top:3px;font-size:11.5px;color:#8b867c">{{ h.when }}</div>
+                <div style="display:{{ h.actDisp }};gap:6px;margin-top:8px">
+                  <button onClick="{{ h.preview }}" style="height:26px;padding:0 10px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:12px;color:#1a1917" style-hover="border-color:#1a1917">Preview</button>
+                  <button onClick="{{ h.restore }}" style="height:26px;padding:0 10px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:12px;color:#1a1917" style-hover="border-color:#1a1917">Restore revision</button>
+                  <button disabled="{{ true }}" title="Coming later" style="height:26px;padding:0 10px;border:0;background:transparent;font-size:12px;color:#a8a39a">Compare</button>
+                </div>
+                <div style="display:{{ h.curDisp }};margin-top:6px;font-size:11.5px;color:#2b54d0">Current revision</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- AI Planner -->
+    <sc-if value="{{ aiOpen }}">
+      <div style="display:flex;align-items:center;gap:10px;padding:0 16px 0 22px;height:48px;border-bottom:1px solid #e9e6e0;flex:none">
+        <iconify-icon icon="ph:sparkle-light" width="16" style="color:#2b54d0"></iconify-icon>
+        <span style="flex:1;font-size:13.5px;font-weight:500">AI Planner</span>
+        <select aria-label="Agent" style="height:28px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:12px;padding:0 6px;color:#1a1917"><option>Claude Code</option><option>Anthropic API</option><option>Codex · not set up</option></select>
+        <button onClick="{{ toggleAI }}" title="Close AI Planner" style="width:28px;height:28px;border:0;background:transparent;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#5e5a52" style-hover="background:#efede8"><iconify-icon icon="ph:x-light" width="16"></iconify-icon></button>
+      </div>
+      <div style="flex:1;min-height:0;overflow:auto;padding:28px 26px 28px;display:flex;flex-direction:column;gap:20px">
+
+        <sc-if value="{{ aiIdle }}">
+          <div>
+            <h3 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:34px;line-height:1.02;letter-spacing:-.02em">Describe the plan you need.</h3>
+            <p style="margin:8px 0 0;color:#5e5a52;line-height:1.5">The planner edits this project with the same tools you use. Every change is saved as a revision you can undo.</p>
+          </div>
+          <textarea value="{{ prompt }}" onChange="{{ onPrompt }}" rows="5" aria-label="Planning goal" style="width:100%;padding:14px 16px;border:1px solid transparent;border-radius:6px;background:#efeee9;font:inherit;font-size:14px;line-height:1.5;color:#1a1917;resize:vertical;outline:none" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)"></textarea>
+          <sc-if value="{{ promptEmpty }}"><div style="margin-top:-10px;color:#9a6400;font-size:12px">Describe a goal to start the planner.</div></sc-if>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Try</div>
+            <sc-for list="{{ suggestions }}" as="s">
+              <button onClick="{{ s.onClick }}" style="border:0;border-bottom:1px solid #f0eee9;background:transparent;padding:8px 0;text-align:left;color:#1a1917;font-size:13px;display:flex;gap:8px" style-hover="color:#2b54d0"><iconify-icon icon="ph:arrow-bend-down-right-light" width="14" style="color:#8b867c;margin-top:2px"></iconify-icon>{{ s.text }}</button>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="flex:1;color:#5e5a52;font-size:12px">Starts from revision {{ rev }}</span>
+            <button onClick="{{ runAI }}" disabled="{{ promptEmpty }}" style="height:38px;padding:0 18px;border:0;background:{{ runBg }};color:#fff;border-radius:4px;font-size:13px;display:flex;align-items:center;gap:8px;cursor:{{ runCursor }}" style-hover="background:#35332f;color:#fff"><iconify-icon icon="ph:play-light" width="14"></iconify-icon>Start planning</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ aiActive }}">
+          <div style="padding:16px 18px;background:#efeee9;border-radius:6px">
+            <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Request</div>
+            <div style="margin-top:6px;font-size:14px;line-height:1.5">{{ prompt }}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="flex:1;font-family:Newsreader,Georgia,serif;font-size:28px;letter-spacing:-.015em">{{ aiHeadline }}</span>
+            <span style="font-size:12px;color:#5e5a52;font-variant-numeric:tabular-nums">{{ aiProgressLabel }}</span>
+          </div>
+          <div style="height:3px;background:#e9e6e0;border-radius:2px;overflow:hidden;margin-top:-8px"><div style="height:100%;width:{{ aiPct }}%;background:{{ aiBarColor }};transition:width .5s ease"></div></div>
+          <ol style="list-style:none;margin:0;padding:0">
+            <sc-for list="{{ aiSteps }}" as="s">
+              <li style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid #f0eee9;opacity:{{ s.op }}">
+                <span style="width:18px;height:18px;flex:none;display:flex;align-items:center;justify-content:center;color:{{ s.fg }};animation:{{ s.anim }}"><iconify-icon icon="{{ s.icon }}" width="16"></iconify-icon></span>
+                <span style="flex:1"><span style="display:block;font-size:13px;color:{{ s.tc }}">{{ s.title }}</span><span style="display:block;font-size:12px;color:#5e5a52;margin-top:2px">{{ s.detail }}</span></span>
+              </li>
+            </sc-for>
+          </ol>
+          <sc-if value="{{ aiRunning }}">
+            <button onClick="{{ stopAI }}" style="align-self:flex-start;height:32px;padding:0 12px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:13px;color:#1a1917;display:flex;align-items:center;gap:6px" style-hover="border-color:#1a1917"><iconify-icon icon="ph:square-light" width="12"></iconify-icon>Stop planner</button>
+          </sc-if>
+          <sc-if value="{{ aiDone }}">
+            <div style="border-top:1px solid #1a1917;padding-top:16px">
+              <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#2d7446;display:flex;align-items:center;gap:6px"><iconify-icon icon="ph:check-circle-light" width="13"></iconify-icon>Completed · revision {{ rev }}</div>
+              <div style="font-family:Newsreader,Georgia,serif;font-size:24px;margin-top:8px;line-height:1.2">Arranged for 120 guests. All exit paths are valid.</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border-top:1px solid #e9e6e0;border-bottom:1px solid #e9e6e0">
+                <sc-for list="{{ aiStats }}" as="s"><div style="padding:10px 0"><div style="font-family:Newsreader,Georgia,serif;font-size:22px">{{ s.v }}</div><div style="font-size:11.5px;color:#5e5a52">{{ s.k }}</div></div></sc-for>
+              </div>
+              <p style="color:#5e5a52;font-size:12.5px;line-height:1.5;margin:12px 0">Moved T-06 away from column C-03, moved the gift table off the east door and widened the south walkway to 124 cm. Two clearance warnings are left for you to review.</p>
+              <div style="display:flex;gap:8px">
+                <button onClick="{{ keepAI }}" style="height:34px;padding:0 14px;border:0;background:#1a1917;color:#fff;border-radius:4px;font-size:13px" style-hover="background:#35332f;color:#fff">Keep changes</button>
+                <button onClick="{{ undoAI }}" style="height:34px;padding:0 14px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:13px;color:#1a1917" style-hover="border-color:#1a1917">Undo this run</button>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ aiFailed }}">
+            <div style="border:1px solid #efcfca;background:#fbeeec;border-radius:6px;padding:14px 16px">
+              <div style="display:flex;align-items:center;gap:8px;font-weight:500;color:#b93a2e"><iconify-icon icon="ph:x-circle-light" width="16"></iconify-icon>The planner stopped</div>
+              <p style="margin:6px 0 12px;color:#5e5a52;font-size:12.5px;line-height:1.5">It couldn't fit 12 tables without narrowing the south walkway below 120 cm. No changes were kept. Try allowing 110 guests, or removing the gift table.</p>
+              <div style="display:flex;gap:8px">
+                <button onClick="{{ resetAI }}" style="height:32px;padding:0 12px;border:0;background:#1a1917;color:#fff;border-radius:4px;font-size:12.5px" style-hover="background:#35332f;color:#fff">Edit request</button>
+                <button onClick="{{ runAI }}" style="height:32px;padding:0 12px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:12.5px;color:#1a1917" style-hover="border-color:#1a1917">Try again</button>
+              </div>
+            </div>
+          </sc-if>
+          <div>
+            <button onClick="{{ toggleLog }}" style="border:0;background:transparent;padding:0;display:flex;align-items:center;gap:6px;color:#5e5a52;font-size:12.5px"><iconify-icon icon="{{ logChev }}" width="14"></iconify-icon>Detailed log</button>
+            <sc-if value="{{ logOpen }}">
+              <pre style="margin:10px 0 0;padding:12px 14px;background:#1f1e1b;color:#d8d5cf;border-radius:6px;font:11.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;max-height:220px;overflow:auto">{{ logText }}</pre>
+            </sc-if>
+          </div>
+          <sc-if value="{{ aiFinished }}">
+            <button onClick="{{ resetAI }}" style="align-self:flex-start;border:0;background:transparent;padding:0;color:#2b54d0;font-size:13px;display:flex;align-items:center;gap:6px"><iconify-icon icon="ph:plus-light" width="14"></iconify-icon>New request</button>
+          </sc-if>
+        </sc-if>
+      </div>
+    </sc-if>
+  </aside>
+</div>
+
+<!-- Status bar -->
+<footer style="height:28px;flex:none;display:flex;align-items:center;gap:24px;padding:0 20px;background:#f3f2ee;border-top:1px solid #e9e6e0;font-size:11.5px;color:#6f6a61;font-variant-numeric:tabular-nums">
+  <span style="display:flex;align-items:center;gap:6px"><iconify-icon icon="ph:ruler-light" width="13"></iconify-icon>1:100 · {{ zoomLabel }}</span>
+  <span style="display:flex;align-items:center;gap:6px"><iconify-icon icon="ph:grid-four-light" width="13"></iconify-icon>Grid {{ gridLabel }}</span>
+  <button onClick="{{ toggleSnap }}" style="border:0;background:transparent;padding:0;display:flex;align-items:center;gap:6px;color:{{ snapFg }};font-size:12px"><iconify-icon icon="ph:magnet-light" width="13"></iconify-icon>Snap {{ snapLabel }}</button>
+  <button onClick="{{ toggleGuides }}" style="border:0;background:transparent;padding:0;display:flex;align-items:center;gap:6px;color:{{ guidesFg }};font-size:12px"><iconify-icon icon="ph:line-segments-light" width="13"></iconify-icon>Guides {{ guidesLabel }}</button>
+  <span style="display:flex;align-items:center;gap:6px"><iconify-icon icon="ph:cursor-light" width="13"></iconify-icon>{{ selLabel }}</span>
+  <span style="display:flex;align-items:center;gap:6px"><iconify-icon icon="ph:crosshair-simple-light" width="13"></iconify-icon>{{ coordLabel }}</span>
+  <span style="flex:1"></span>
+  <button onClick="{{ openReview }}" style="border:0;background:transparent;padding:0;display:flex;align-items:center;gap:6px;color:{{ statusVal.fg }};font-size:12px"><iconify-icon icon="{{ statusVal.icon }}" width="13"></iconify-icon>{{ statusVal.label }}</button>
+</footer>
+
+<!-- Item type modal -->
+<sc-if value="{{ typeModal }}">
+  <div onClick="{{ closeType }}" style="position:fixed;inset:0;background:rgba(26,25,23,.28);display:flex;align-items:center;justify-content:center;z-index:30;animation:atr-in .14s">
+    <div onClick="{{ stop }}" role="dialog" aria-label="Item type" style="width:560px;max-width:calc(100vw - 40px);background:#f8f7f4;border-radius:8px;border:1px solid #e3e0d8;box-shadow:0 24px 60px rgba(26,25,23,.18);overflow:hidden">
+      <div style="padding:24px 28px 8px">
+        <div style="font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">{{ typeM.kicker }}</div>
+        <h3 style="margin:6px 0 0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:28px">{{ typeM.title }}</h3>
+      </div>
+      <div style="padding:14px 28px 6px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:12px;color:#5e5a52">Name<input defaultValue="{{ typeM.name }}" style="height:36px;padding:0 10px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:14px;color:#1a1917;outline:none" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#5e5a52">Category<select style="height:36px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;padding:0 8px;color:#1a1917"><option>{{ typeM.cat }}</option><option>Seating</option><option>Stages</option><option>Service</option><option>Equipment</option><option>Office</option><option>Custom</option></select></label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#5e5a52">3D shape<select style="height:36px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;padding:0 8px;color:#1a1917"><option>{{ typeM.shape }}</option><option>Box</option><option>Chair</option><option>Stage</option></select></label>
+      </div>
+      <div style="padding:10px 28px 0;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Size</div>
+      <div style="padding:8px 28px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <sc-for list="{{ typeM.size }}" as="f"><div style="position:relative"><span style="position:absolute;left:10px;top:11px;font-size:11.5px;color:#8b867c">{{ f.k }}</span><input defaultValue="{{ f.v }}" style="width:100%;height:36px;padding:0 28px 0 26px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff"><span style="position:absolute;right:9px;top:11px;font-size:11.5px;color:#8b867c">{{ f.unit }}</span></div></sc-for>
+      </div>
+      <div style="padding:16px 28px 0;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#8b867c">Clearance · free space needed to use it</div>
+      <div style="padding:8px 28px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <sc-for list="{{ typeM.clr }}" as="f"><div style="position:relative"><span style="position:absolute;left:10px;top:11px;font-size:11.5px;color:#8b867c">{{ f.k }}</span><input defaultValue="{{ f.v }}" style="width:100%;height:36px;padding:0 28px 0 26px;border:1px solid transparent;border-radius:4px;background:#efeee9;font:inherit;font-size:13px;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff"><span style="position:absolute;right:9px;top:11px;font-size:11.5px;color:#8b867c">cm</span></div></sc-for>
+      </div>
+      <div style="margin-top:24px;padding:14px 28px;border-top:1px solid #e9e6e0;display:flex;align-items:center;gap:8px">
+        <span style="flex:1;color:#5e5a52;font-size:12.5px">{{ typeM.note }}</span>
+        <button onClick="{{ closeType }}" style="height:34px;padding:0 14px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:13px;color:#1a1917" style-hover="border-color:#1a1917">Cancel</button>
+        <button onClick="{{ saveType }}" style="height:34px;padding:0 14px;border:0;background:#1a1917;color:#fff;border-radius:4px;font-size:13px" style-hover="background:#35332f;color:#fff">Save item type</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;'saved'|'saving'|'offline'&quot;,&quot;section&quot;:&quot;States&quot;},&quot;aiOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;success&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;success&quot;,&quot;tsType&quot;:&quot;'success'|'failed'&quot;,&quot;section&quot;:&quot;States&quot;},&quot;startView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;plan&quot;,&quot;3d&quot;,&quot;split&quot;],&quot;default&quot;:&quot;plan&quot;,&quot;tsType&quot;:&quot;'plan'|'3d'|'split'&quot;,&quot;section&quot;:&quot;Workspace&quot;}}">
+const ACC = '#2b54d0', ERR = '#b93a2e', WARN = '#9a6400', OK = '#2d7446', INK = '#1a1917', INK2 = '#5e5a52';
+const GROUPS = [['Geometry', 3], ['Clearances', 4], ['Doors & exits', 2], ['Paths & accessibility', 1], ['Height', 2], ['Activity rules', 2]];
+const STEPS = [
+  ['Read the room', '24 × 16 m hall · 3 doors · 4 columns · ceiling 4.50 m'],
+  ['Chose tables from the library', 'Round table 180 · 10 seats → 12 tables for 120 guests'],
+  ['Kept the table blocks, adjusted T-06', 'Moved 30 cm clear of column C-03'],
+  ['Moved the gift table', 'Cleared the swing of east door D-02'],
+  ['Checked every exit path', 'Narrowest walkway is now 124 cm (needs 120 cm)'],
+  ['Saved a new revision', 'All changes are one step in History'],
+];
+const LOG = `08:14:02  get_project  → rev 42 · 20 items · 3 doors
+08:14:03  list_item_types  → 37 types (hall pack)
+08:14:05  check_project  → 2 errors · 3 warnings
+08:14:07  move_items  T-06 (690,1310) → (670,1340)
+08:14:08  move_items  GT-01 (2330,1040) → (2330,1300)
+08:14:10  move_items  T-11 (1720,1360) → (1720,1330)
+08:14:11  check_rules  hall/wedding → walkway 124 cm ✓
+08:14:12  commit  "Arranged for 120 guests" → rev 43`;
+const HISTORY = [
+  { rev: 42, who: 'You', what: 'Moved the dance floor to the centre line', when: 'Today, 08:02' },
+  { rev: 41, who: 'AI Planner', ai: true, via: 'Claude Code', what: 'Arranged 12 round tables for 120 guests', when: 'Today, 07:50' },
+  { rev: 40, who: 'Mona Adel', what: 'Added a gift table by the east door', when: 'Today, 07:12' },
+  { rev: 39, who: 'Mona Adel', what: 'Set ceiling height to 4.50 m', when: 'Today, 07:05' },
+  { rev: 38, who: 'AI Planner', ai: true, via: 'Anthropic API', what: 'Moved the buffet to the south wall', when: 'Yesterday, 18:20' },
+  { rev: 37, who: 'You', what: 'Added door D-03 on the south wall', when: 'Yesterday, 17:05' },
+  { rev: 36, who: 'You', what: 'Created from the Event hall template', when: 'Sep 22, 10:30' },
+];
+const tabStyle = (on) => ({ bg: on ? '#fff' : 'transparent', fg: on ? INK : INK2, sh: on ? '0 1px 2px rgba(26,25,23,.10)' : 'none' });
+
+class Component extends DCLogic {
+  state = { lib: null, items: [], sel: ['DF-01'], view: null, left: 'library', right: 'properties', ai: 'closed', aiStep: 0,
+    cat: 'Tables', q: '', undo: [], redo: [], rev: 42, saving: false, toast: null, more: false, typeModal: null,
+    hidden: {}, resolved: {}, rz: -38, rx: 58, zoom: 1, z3: 1, filter: 'all', focus: null, history: HISTORY, preview: null,
+    spaceDirty: 0, openDoor: 'D-02', grid: 10, snap: true, guides: true, accel: true, dims: true, logOpen: false,
+    prompt: 'Arrange this hall for 120 guests while keeping all exit paths valid.', paneW: 900, paneH: 700, elev: {} };
+
+  componentDidMount() {
+    import(new URL('./atrium-data-v2.js', document.baseURI).href).then((lib) => this.setState({ lib, items: lib.ITEMS.map((i) => ({ ...i })) }));
+    this.onKey = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+      const k = e.key, mod = e.ctrlKey || e.metaKey;
+      if (mod && k.toLowerCase() === 'z') { e.preventDefault(); this.doUndo(); return; }
+      if (mod && k.toLowerCase() === 'y') { e.preventDefault(); this.doRedo(); return; }
+      if (mod && k.toLowerCase() === 'd') { e.preventDefault(); this.duplicate(); return; }
+      if (k === 'Escape') this.setState({ sel: [], more: false, typeModal: null });
+      if (k === 'Delete' || k === 'Backspace') this.remove();
+      if (k.toLowerCase() === 'r' && !mod) this.rotate(e.shiftKey ? -15 : 15);
+      if (k.toLowerCase() === 'l' && !mod) this.toggleLock();
+      if (k.toLowerCase() === 'f' && !mod) this.setState({ zoom: 1, z3: 1 });
+      const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      if (arrows[k] && this.state.sel.length) {
+        e.preventDefault();
+        const step = (e.shiftKey ? 10 : 1) * (this.state.grid || 1);
+        this.moveSel(arrows[k][0] * step, arrows[k][1] * step, 'Nudged');
+      }
+    };
+    window.addEventListener('keydown', this.onKey);
+    this.onResize = () => this.setState({ winW: window.innerWidth });
+    window.addEventListener('resize', this.onResize);
+    this.ro = new ResizeObserver(() => this.measure());
+    const main = document.querySelector('[data-scene-pane]');
+    if (main && main.parentElement) this.ro.observe(main.parentElement);
+    if (window.innerWidth < 1280) this.setState({ left: null, winW: window.innerWidth }); else this.onResize();
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.onKey); window.removeEventListener('resize', this.onResize); this.ro && this.ro.disconnect(); clearInterval(this.aiTimer); }
+
+  measure = () => {
+    const pane = document.querySelector('[data-scene-pane]');
+    this.planEl = document.querySelector('[data-plan]');
+    const pw = this.planEl ? this.planEl.offsetWidth : 0;
+    if (pw && Math.abs(pw - (this.state.planW || 0)) > 4) this.setState({ planW: pw });
+    if (!pane) return;
+    const r = pane.getBoundingClientRect();
+    if (r.width && (Math.abs(r.width - this.state.paneW) > 1 || Math.abs(r.height - this.state.paneH) > 1)) this.setState({ paneW: r.width, paneH: r.height });
+  };
+  componentDidUpdate() { this.measure(); }
+
+  flash(text, icon = 'ph:check-light') { clearTimeout(this.tt); this.setState({ toast: { text, icon } }); this.tt = setTimeout(() => this.setState({ toast: null }), 2600); }
+  commit(items, summary, who = 'You') {
+    clearTimeout(this.st);
+    this.setState((s) => ({ undo: [...s.undo, s.items], redo: [], items, saving: true }));
+    this.st = setTimeout(() => this.setState((s) => ({ saving: false, rev: s.rev + 1, history: [{ rev: s.rev + 1, who, what: summary, when: 'Just now' }, ...s.history] })), 650);
+  }
+  doUndo = () => { const s = this.state; if (!s.undo.length) return; this.setState({ items: s.undo[s.undo.length - 1], undo: s.undo.slice(0, -1), redo: [...s.redo, s.items] }); this.flash('Undone', 'ph:arrow-u-up-left-light'); };
+  doRedo = () => { const s = this.state; if (!s.redo.length) return; this.setState({ items: s.redo[s.redo.length - 1], redo: s.redo.slice(0, -1), undo: [...s.undo, s.items] }); this.flash('Redone', 'ph:arrow-u-up-right-light'); };
+  name(it) { return this.state.lib.TYPES[it.t].name; }
+  moveSel(dx, dy, verb) {
+    const s = this.state, locked = s.items.filter((i) => s.sel.includes(i.id) && i.locked);
+    if (locked.length === s.sel.length) { this.flash('Unlock the item to move it', 'ph:lock-simple-light'); return; }
+    this.commit(s.items.map((i) => (s.sel.includes(i.id) && !i.locked ? { ...i, x: i.x + dx, y: i.y + dy } : i)), `${verb} ${s.sel.length > 1 ? s.sel.length + ' items' : s.sel[0]}`);
+  }
+  rotate(by) {
+    const s = this.state; if (!s.sel.length) return;
+    this.commit(s.items.map((i) => (s.sel.includes(i.id) && !i.locked ? { ...i, rot: (((i.rot || 0) + by) % 360 + 360) % 360 } : i)), `Rotated ${s.sel.join(', ')}`);
+  }
+  toggleLock = () => {
+    const s = this.state; if (!s.sel.length) return;
+    const all = s.items.filter((i) => s.sel.includes(i.id)).every((i) => i.locked);
+    this.commit(s.items.map((i) => (s.sel.includes(i.id) ? { ...i, locked: !all } : i)), `${all ? 'Unlocked' : 'Locked'} ${s.sel.join(', ')}`);
+    this.flash(all ? 'Unlocked' : 'Locked', all ? 'ph:lock-simple-open-light' : 'ph:lock-simple-light');
+  };
+  duplicate = () => {
+    const s = this.state; if (!s.sel.length) return;
+    const copies = s.items.filter((i) => s.sel.includes(i.id)).map((i, n) => ({ ...i, locked: false, id: i.id.split('-')[0] + '-' + String(s.items.length + n + 1).padStart(2, '0'), x: i.x + 50, y: i.y + 50 }));
+    this.commit([...s.items, ...copies], `Duplicated ${s.sel.length} item${s.sel.length > 1 ? 's' : ''}`);
+    this.setState({ sel: copies.map((c) => c.id) });
+  };
+  remove = () => {
+    const s = this.state; if (!s.sel.length) return;
+    const keep = s.items.filter((i) => !s.sel.includes(i.id) || i.locked);
+    if (keep.length === s.items.length) { this.flash('Locked items can’t be removed', 'ph:lock-simple-light'); return; }
+    this.commit(keep, `Removed ${s.items.length - keep.length} item${s.items.length - keep.length > 1 ? 's' : ''}`);
+    this.setState({ sel: [] }); this.flash('Removed · Ctrl Z to undo', 'ph:trash-light');
+  };
+  align(mode) {
+    const s = this.state, { dims } = s.lib, sel = s.items.filter((i) => s.sel.includes(i.id) && !i.locked);
+    if (sel.length < 2) return;
+    const ext = sel.map((i) => { const d = dims(i); return { i, l: i.x - d.w / 2, r: i.x + d.w / 2, t: i.y - d.d / 2, b: i.y + d.d / 2, d }; });
+    const L = Math.min(...ext.map((e) => e.l)), R = Math.max(...ext.map((e) => e.r)), T = Math.min(...ext.map((e) => e.t)), B = Math.max(...ext.map((e) => e.b));
+    const pos = {};
+    ext.forEach((e) => {
+      const p = { x: e.i.x, y: e.i.y };
+      if (mode === 'left') p.x = L + e.d.w / 2; if (mode === 'right') p.x = R - e.d.w / 2; if (mode === 'cx') p.x = (L + R) / 2;
+      if (mode === 'top') p.y = T + e.d.d / 2; if (mode === 'bottom') p.y = B - e.d.d / 2; if (mode === 'cy') p.y = (T + B) / 2;
+      pos[e.i.id] = p;
+    });
+    if (mode === 'dh' || mode === 'dv') {
+      const k = mode === 'dh' ? 'x' : 'y', sorted = [...sel].sort((a, b) => a[k] - b[k]), a = sorted[0][k], b = sorted[sorted.length - 1][k];
+      sorted.forEach((it, n) => { pos[it.id] = { x: it.x, y: it.y, [k]: Math.round(a + ((b - a) * n) / (sorted.length - 1)) }; });
+    }
+    this.commit(s.items.map((i) => (pos[i.id] ? { ...i, ...pos[i.id] } : i)), `Aligned ${sel.length} items`);
+  }
+  itemDown(it, e) {
+    e.stopPropagation();
+    const s = this.state;
+    let sel = s.sel;
+    if (e.shiftKey) sel = sel.includes(it.id) ? sel.filter((x) => x !== it.id) : [...sel, it.id];
+    else if (!sel.includes(it.id)) sel = [it.id];
+    this.setState({ sel, right: s.right === 'history' ? 'properties' : s.right, focus: null });
+    if (e.shiftKey || !this.planEl) return;
+    if (it.locked) return;
+    const rect = this.planEl.getBoundingClientRect(), cm = 2400 / rect.width, start = s.items, sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const move = (ev) => {
+      const dx = (ev.clientX - sx) * cm, dy = (ev.clientY - sy) * cm;
+      if (!moved && Math.hypot(dx, dy) < 4) return;
+      moved = true;
+      const g = this.state.snap ? this.state.grid || 1 : 1;
+      this.setState({ dragging: true, items: start.map((i) => (sel.includes(i.id) && !i.locked ? { ...i, x: Math.round((i.x + dx) / g) * g, y: Math.round((i.y + dy) / g) * g } : i)) });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      this.setState({ dragging: false });
+      if (moved) { const now = this.state.items; this.setState({ items: start }, () => this.commit(now, `Moved ${sel.length > 1 ? sel.length + ' items' : this.name(it)}`)); }
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+  setField(id, key, raw) {
+    const v = Number(raw); if (Number.isNaN(v)) return;
+    const s = this.state;
+    if (key === 'z') { this.setState({ elev: { ...s.elev, [id]: v } }); return; }
+    this.setState({ items: s.items.map((i) => (i.id === id ? { ...i, [key]: v } : i)) });
+    clearTimeout(this.ft); this.ft = setTimeout(() => this.commit(this.state.items, `Edited ${key.toUpperCase()} of ${id}`), 700);
+  }
+  place(tile) {
+    const s = this.state, { TYPES } = s.lib;
+    const t = TYPES[tile.t] ? tile.t : null;
+    if (!t) { this.flash(`${tile.name} added to the placing queue`, 'ph:plus-light'); return; }
+    const n = s.items.filter((i) => i.t === t).length + 1, id = (t === 'rt180' ? 'T' : t.slice(0, 2).toUpperCase()) + '-' + String(n + (t === 'rt180' ? 0 : 0)).padStart(2, '0') + (s.items.some((i) => i.id === (t === 'rt180' ? 'T-' : '') + n) ? 'b' : '');
+    const it = { id: s.items.some((i) => i.id === id) ? id + 'b' : id, t, x: 1200, y: 1340 };
+    this.commit([...s.items, it], `Placed ${TYPES[t].name}`);
+    this.setState({ sel: [it.id] }); this.flash(`Placed ${TYPES[t].name} · drag to position`, 'ph:plus-light');
+  }
+  runAI = () => {
+    clearInterval(this.aiTimer);
+    const fail = (this.props.aiOutcome ?? 'success') === 'failed';
+    this.setState({ ai: 'running', aiStep: 0, sel: [] });
+    this.aiTimer = setInterval(() => {
+      const n = this.state.aiStep + 1;
+      if (fail && n === 4) { clearInterval(this.aiTimer); this.setState({ ai: 'failed', aiStep: 4 }); return; }
+      if (n >= STEPS.length) {
+        clearInterval(this.aiTimer);
+        const items = this.state.items.map((i) => (i.id === 'T-06' ? { ...i, x: 670, y: 1340 } : i.id === 'GT-01' ? { ...i, y: 1300 } : i.id === 'T-11' ? { ...i, y: 1330 } : i));
+        this.setState((s) => ({ ai: 'done', aiStep: STEPS.length, resolved: { ...s.resolved, W1: true }, undo: [...s.undo, s.items], items, rev: s.rev + 1,
+          history: [{ rev: s.rev + 1, who: 'AI Planner', ai: true, via: 'Claude Code', what: 'Arranged for 120 guests with valid exit paths', when: 'Just now' }, ...s.history] }));
+        return;
+      }
+      this.setState({ aiStep: n });
+    }, 1100);
+  };
+
+  renderVals() {
+    const s = this.state, lib = s.lib;
+    const view = s.view ?? this.props.startView ?? 'plan';
+    const conn = this.props.connection ?? 'saved';
+    const set = (o) => () => this.setState(o);
+    const items = lib ? s.items : [];
+    const findings = lib ? lib.check(items, s.resolved) : [];
+    const errors = findings.filter((f) => f.sev === 'error'), warns = findings.filter((f) => f.sev === 'warn');
+    const selItems = items.filter((i) => s.sel.includes(i.id));
+    const one = selItems.length === 1 ? selItems[0] : null;
+    const aiOpen = s.ai !== 'closed'; const wide = (s.winW || 1440) >= 1400;
+
+    const save = conn === 'offline' ? { dot: WARN, label: 'Offline · 3 changes kept locally', anim: 'none' }
+      : conn === 'saving' || s.saving ? { dot: ACC, label: 'Saving…', anim: 'atr-pulse 1s infinite' }
+      : { dot: OK, label: `Saved · Revision ${s.rev}`, anim: 'none' };
+
+    const viewTabs = [['plan', 'Plan', 'ph:square-light'], ['3d', '3D', 'ph:cube-light'], ['split', 'Split', 'ph:columns-light']].map(([id, label, icon]) => ({ label, icon, on: view === id, ...tabStyle(view === id), onClick: set({ view: id }) }));
+    const rail = [['library', 'Library', 'ph:squares-four-light'], ['objects', 'Objects', 'ph:list-bullets-light'], ['space', 'Space', 'ph:frame-corners-light'], ['layers', 'Layers', 'ph:stack-light'], ['precision', 'Precision', 'ph:crosshair-simple-light']]
+      .map(([id, label, icon]) => ({ label, icon, on: s.left === id, bg: 'transparent', bar: s.left === id ? INK : 'transparent', fw: s.left === id ? 500 : 400, fg: s.left === id ? INK : '#7a756c', onClick: () => this.setState({ left: s.left === id ? null : id }) }));
+    const titles = { library: 'Object library', objects: 'Objects', space: 'Space', layers: 'Layers', precision: 'Precision' };
+
+    // Library
+    const LIB = lib ? lib.LIBRARY : {};
+    const q = s.q.trim().toLowerCase();
+    const cats = Object.keys(LIB).map((name) => ({ name, count: LIB[name].length, on: s.cat === name && !q, fg: s.cat === name && !q ? INK : INK2, bd: s.cat === name && !q ? INK : 'transparent', onClick: () => this.setState({ cat: name, q: '' }) }));
+    const pool = q ? Object.values(LIB).flat().filter((t) => t.name.toLowerCase().includes(q)) : LIB[s.cat] || [];
+    const tiles = pool.map((t) => ({ ...t, roundDisp: t.shape === 'round' ? 'block' : 'none', rectDisp: t.shape === 'rect' ? 'block' : 'none', fill: t.dark ? '#2b2a27' : '#fdfcfa', onClick: () => this.place(t) }));
+    const typeCount = Object.values(LIB).flat().length;
+
+    // Objects
+    const catOf = (i) => (lib ? lib.TYPES[i.t].cat : '');
+    const sevOf = {}; findings.forEach((f) => f.ids.forEach((id) => { if (!sevOf[id] || f.sev === 'error') sevOf[id] = f.sev; }));
+    const objGroups = ['Tables', 'Stages', 'Service', 'Equipment'].map((g) => {
+      const rows = items.filter((i) => catOf(i) === g);
+      return { name: g, count: rows.length, selectAll: () => this.setState({ sel: rows.map((r) => r.id) }),
+        rows: rows.map((i) => ({ id: i.id, name: this.name(i), bg: s.sel.includes(i.id) ? '#e6ecfc' : 'transparent', fg: s.sel.includes(i.id) ? ACC : INK, lockIcon: i.locked ? 'ph:lock-simple-light' : '', sevIcon: sevOf[i.id] === 'error' ? 'ph:x-circle-light' : sevOf[i.id] === 'warn' ? 'ph:warning-light' : '', sevColor: sevOf[i.id] === 'error' ? ERR : WARN, onClick: (e) => this.setState({ sel: e.shiftKey ? [...s.sel, i.id] : [i.id] }) })) };
+    }).filter((g) => g.count);
+
+    // Space
+    const spaceChange = () => this.setState((st) => ({ spaceDirty: st.spaceDirty + 1 }));
+    const doorRows = lib ? lib.DOORS.map((d) => ({ ...d, line: `${d.w} cm wide · ${d.at} cm along · ${d.swing}`, open: s.openDoor === d.id, chev: s.openDoor === d.id ? 'ph:caret-up-light' : 'ph:caret-down-light', toggle: set({ openDoor: s.openDoor === d.id ? null : d.id }), fields: [{ k: 'At', v: d.at, pad: 32 }, { k: 'W', v: d.w, pad: 28 }] })) : [];
+    const colRows = lib ? lib.COLUMNS.map((c) => ({ ...c, size: `${c.s} × ${c.s}` })) : [];
+    const dirty = s.spaceDirty > 0;
+
+    // Layers
+    const cnt = (c) => items.filter((i) => catOf(i) === c).length;
+    const layerDefs = [['structure', 'Structure', 'Walls · 3 doors · 4 columns', 'ph:wall-light', true], ['furniture', 'Tables & seating', `${cnt('Tables')} tables · ${cnt('Tables') * 10} chairs`, 'ph:armchair-light'], ['stage', 'Stage & AV', '3 items', 'ph:speaker-high-light'], ['service', 'Service', `${cnt('Service')} items`, 'ph:fork-knife-light'], ['clearance', 'Clearance zones', 'Free space around items', 'ph:corners-out-light'], ['dimsL', 'Dimension labels', 'On selection', 'ph:ruler-light']];
+    const layerRows = layerDefs.map(([id, name, count, icon, lockedL]) => { const hid = !!s.hidden[id]; return { name, count, icon, visible: !hid, eye: hid ? 'ph:eye-slash-light' : 'ph:eye-light', fg: hid ? '#a8a39a' : INK, lockIcon: lockedL ? 'ph:lock-simple-light' : 'ph:lock-simple-open-light', lock: () => this.flash(lockedL ? 'Structure is edited in Space' : 'Layer locked', 'ph:lock-simple-light'), toggle: () => this.setState({ hidden: { ...s.hidden, [id]: !hid } }) }; });
+
+    // Precision
+    const gridOpts = [[0, 'Off'], [1, '1 cm'], [5, '5 cm'], [10, '10 cm'], [25, '25 cm']].map(([g, label]) => ({ label, on: s.grid === g, ...tabStyle(s.grid === g), onClick: set({ grid: g }) }));
+    const tg = (on) => ({ track: on ? ACC : '#d3cfc6', knob: on ? 14 : 2, on });
+    const toggles = [
+      { label: 'Snap to grid', hint: 'Items land on the nearest grid line', ...tg(s.snap), onClick: set({ snap: !s.snap }) },
+      { label: 'Smart guides', hint: 'Show alignment with nearby items and walls', ...tg(s.guides), onClick: set({ guides: !s.guides }) },
+      { label: 'Speed up while held', hint: 'Arrow keys move faster the longer you hold', ...tg(s.accel), onClick: set({ accel: !s.accel }) },
+    ];
+    const stepFields = [{ label: 'Arrow step', v: 1, unit: 'cm' }, { label: 'Shift + arrow', v: 10, unit: 'cm' }, { label: 'Rotate step', v: 15, unit: '°' }, { label: 'Copy offset', v: 50, unit: 'cm' }];
+    const shortcuts = [['Move selection', '← ↑ → ↓'], ['Raise or lower', 'Page Up / Down'], ['Rotate 15°', 'R'], ['Duplicate', 'Ctrl D'], ['Lock or unlock', 'L'], ['Fit room', 'F'], ['Remove', 'Delete']].map(([label, key]) => ({ label, key }));
+
+    // Plan
+    const pl = lib ? lib.plan(items, s.sel, findings, { hidden: s.hidden }) : { shapes: [], seats: [], badges: [], cols: [], doors: [], clears: [] };
+    const shapes = pl.shapes.map((sh) => ({ ...sh, title: `${this.name(sh.it)} · ${sh.id}${sh.locked ? ' · locked' : ''}`, cursor: sh.locked ? 'default' : 'move', down: (e) => this.itemDown(sh.it, e) }));
+    const rulerX = Array.from({ length: 13 }, (_, i) => ({ p: (i / 12) * 100, label: i * 2 === 0 ? '0' : `${i * 2}` }));
+    const rulerY = Array.from({ length: 9 }, (_, i) => ({ p: (i / 8) * 100, label: `${i * 2}` }));
+    let selBox = null, guides = [], dimLines = [], handles = [];
+    if (lib && selItems.length) {
+      const ext = selItems.map((i) => { const d = lib.dims(i); return { l: i.x - d.w / 2, r: i.x + d.w / 2, t: i.y - d.d / 2, b: i.y + d.d / 2 }; });
+      const L = Math.min(...ext.map((e) => e.l)), R = Math.max(...ext.map((e) => e.r)), T = Math.min(...ext.map((e) => e.t)), B = Math.max(...ext.map((e) => e.b));
+      selBox = { l: (L / 2400) * 100, t: (T / 1600) * 100, w: ((R - L) / 2400) * 100, h: ((B - T) / 1600) * 100, style: one ? 'solid' : 'dashed', label: one ? `${Math.round(R - L)} × ${Math.round(B - T)} cm` : `${selItems.length} selected · ${((R - L) / 100).toFixed(2)} × ${((B - T) / 100).toFixed(2)} m` };
+      if (one) handles = [['0%', '0%'], ['100%', '0%'], ['0%', '100%'], ['100%', '100%']].map(([l, t]) => ({ l: `calc(${l} + ${l === '0%' ? '-' : ''}0.45cqw)`, t: `calc(${t} + ${t === '0%' ? '-' : ''}0.45cqw)` }));
+      if (one && s.guides) {
+        const mate = items.find((i) => i.id !== one.id && Math.abs(i.x - one.x) < 1);
+        if (mate) guides.push({ l: `${(one.x / 2400) * 100}%`, t: '0%', w: '1px', h: '100%', ll: `calc(${(one.x / 2400) * 100}% + 6px)`, lt: '1%', label: `Centred on ${this.name(mate).split(' ')[0].toLowerCase() === 'stage' ? 'stage' : mate.id}` });
+        const mateY = items.find((i) => i.id !== one.id && Math.abs(i.y - one.y) < 1);
+        if (mateY) guides.push({ l: '0%', t: `${(one.y / 1600) * 100}%`, w: '100%', h: '1px', ll: '0.5%', lt: `calc(${(one.y / 1600) * 100}% + 5px)`, label: `Aligned with ${mateY.id}` });
+      }
+      if (one && !s.hidden.dimsL) {
+        const e = ext[0], cy = ((one.y / 1600) * 100), cx = (one.x / 2400) * 100;
+        dimLines.push({ l: '0%', t: `${cy}%`, w: `${(e.l / 2400) * 100}%`, h: '0', bt: `1px solid ${ACC}`, bl: '0', ll: `${(e.l / 2400) * 50}%`, lt: `${cy}%`, label: `${(e.l / 100).toFixed(2)} m` });
+        dimLines.push({ l: `${cx}%`, t: '0%', w: '0', h: `${(e.t / 1600) * 100}%`, bt: '0', bl: `1px solid ${ACC}`, ll: `${cx}%`, lt: `${(e.t / 1600) * 50}%`, label: `${(e.t / 100).toFixed(2)} m` });
+      }
+    }
+
+    // 3D
+    const sc = lib ? lib.scene(items, s.sel, findings, s.rz) : { boxes: [], discs: [] };
+    const clickSel = (id) => (e) => { e.stopPropagation(); if (id) this.setState({ sel: e.shiftKey ? [...s.sel, id] : [id] }); };
+    sc.boxes = sc.boxes.map((b) => ({ ...b, onClick: clickSel(b.id) }));
+    sc.discs = sc.discs.map((d) => ({ ...d, onClick: clickSel(d.id) }));
+    const paneW = view === 'split' ? s.paneW : s.paneW, fitS = Math.min(paneW / 1500, s.paneH / 1050) * s.z3;
+    const sceneT = `scale(${fitS.toFixed(3)}) rotateX(${s.rx}deg) rotateZ(${s.rz}deg)`;
+    const top = s.rx === 0;
+    const camTools = [
+      { label: 'Fit view', icon: 'ph:corners-out-light', onClick: set({ z3: 1 }) },
+      { label: 'Orbit left', icon: 'ph:arrow-counter-clockwise-light', onClick: set({ rz: s.rz === -38 ? 38 : -38, rx: 58 }) },
+      { label: 'Orbit right', icon: 'ph:arrow-clockwise-light', onClick: set({ rz: s.rz === 38 ? -38 : 38, rx: 58 }), sep: 'block' },
+      { label: 'Perspective', icon: 'ph:cube-light', on: !top, onClick: set({ rx: 58, rz: s.rz || -38 }) },
+      { label: 'Top view', icon: 'ph:square-light', on: top, onClick: set({ rx: 0, rz: 0 }) },
+      { label: 'Section at 1.20 m', icon: 'ph:scissors-light', on: true, onClick: () => this.flash('Section height: 1.20 m', 'ph:scissors-light'), sep: 'block' },
+      { label: 'Visibility', icon: 'ph:eye-light', onClick: set({ left: 'layers' }) },
+      { label: 'Save image', icon: 'ph:camera-light', onClick: () => this.flash('Image saved to the report', 'ph:camera-light') },
+    ].map((c) => ({ ...c, sep: c.sep || 'none', bg: c.on ? '#e6ecfc' : 'transparent', fg: c.on ? ACC : INK }));
+
+    // Inspector
+    const rightTabs = [['properties', 'Properties'], ['review', 'Review'], ['history', 'History']].map(([id, label]) => ({ label, on: s.right === id, fg: s.right === id ? INK : INK2, fw: s.right === id ? 500 : 400, bd: s.right === id ? INK : 'transparent', badge: findings.length, badgeDisp: id === 'review' && findings.length ? 'inline-flex' : 'none', onClick: set({ right: id }) }));
+    const seats = items.filter((i) => i.t === 'rt180').length * 10;
+    const facts = [['Room', '24.00 × 16.00 m'], ['Ceiling', '4.50 m'], ['Floor area', '384 m²'], ['Guests', `${seats} seats`], ['Area per guest', `${(384 / Math.max(seats, 1)).toFixed(2)} m²`], ['Items placed', `${items.length} · ${new Set(items.map((i) => i.t)).size} types`], ['Doors · columns', '3 · 4']].map(([k, v]) => ({ k, v }));
+    const valBox = errors.length ? { bd: '#efcfca', bg: '#f9ecea', fg: ERR, icon: 'ph:x-circle-light', title: `${errors.length} error${errors.length > 1 ? 's' : ''} · ${warns.length} warnings`, text: 'Fix the errors before sharing the client report. Warnings can be accepted.' }
+      : { bd: '#d6e6da', bg: '#eef5ef', fg: OK, icon: 'ph:check-circle-light', title: warns.length ? `No errors · ${warns.length} warnings` : 'No issues found', text: 'This plan is ready for the client report.' };
+    const bomMap = {}; items.forEach((i) => { const n = this.name(i); bomMap[n] = (bomMap[n] || 0) + 1; });
+    const bom = [{ name: 'Banquet chair', n: seats }, ...Object.entries(bomMap).map(([name, n]) => ({ name, n }))].slice(0, 6);
+
+    let p = null;
+    if (one && lib) {
+      const ty = lib.TYPES[one.t], d = lib.dims(one), ro = !!one.locked, f = findings.find((x) => x.ids.includes(one.id));
+      const fld = (k, key, v, unit, label, readonly) => ({ k, v, unit, label, ro: readonly || ro, bg: readonly || ro ? 'transparent' : '#efeee9', fg: readonly || ro ? '#6f6a61' : INK, onChange: (e) => this.setField(one.id, key, e.target.value) });
+      p = { id: one.id, cat: ty.cat, name: ty.name, sub: `${ty.w} × ${ty.d} cm · ${ty.h} cm high${ty.seats ? ` · ${ty.seats} seats` : ''}`, lockDisp: ro ? 'flex' : 'none',
+        sameCount: items.filter((i) => i.t === one.t).length,
+        hasIssue: !!f, issueTitle: f ? f.title : '', issueFix: f ? f.fix : '', issueIcon: f && f.sev === 'error' ? 'ph:x-circle-light' : 'ph:warning-light', issueFg: f && f.sev === 'error' ? ERR : WARN, issueBg: f && f.sev === 'error' ? '#fbeeec' : '#f8f0dc', issueBd: f && f.sev === 'error' ? '#efcfca' : '#eadcb6',
+        actions: [['Rotate 90°', 'ph:arrow-clockwise-light', () => this.rotate(90)], [ro ? 'Unlock' : 'Lock', ro ? 'ph:lock-simple-light' : 'ph:lock-simple-open-light', this.toggleLock, ro], ['Duplicate · Ctrl D', 'ph:copy-light', this.duplicate], ['Show in 3D', 'ph:cube-light', set({ view: 'split' })], ['Remove · Delete', 'ph:trash-light', this.remove]].map(([label, icon, onClick, on]) => ({ label, icon, onClick, bg: on ? '#efede8' : 'transparent', fg: INK })),
+        groups: [
+          { title: 'Position', cols: '1fr 1fr', hint: 'Centre, measured from the west and north walls.', hintDisp: 'block', fields: [fld('X', 'x', one.x, 'cm', 'X position'), fld('Y', 'y', one.y, 'cm', 'Y position')] },
+          { title: 'Rotation & elevation', cols: '1fr 1fr', hint: '', hintDisp: 'none', fields: [fld('∠', 'rot', one.rot || 0, '°', 'Rotation'), fld('↑', 'z', s.elev[one.id] || 0, 'cm', 'Elevation')] },
+          { title: 'Dimensions', cols: '1fr 1fr 1fr', hint: 'Set by the item type.', hintDisp: 'block', fields: [fld('W', 'w', d.w, 'cm', 'Width', true), fld('D', 'd', d.d, 'cm', 'Depth', true), fld('H', 'h', d.h, 'cm', 'Height', true)] },
+          { title: 'Clearance', cols: '1fr 1fr', hint: 'Free space needed around the item to use it.', hintDisp: 'block', fields: ['Front', 'Back', 'Left', 'Right'].map((n, k) => fld(n[0], 'c' + k, ty.clr[k], 'cm', n + ' clearance', true)) },
+        ] };
+    }
+    const types = {}; selItems.forEach((i) => { types[this.name(i)] = (types[this.name(i)] || 0) + 1; });
+    const multi = { title: `${selItems.length} objects`, sub: Object.entries(types).map(([n, c]) => `${n} × ${c}`).join(' · ') };
+    const al = (m) => () => this.align(m);
+    const multiGroups = [
+      { title: 'Align', btns: [['Align left', 'ph:align-left-light', al('left')], ['Align centres', 'ph:align-center-horizontal-light', al('cx')], ['Align right', 'ph:align-right-light', al('right')], ['Align top', 'ph:align-top-light', al('top')], ['Align middles', 'ph:align-center-vertical-light', al('cy')], ['Align bottom', 'ph:align-bottom-light', al('bottom')]] },
+      { title: 'Distribute', btns: [['Distribute horizontally', 'ph:arrows-horizontal-light', al('dh')], ['Distribute vertically', 'ph:arrows-vertical-light', al('dv')]] },
+      { title: 'Transform', btns: [['Rotate 15° left', 'ph:arrow-counter-clockwise-light', () => this.rotate(-15)], ['Rotate 15° right', 'ph:arrow-clockwise-light', () => this.rotate(15)], ['Raise 10 cm', 'ph:arrow-line-up-light', () => this.flash('Raised 10 cm')], ['Lower 10 cm', 'ph:arrow-line-down-light', () => this.flash('Lowered 10 cm')]] },
+    ].map((g) => ({ title: g.title, btns: g.btns.map(([label, icon, onClick]) => ({ label, icon, onClick })) }));
+    const multiActions = [['Duplicate', 'ph:copy-light', this.duplicate, 'Ctrl D', INK], ['Lock all', 'ph:lock-simple-light', this.toggleLock, 'L', INK], ['Clear selection', 'ph:x-light', set({ sel: [] }), 'Esc', INK], ['Remove', 'ph:trash-light', this.remove, 'Delete', ERR]].map(([label, icon, onClick, key, fg]) => ({ label, icon, onClick, key, fg }));
+
+    // Review
+    const passedTotal = 14 + Object.keys(s.resolved).length + (2 - errors.length) - Object.keys(s.resolved).filter((k) => k[0] === 'E').length;
+    const counts = [
+      { n: errors.length, label: 'Errors', icon: 'ph:x-circle-light', fg: errors.length ? ERR : INK2, key: 'error' },
+      { n: warns.length, label: 'Warnings', icon: 'ph:warning-light', fg: warns.length ? WARN : INK2, key: 'warn' },
+      { n: passedTotal, label: 'Passed', icon: 'ph:check-circle-light', fg: OK, key: 'all' },
+      { n: 1, label: 'Unknown', icon: 'ph:question-light', fg: INK2, key: 'all' },
+    ].map((c) => ({ ...c, bg: s.filter === c.key && c.key !== 'all' ? '#f3f2ee' : 'transparent', onClick: set({ filter: s.filter === c.key ? 'all' : c.key }) }));
+    const shown = findings.filter((f) => s.filter === 'all' || f.sev === s.filter);
+    const reviewGroups = GROUPS.map(([name, base]) => {
+      const fs = shown.filter((f) => f.group === name), all = findings.filter((f) => f.group === name).length;
+      const total = base + (name === 'Geometry' || name === 'Doors & exits' ? 1 : name === 'Clearances' ? 2 : name === 'Paths & accessibility' ? 1 : 0);
+      return { name, passed: `${total - all} of ${total} passed`, unknown: name === 'Height' && s.filter === 'all' ? [{ title: 'Cake table', text: 'Height isn’t set for this item type, so it wasn’t checked against the ceiling.' }] : [],
+        findings: fs.map((f) => ({ ...f, icon: f.sev === 'error' ? 'ph:x-circle-light' : 'ph:warning-light', fg: f.sev === 'error' ? ERR : WARN, sevLabel: f.sev === 'error' ? 'Error' : 'Warning', meterW: `${Math.round(f.meter * 100)}%`, bg: s.focus === f.id ? '#f3f2ee' : 'transparent', edge: s.focus === f.id ? (f.sev === 'error' ? ERR : WARN) : 'transparent',
+          onClick: () => this.setState({ sel: f.ids, focus: f.id, view: view === '3d' ? 'split' : view }) })) };
+    }).filter((g) => g.findings.length || g.unknown.length || s.filter === 'all');
+    const w1 = findings.some((f) => f.id === 'W1');
+    const rules = [
+      { name: 'Walkway from every seat to an exit', measured: w1 ? '96 cm narrowest' : '124 cm narrowest', required: '120 cm', pass: !w1, note: '10 seats at T-11 are affected' },
+      { name: 'Floor area per guest', measured: '3.20 m²', required: '1.40 m²', pass: true },
+      { name: 'Number of exits', measured: '3 doors', required: '2 for 120 guests', pass: true },
+      { name: 'Total door width', measured: '5.60 m', required: '2.40 m', pass: true },
+    ].map((r) => ({ ...r, icon: r.pass ? 'ph:check-light' : 'ph:x-circle-light', fg: r.pass ? OK : ERR, status: r.pass ? 'Passes' : 'Fails', fw: r.pass ? 400 : 500, tc: r.pass ? INK2 : INK, noteDisp: r.pass ? 'none' : 'block' }));
+
+    // History
+    const revs = s.history.map((h, n) => ({ ...h, via: h.via ? `via ${h.via}` : '', initials: h.ai ? '' : h.who === 'You' ? 'You' : h.who.split(' ').map((w) => w[0]).join(''), avIcon: h.ai ? 'ph:sparkle-light' : '', avBg: h.ai ? '#e6ecfc' : h.who === 'You' ? '#1a1917' : '#e8e5de', avFg: h.ai ? ACC : h.who === 'You' ? '#fff' : INK, avR: h.ai ? '5px' : '50%', lineDisp: n === s.history.length - 1 ? 'none' : 'block', bg: s.preview === h.rev ? '#f3f2ee' : 'transparent', actDisp: n === 0 ? 'none' : 'flex', curDisp: n === 0 ? 'block' : 'none',
+      preview: set({ preview: h.rev }), restore: () => { this.setState((st) => ({ preview: null, rev: st.rev + 1, history: [{ rev: st.rev + 1, who: 'You', what: `Restored revision ${h.rev}`, when: 'Just now' }, ...st.history] })); this.flash(`Restored revision ${h.rev}`, 'ph:clock-counter-clockwise-light'); } }));
+
+    // AI
+    const aiActive = ['running', 'done', 'failed'].includes(s.ai);
+    const aiSteps = STEPS.map(([title, detail], n) => {
+      const doneStep = n < s.aiStep, cur = n === s.aiStep && s.ai === 'running', failed = s.ai === 'failed' && n === s.aiStep - 1 + 1 && n === 4 - 1 + 1 - 1;
+      const bad = s.ai === 'failed' && n === 3;
+      return { title: bad ? 'Couldn’t keep every exit path valid' : title, detail: bad ? 'South walkway would drop to 104 cm' : detail, icon: bad ? 'ph:x-circle-light' : doneStep ? 'ph:check-circle-light' : cur ? 'ph:spinner-gap-light' : 'ph:circle-light', fg: bad ? ERR : doneStep ? OK : cur ? ACC : '#b9b4aa', tc: doneStep || cur || bad ? INK : INK2, op: doneStep || cur || bad ? 1 : 0.5, anim: cur ? 'atr-pulse 1s infinite' : 'none' };
+    });
+    const aiHeadline = s.ai === 'running' ? 'Working on it…' : s.ai === 'done' ? 'Plan updated' : 'Stopped';
+
+    const hasFind = findings.length;
+    const statusVal = errors.length ? { fg: ERR, icon: 'ph:x-circle-light', label: `${errors.length} error${errors.length > 1 ? 's' : ''} · ${warns.length} warnings` } : warns.length ? { fg: WARN, icon: 'ph:warning-light', label: `No errors · ${warns.length} warnings` } : { fg: OK, icon: 'ph:check-circle-light', label: 'No issues found' };
+    const typeFor = one && lib ? lib.TYPES[one.t] : null;
+    const tm = s.typeModal === 'new' ? { kicker: 'Object library', title: 'New item type', name: '', cat: 'Custom', shape: 'Box', size: [{ k: 'W', v: '', unit: 'cm' }, { k: 'D', v: '', unit: 'cm' }, { k: 'H', v: '', unit: 'cm' }, { k: '#', v: 0, unit: 'seats' }], clr: ['F', 'B', 'L', 'R'].map((k) => ({ k, v: 0 })), note: 'Added to the Custom category' }
+      : typeFor ? { kicker: 'Edit item type', title: typeFor.name, name: typeFor.name, cat: typeFor.cat, shape: typeFor.round ? 'Round table' : 'Box', size: [{ k: 'W', v: typeFor.w, unit: 'cm' }, { k: 'D', v: typeFor.d, unit: 'cm' }, { k: 'H', v: typeFor.h, unit: 'cm' }, { k: '#', v: typeFor.seats || 0, unit: 'seats' }], clr: ['F', 'B', 'L', 'R'].map((k, n) => ({ k, v: typeFor.clr[n] })), note: `Applies to ${items.filter((i) => i.t === one.t).length} placed` } : { size: [], clr: [] };
+
+    return {
+      save, undo: this.doUndo, redo: this.doRedo, undoOff: !s.undo.length, redoOff: !s.redo.length, undoOp: s.undo.length ? 1 : 0.35, redoOp: s.redo.length ? 1 : 0.35,
+      viewTabs, rail, offline: conn === 'offline',
+      aiBtn: aiOpen ? { bd: ACC, bg: '#e6ecfc', fg: ACC } : { bd: '#d9d5cc', bg: '#fff', fg: INK },
+      toggleAI: () => this.setState({ ai: aiOpen ? 'closed' : s.aiStep && s.ai === 'closed' ? 'idle' : 'idle' }),
+      moreOpen: s.more, toggleMore: set({ more: !s.more }),
+      moreItems: [['Export project file', 'ph:download-simple-light', ''], ['Duplicate project', 'ph:copy-simple-light', ''], ['Keyboard shortcuts', 'ph:keyboard-light', '?'], ['Project settings', 'ph:sliders-horizontal-light', ''], ['Delete project', 'ph:trash-light', '']].map(([label, icon, key]) => ({ label, icon, key, fg: label.startsWith('Delete') ? ERR : INK, onClick: () => { this.setState({ more: false, left: label.startsWith('Keyboard') ? 'precision' : s.left }); if (label.startsWith('Export')) this.flash('Saved “Al Noor Wedding.atrium.json”', 'ph:download-simple-light'); } })),
+      leftOpen: !!s.left, railLine: s.left ? '0' : '1px solid #e9e6e0', roomy: (s.planW || 800) >= 360, chipDisp: (s.planW || 800) >= 360 ? 'block' : 'none', countSize: wide ? 34 : 30, countCols: wide ? 'repeat(4,minmax(0,1fr))' : 'repeat(2,minmax(0,1fr))', libLoading: !lib, skel: [1, 2, 3, 4, 5, 6], promptEmpty: !s.prompt.trim(), runBg: s.prompt.trim() ? INK : '#bdb8ae', runCursor: s.prompt.trim() ? 'pointer' : 'not-allowed', leftTitle: titles[s.left] || '', closeLeft: set({ left: null }),
+      isLib: s.left === 'library', isObjects: s.left === 'objects', isSpace: s.left === 'space', isLayers: s.left === 'layers', isPrecision: s.left === 'precision',
+      q: s.q, onSearch: (e) => this.setState({ q: e.target.value }), typeCount, cats, tiles, libEmpty: !tiles.length, libEmptyTitle: q ? 'No matching item types' : 'No custom items yet', libEmptyText: q ? `Nothing matches “${s.q}”. Try a shorter name.` : 'Create an item type with its real dimensions and clearance.',
+      openNewType: set({ typeModal: 'new' }), openEditType: set({ typeModal: 'edit' }), typeModal: !!s.typeModal, closeType: set({ typeModal: null }), stop: (e) => e.stopPropagation(), saveType: () => { this.setState({ typeModal: null }); this.flash('Item type saved'); }, typeM: tm,
+      objSummary: `${items.length} items · ${seats} seats · click to select, Shift to add`, objGroups,
+      roomFields: [{ k: 'W', label: 'Width', v: 2400, unit: 'cm', pad: 28 }, { k: 'D', label: 'Depth', v: 1600, unit: 'cm', pad: 28 }, { k: 'Ceiling', label: 'Ceiling height', v: 450, unit: 'cm', pad: 58 }, { k: 'Wall', label: 'Wall thickness', v: 20, unit: 'cm', pad: 44 }],
+      spaceChange, doorRows, colRows, futureRows: [['ph:layout-light', 'Walls & partitions'], ['ph:app-window-light', 'Windows'], ['ph:stack-simple-light', 'Floor zones']].map(([icon, label]) => ({ icon, label })),
+      spaceClean: !dirty, spaceBar: dirty ? { bg: '#f3f2ee', fg: INK, label: `${s.spaceDirty} unsaved change${s.spaceDirty > 1 ? 's' : ''}`, op: 1 } : { bg: 'transparent', fg: '#8b867c', label: 'No changes', op: 0.4 },
+      spaceReset: () => { this.setState({ spaceDirty: 0, left: null }, () => this.setState({ left: 'space' })); }, spaceApply: () => { this.setState({ spaceDirty: 0 }); this.commit(s.items, 'Updated the room'); this.flash('Room updated · checks re-run'); },
+      layerRows, gridOpts, toggles, stepFields, shortcuts,
+      cols: view === 'split' ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', planDisp: view === '3d' ? 'none' : 'block', sceneDisp: view === 'plan' ? 'none' : 'block', splitLine: view === 'split' ? '1px solid #dcd8cf' : '0',
+      bgDown: (e) => { if (e.target === e.currentTarget) this.setState({ sel: [], focus: null }); },
+      zoom: s.zoom, zoomLabel: `${Math.round(s.zoom * 100)}%`, zoomIn: set({ zoom: Math.min(2, +(s.zoom + 0.1).toFixed(2)) }), zoomOut: set({ zoom: Math.max(0.5, +(s.zoom - 0.1).toFixed(2)) }), fit: set({ zoom: 1 }),
+      pl, shapes, rulerX, rulerY, guides, dimLines, handles, hasSelBox: !!selBox, selBox: selBox || {},
+      sc, sceneT, camTools, camLabel: top ? 'Top view' : 'Perspective',
+      previewing: s.preview !== null, previewLabel: `Previewing revision ${s.preview} · read only`, exitPreview: set({ preview: null }),
+      restorePreview: () => { const r = s.preview; this.setState((st) => ({ preview: null, rev: st.rev + 1, history: [{ rev: st.rev + 1, who: 'You', what: `Restored revision ${r}`, when: 'Just now' }, ...st.history] })); this.flash(`Restored revision ${r}`, 'ph:clock-counter-clockwise-light'); },
+      hasToast: !!s.toast, toast: s.toast || {},
+      rightW: aiOpen ? (wide ? 400 : 340) : wide ? 344 : 300, leftW: wide ? 304 : 272, wideDisp: s.winW > 1100 ? 'inline' : 'none', wideFlex: s.winW > 1180 ? 'flex' : 'none', inspector: !aiOpen, aiOpen, rightTabs,
+      showSummary: s.right === 'properties' && !selItems.length, showOne: s.right === 'properties' && !!p, showMulti: s.right === 'properties' && selItems.length > 1,
+      facts, valBox, bom, p: p || { actions: [], groups: [] }, multi, multiGroups, multiActions, openReview: set({ right: 'review', ai: 'closed' }),
+      showReview: s.right === 'review', counts, reviewGroups, allClear: !hasFind, rules,
+      showHistory: s.right === 'history', revs, rev: s.rev,
+      aiIdle: s.ai === 'idle', aiActive, aiRunning: s.ai === 'running', aiDone: s.ai === 'done', aiFailed: s.ai === 'failed', aiFinished: s.ai === 'done' || s.ai === 'failed',
+      prompt: s.prompt, onPrompt: (e) => this.setState({ prompt: e.target.value }), runAI: this.runAI,
+      suggestions: ['Seat 150 guests at round tables of 10', 'Move the buffet so no table is closer than 150 cm', 'Make room for a 6 × 3 m photo corner by the west door'].map((text) => ({ text, onClick: set({ prompt: text }) })),
+      stopAI: () => { clearInterval(this.aiTimer); this.setState({ ai: 'failed', aiStep: 4 }); }, resetAI: set({ ai: 'idle', aiStep: 0 }), keepAI: () => { this.setState({ ai: 'closed', aiStep: 0, right: 'review' }); this.flash(`Kept revision ${s.rev}`); },
+      undoAI: () => { this.doUndo(); this.setState((st) => ({ ai: 'idle', aiStep: 0, resolved: {}, rev: st.rev + 1, history: [{ rev: st.rev + 1, who: 'You', what: 'Undid the AI Planner run', when: 'Just now' }, ...st.history] })); },
+      aiSteps, aiHeadline, aiPct: Math.round((Math.min(s.aiStep, STEPS.length) / STEPS.length) * 100), aiBarColor: s.ai === 'failed' ? ERR : s.ai === 'done' ? OK : ACC,
+      aiProgressLabel: `${Math.min(s.aiStep, STEPS.length)} of ${STEPS.length} steps`, aiStepLabel: `step ${Math.min(s.aiStep + 1, STEPS.length)} of ${STEPS.length}`,
+      aiStats: [{ k: 'Tables', v: '12' }, { k: 'Seats', v: '120' }, { k: 'Errors', v: '0' }],
+      logOpen: s.logOpen, toggleLog: set({ logOpen: !s.logOpen }), logChev: s.logOpen ? 'ph:caret-down-light' : 'ph:caret-right-light', logText: LOG.split('\n').slice(0, s.ai === 'failed' ? 5 : Math.max(2, s.aiStep + 2)).join('\n'),
+      gridLabel: s.grid ? `${s.grid} cm` : 'off', snapLabel: s.snap ? 'on' : 'off', snapFg: s.snap ? INK2 : '#a8a39a', toggleSnap: set({ snap: !s.snap }), guidesLabel: s.guides ? 'on' : 'off', guidesFg: s.guides ? INK2 : '#a8a39a', toggleGuides: set({ guides: !s.guides }),
+      selLabel: selItems.length ? `${selItems.length} selected` : 'Nothing selected', coordLabel: one ? `X ${one.x} · Y ${one.y}` : 'X — · Y —', statusVal,
+    };
+  }
+}
+</script>
+</body>
+</html>

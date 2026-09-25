@@ -53,9 +53,9 @@ describe('helpers', () => {
     expect(nextId('chair', new Set(['chair-1', 'chair-2', 'chair-4']))).toBe('chair-3');
   });
 
-  it('formats lengths in Arabic', () => {
-    expect(formatLength(cm(45))).toBe('٤٥ سم');
-    expect(formatLength(m(1.8))).toBe('١٫٨ م');
+  it('formats lengths in centimetres below a metre and metres above', () => {
+    expect(formatLength(cm(45))).toBe('45 cm');
+    expect(formatLength(m(1.8))).toBe('1.80 m');
   });
 });
 
@@ -118,11 +118,11 @@ describe('session', () => {
     expect(s.history.project.items['chair-1']).toBeDefined();
   });
 
-  it('describes issues in plain Arabic with amounts', () => {
+  it('describes issues in plain words with amounts', () => {
     let s = reduce(startSession(demoHall()), addChair('chair-1', m(5), m(3.7)));
     const project = s.history.project;
     const [issue] = checkProject(project);
-    expect(describeIssue(project, issue!)).toBe('كرسي (chair-1) فوق العمود (column-1) بمقدار ١٢٫٥ سم.');
+    expect(describeIssue(project, issue!)).toBe('Banquet chair (chair-1) sits on Column (column-1) by 12.5 cm. Move it clear.');
     s = reduce(s, { type: 'select', ids: ['ghost'] });
     expect(s.selectedIds).toEqual([]);
   });

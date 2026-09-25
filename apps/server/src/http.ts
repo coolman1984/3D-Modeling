@@ -115,12 +115,12 @@ export function createApp(options: AppOptions): App {
 
   route('POST', '/api/projects', async (req, res) => {
     const body = await readJson(req);
-    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 200) : 'مشروع جديد';
+    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 200) : 'New project';
     let project;
     if (body.template === 'demo') project = { ...demoHall(), name };
     else if (typeof body.file === 'string') {
       const opened = deserializeProject(body.file);
-      if (!opened.ok) throw new HttpError(422, `الملف مش مخطط سليم: ${opened.problems[0]?.path ?? ''}`);
+      if (!opened.ok) throw new HttpError(422, `This file is not a valid plan: ${opened.problems[0]?.path ?? ''}`);
       project = opened.project;
     } else {
       const ceiling = body.ceiling_m === undefined || body.ceiling_m === null ? undefined : positiveNumber(body.ceiling_m, 'ceiling_m', 50);

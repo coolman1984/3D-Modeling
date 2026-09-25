@@ -1,15 +1,18 @@
 import { fromUnit, readRoom, roomProblems, roomSpace, toUnit, type ColumnSpec, type DoorSpec, type Project, type RoomSpec, type Wall } from '@space-planner/core';
+import { CaretDown, CaretRight, DoorOpen, Plus, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
+import { formatSquareMetres } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import type { Action } from '../logic/session.js';
 import { NumberField } from './Fields.js';
 
-const WALLS: ReadonlyArray<{ id: Wall; label: string }> = [
-  { id: 'south', label: 'الجنوبية (تحت)' },
-  { id: 'north', label: 'الشمالية (فوق)' },
-  { id: 'west', label: 'الغربية (شمال)' },
-  { id: 'east', label: 'الشرقية (يمين)' },
-];
+export const WALL_NAMES: Readonly<Record<Wall, string>> = {
+  south: 'South wall',
+  north: 'North wall',
+  west: 'West wall',
+  east: 'East wall',
+};
+const WALLS: readonly Wall[] = ['south', 'north', 'west', 'east'];
 
 interface DoorDraft {
   id: string;
@@ -48,33 +51,20 @@ function draftOf(project: Project): RoomDraft | null {
   };
 }
 
-const PROBLEM_WORDS: Array<[RegExp, string]> = [
-  [/door (.+): does not fit on the (\w+) wall/, 'الباب $1 مش داخل على الحيطة'],
-  [/door (.+): width must be positive/, 'عرض الباب $1 لازم يكون أكبر من صفر'],
-  [/column (.+): centre is outside the room/, 'العمود $1 برّه القاعة'],
-  [/column (.+): size must be positive/, 'مقاس العمود $1 لازم يكون أكبر من صفر'],
-  [/room width and depth must be positive/, 'مقاسات القاعة لازم تكون أكبر من صفر'],
-];
-
-function arabicProblem(text: string): string {
-  for (const [pattern, words] of PROBLEM_WORDS) if (pattern.test(text)) return text.replace(pattern, words);
-  return text;
-}
-
-/** Edit the room the way people describe it: size, ceiling, doors on walls, columns. */
+/** Edit the room the way people describe it: size, ceiling, doors on walls, columns. Applied as one step. */
 export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (a: Action) => void }) {
   const [draft, setDraft] = useState(() => draftOf(project));
   const [dirty, setDirty] = useState(false);
+  const [openDoor, setOpenDoor] = useState<string | null>(null);
   useEffect(() => {
     if (!dirty) setDraft(draftOf(project));
   }, [project, dirty]);
 
   if (!draft) {
     return (
-      <section className="panel" aria-label="القاعة">
-        <h2>القاعة</h2>
-        <p className="muted">شكل القاعة دي مش مستطيل بسيط، فتعديلها من هنا مش متاح لسه.</p>
-      </section>
+      <div className="panel-pad">
+        <p className="muted">This room is not a simple rectangle, so it cannot be edited here yet.</p>
+      </div>
     );
   }
 
@@ -95,75 +85,127 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
       doors: draft.doors.map((d): DoorSpec => ({ id: d.id, wall: d.wall, offset: m(d.offset), width: cm(d.width) })),
       columns: draft.columns.map((c): ColumnSpec => ({ id: c.id, center: { x: m(c.x), y: m(c.y) }, width: cm(c.width), depth: cm(c.depth) })),
     };
-    problems = roomProblems(spec).map(arabicProblem);
+    problems = roomProblems(spec).map((p) => p.charAt(0).toUpperCase() + p.slice(1));
   } catch {
-    problems = ['فيه رقم أكبر من المسموح'];
+    problems = ['A number is larger than allowed'];
   }
+  const setDoor = (i: number, patch: Partial<DoorDraft>) => update((d) => ({ ...d, doors: d.doors.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+  const setColumn = (i: number, patch: Partial<ColumnDraft>) => update((d) => ({ ...d, columns: d.columns.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
 
   return (
-    <section className="panel" aria-label="القاعة">
-      <h2>القاعة</h2>
-      <div className="grid3">
-        <NumberField name="room-width" label="العرض" unit="م" value={draft.width} min={1} max={500} onChange={(v) => v !== undefined && update((d) => ({ ...d, width: v }))} />
-        <NumberField name="room-depth" label="الطول" unit="م" value={draft.depth} min={1} max={500} onChange={(v) => v !== undefined && update((d) => ({ ...d, depth: v }))} />
-        <NumberField name="room-ceiling" label="السقف" unit="م" value={draft.ceiling} min={0.5} max={50} allowEmpty onChange={(v) => update((d) => ({ ...d, ceiling: v }))} />
-      </div>
+    <>
+      <div className="panel-scroll panel-pad" aria-label="Room">
+        <div className="section-title">
+          <span className="kicker">Room dimensions</span>
+        </div>
+        <div className="grid-2">
+          <NumberField name="room-width" label="W" ariaLabel="Room width" unit="m" value={draft.width} min={1} max={500} onChange={(v) => v !== undefined && update((d) => ({ ...d, width: v }))} />
+          <NumberField name="room-depth" label="D" ariaLabel="Room depth" unit="m" value={draft.depth} min={1} max={500} onChange={(v) => v !== undefined && update((d) => ({ ...d, depth: v }))} />
+          <span className="span-all">
+            <NumberField name="room-ceiling" label="Ceiling" wideKey ariaLabel="Ceiling height" unit="m" placeholder="not set" value={draft.ceiling} min={0.5} max={50} allowEmpty onChange={(v) => update((d) => ({ ...d, ceiling: v }))} />
+          </span>
+        </div>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Floor area {formatSquareMetres(Math.round(draft.width * draft.depth * 100) / 100)}. Measured inside the walls.
+          {draft.ceiling === undefined && ' Without a ceiling height, heights are reported as unknown.'}
+        </p>
 
-      <h3>
-        الأبواب
-        <button type="button" className="small" onClick={() => update((d) => ({ ...d, doors: [...d.doors, { id: nextId('door', taken), wall: 'south', offset: 0.5, width: 90 }] }))}>
-          ضيف باب
-        </button>
-      </h3>
-      {draft.doors.map((door, i) => (
-        <div className="subrow" key={door.id} data-door={door.id}>
-          <select
-            aria-label="الحيطة"
-            value={door.wall}
-            onChange={(e) => update((d) => ({ ...d, doors: d.doors.map((x, j) => (j === i ? { ...x, wall: e.target.value as Wall } : x)) }))}
+        <div className="section-gap" />
+        <div className="section-title">
+          <span className="kicker">Doors · {draft.doors.length}</span>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              const id = nextId('door', taken);
+              update((d) => ({ ...d, doors: [...d.doors, { id, wall: 'south', offset: 0.5, width: 90 }] }));
+              setOpenDoor(id);
+            }}
           >
-            {WALLS.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.label}
-              </option>
+            <Plus size={14} />
+            Add door
+          </button>
+        </div>
+        {draft.doors.map((door, i) => {
+          const open = openDoor === door.id;
+          return (
+            <div className="door-row" key={door.id} data-door={door.id}>
+              <button type="button" className="door-row-head" aria-expanded={open} onClick={() => setOpenDoor(open ? null : door.id)}>
+                <span className="door-glyph">
+                  <DoorOpen size={14} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 500 }}>{door.id}</span> <span className="faint">· {WALL_NAMES[door.wall]}</span>
+                  <br />
+                  <span className="faint" style={{ fontSize: 12 }}>
+                    {door.width} cm wide · {door.offset} m from the corner
+                  </span>
+                </span>
+                {open ? <CaretDown size={15} className="faint" /> : <CaretRight size={15} className="faint" />}
+              </button>
+              {open && (
+                <div className="door-fields">
+                  <select className="input span-all" aria-label="Wall" value={door.wall} onChange={(e) => setDoor(i, { wall: e.target.value as Wall })}>
+                    {WALLS.map((w) => (
+                      <option key={w} value={w}>
+                        {WALL_NAMES[w]}
+                      </option>
+                    ))}
+                  </select>
+                  <NumberField label="At" ariaLabel="Distance from the corner" unit="m" value={door.offset} min={0} max={500} onChange={(v) => v !== undefined && setDoor(i, { offset: v })} />
+                  <NumberField label="W" ariaLabel="Door width" unit="cm" value={door.width} min={1} max={5000} onChange={(v) => v !== undefined && setDoor(i, { width: v })} />
+                  <button type="button" className="link-btn danger span-all" aria-label="Remove door" onClick={() => update((d) => ({ ...d, doors: d.doors.filter((_, j) => j !== i) }))}>
+                    <X size={13} />
+                    Remove door
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="section-gap" style={{ margin: '12px 0 16px' }} />
+        <div className="section-title">
+          <span className="kicker">Columns · {draft.columns.length}</span>
+          <button type="button" className="link-btn" onClick={() => update((d) => ({ ...d, columns: [...d.columns, { id: nextId('column', taken), x: d.width / 2, y: d.depth / 2, width: 40, depth: 40 }] }))}>
+            <Plus size={14} />
+            Add column
+          </button>
+        </div>
+        {draft.columns.length > 0 && (
+          <p className="faint" style={{ fontSize: 11.5, margin: '-4px 0 6px' }}>
+            Centre from the west and south walls, and size.
+          </p>
+        )}
+        {draft.columns.map((col, i) => (
+          <div className="col-row" key={col.id} data-column={col.id} title={col.id}>
+            <NumberField label="X" ariaLabel={`${col.id} from the west wall`} unit="m" value={col.x} min={0} max={500} onChange={(v) => v !== undefined && setColumn(i, { x: v })} />
+            <NumberField label="Y" ariaLabel={`${col.id} from the south wall`} unit="m" value={col.y} min={0} max={500} onChange={(v) => v !== undefined && setColumn(i, { y: v })} />
+            <NumberField label="□" ariaLabel={`${col.id} size`} unit="cm" value={col.width} min={1} max={5000} onChange={(v) => v !== undefined && setColumn(i, { width: v, depth: v })} />
+            <button type="button" className="btn ghost icon" style={{ width: 28, height: 28 }} aria-label="Remove column" onClick={() => update((d) => ({ ...d, columns: d.columns.filter((_, j) => j !== i) }))}>
+              <X size={13} />
+            </button>
+          </div>
+        ))}
+
+        {problems.length > 0 && (
+          <ul className="problems" style={{ marginTop: 14 }}>
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
             ))}
-          </select>
-          <NumberField label="يبعد" unit="م" value={door.offset} min={0} max={500} onChange={(v) => v !== undefined && update((d) => ({ ...d, doors: d.doors.map((x, j) => (j === i ? { ...x, offset: v } : x)) }))} />
-          <NumberField label="عرضه" unit="سم" value={door.width} min={1} max={5000} onChange={(v) => v !== undefined && update((d) => ({ ...d, doors: d.doors.map((x, j) => (j === i ? { ...x, width: v } : x)) }))} />
-          <button type="button" className="icon danger" aria-label="امسح الباب" onClick={() => update((d) => ({ ...d, doors: d.doors.filter((_, j) => j !== i) }))}>
-            ✕
-          </button>
-        </div>
-      ))}
-
-      <h3>
-        الأعمدة
-        <button type="button" className="small" onClick={() => update((d) => ({ ...d, columns: [...d.columns, { id: nextId('column', taken), x: d.width / 2, y: d.depth / 2, width: 40, depth: 40 }] }))}>
-          ضيف عمود
+          </ul>
+        )}
+      </div>
+      <div className={`panel-foot nowrap${dirty ? ' dirty' : ''}`}>
+        <span className="spacer" style={{ fontSize: 12.5, color: dirty ? 'var(--ink)' : 'var(--ink-3)' }}>
+          {dirty ? 'Unsaved' : ''}
+        </span>
+        <button type="button" className="btn" disabled={!dirty} onClick={() => setDirty(false)}>
+          Reset
         </button>
-      </h3>
-      {draft.columns.map((col, i) => (
-        <div className="subrow" key={col.id} data-column={col.id}>
-          <NumberField label="من الغرب" unit="م" value={col.x} min={0} max={500} onChange={(v) => v !== undefined && update((d) => ({ ...d, columns: d.columns.map((x, j) => (j === i ? { ...x, x: v } : x)) }))} />
-          <NumberField label="من الجنوب" unit="م" value={col.y} min={0} max={500} onChange={(v) => v !== undefined && update((d) => ({ ...d, columns: d.columns.map((x, j) => (j === i ? { ...x, y: v } : x)) }))} />
-          <NumberField label="مقاسه" unit="سم" value={col.width} min={1} max={5000} onChange={(v) => v !== undefined && update((d) => ({ ...d, columns: d.columns.map((x, j) => (j === i ? { ...x, width: v, depth: v } : x)) }))} />
-          <button type="button" className="icon danger" aria-label="امسح العمود" onClick={() => update((d) => ({ ...d, columns: d.columns.filter((_, j) => j !== i) }))}>
-            ✕
-          </button>
-        </div>
-      ))}
-
-      {problems.length > 0 && (
-        <ul className="problems">
-          {problems.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-      )}
-      <div className="row">
         <button
           type="button"
-          className="primary"
+          className="btn primary"
           disabled={!dirty || problems.length > 0 || !spec}
           onClick={() => {
             if (!spec) return;
@@ -171,12 +213,9 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
             setDirty(false);
           }}
         >
-          طبّق على القاعة
-        </button>
-        <button type="button" disabled={!dirty} onClick={() => setDirty(false)}>
-          تراجع عن التعديل
+          Apply changes
         </button>
       </div>
-    </section>
+    </>
   );
 }

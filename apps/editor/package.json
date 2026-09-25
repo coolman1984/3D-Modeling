@@ -12,6 +12,9 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
     "@space-planner/core": "workspace:*",
     "@space-planner/starter": "workspace:*",
     "react": "^19.3.0",

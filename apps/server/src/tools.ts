@@ -330,7 +330,7 @@ export const TOOLS: readonly ToolDef[] = [
       const space = roomSpace(spec);
       const structural = validateSpace(space);
       if (structural.length > 0) throw new ToolError(structural.map((p) => `${p.path}: ${p.message}`).join('; '));
-      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || 'تعديل القاعة');
+      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || 'Room changed');
       return afterChange(updated, 'Room updated.');
     },
   },
@@ -375,7 +375,7 @@ export const TOOLS: readonly ToolDef[] = [
         ...(footprint === 'round' ? { footprint: 'round' as const } : {}),
       };
       const existed = Boolean(project.catalog[definition.id]);
-      const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'تعديل' : 'إضافة'} صنف ${definition.name}`);
+      const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'Changed' : 'Added'} item type ${definition.name}`);
       return afterChange(updated, `Item type ${definition.id} ${existed ? 'updated' : 'created'}.`);
     },
   },
@@ -427,7 +427,7 @@ export const TOOLS: readonly ToolDef[] = [
           },
         };
       });
-      const updated = commit(ctx, project, commands, str(input, 'summary', true) || `إضافة ${commands.length} عنصر`);
+      const updated = commit(ctx, project, commands, str(input, 'summary', true) || `Added ${commands.length} ${commands.length === 1 ? 'item' : 'items'}`);
       return afterChange(updated, `Placed ${commands.length} item(s): ${commands.map((c) => (c.type === 'item.add' ? c.item.id : '')).join(', ')}.`);
     },
   },
@@ -467,7 +467,7 @@ export const TOOLS: readonly ToolDef[] = [
         if (mv.height_m !== undefined) commands.push({ type: 'item.elevate', id, to: metres(num(mv, 'height_m')) });
       }
       if (commands.length === 0) throw new ToolError('nothing to change');
-      const updated = commit(ctx, project, commands, str(input, 'summary', true) || 'تحريك عناصر');
+      const updated = commit(ctx, project, commands, str(input, 'summary', true) || 'Moved items');
       return afterChange(updated, `Applied ${commands.length} change(s).`);
     },
   },
@@ -484,7 +484,7 @@ export const TOOLS: readonly ToolDef[] = [
       const project = load(ctx, input);
       const ids = input.ids;
       if (!Array.isArray(ids) || ids.length === 0 || !ids.every((x) => typeof x === 'string')) throw new ToolError('"ids" must be a non-empty list of strings');
-      const updated = commit(ctx, project, ids.map((id) => ({ type: 'item.remove', id })), str(input, 'summary', true) || `مسح ${ids.length} عنصر`);
+      const updated = commit(ctx, project, ids.map((id) => ({ type: 'item.remove', id })), str(input, 'summary', true) || `Removed ${ids.length} ${ids.length === 1 ? 'item' : 'items'}`);
       return afterChange(updated, `Removed ${ids.length} item(s).`);
     },
   },

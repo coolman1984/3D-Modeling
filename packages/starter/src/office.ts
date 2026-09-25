@@ -17,29 +17,29 @@ const none = { front: 0, back: 0, left: 0, right: 0 };
  */
 export const OFFICE_CATALOG: readonly ItemDefinition[] = [
   // Work
-  { id: 'desk-140', name: 'مكتب ١٤٠×٧٠', category: 'desk', size: { w: cm(140), d: cm(70), h: cm(75) }, clearance: none },
-  { id: 'desk-160', name: 'مكتب ١٦٠×٨٠', category: 'desk', size: { w: cm(160), d: cm(80), h: cm(75) }, clearance: none },
-  { id: 'manager-desk', name: 'مكتب مدير ١٨٠×٩٠', category: 'desk', size: { w: cm(180), d: cm(90), h: cm(75) }, clearance: none },
-  { id: 'office-chair', name: 'كرسي مكتب', category: 'chair', size: { w: cm(60), d: cm(60), h: cm(100) }, clearance: { ...none, back: cm(60) }, seats: 1 },
-  { id: 'reception', name: 'مكتب استقبال', category: 'desk', size: { w: cm(150), d: cm(60), h: cm(75) }, clearance: { ...none, front: cm(100), back: cm(80) } },
+  { id: 'desk-140', name: 'Desk 140 × 70', category: 'desk', size: { w: cm(140), d: cm(70), h: cm(75) }, clearance: none },
+  { id: 'desk-160', name: 'Desk 160 × 80', category: 'desk', size: { w: cm(160), d: cm(80), h: cm(75) }, clearance: none },
+  { id: 'manager-desk', name: 'Manager desk 180 × 90', category: 'desk', size: { w: cm(180), d: cm(90), h: cm(75) }, clearance: none },
+  { id: 'office-chair', name: 'Office chair', category: 'chair', size: { w: cm(60), d: cm(60), h: cm(100) }, clearance: { ...none, back: cm(60) }, seats: 1 },
+  { id: 'reception', name: 'Reception desk', category: 'desk', size: { w: cm(150), d: cm(60), h: cm(75) }, clearance: { ...none, front: cm(100), back: cm(80) } },
   // Meetings
-  { id: 'meeting-table-240', name: 'ترابيزة اجتماعات ٢٤٠×١٢٠', category: 'table', size: { w: cm(240), d: cm(120), h: cm(75) }, clearance: none },
-  { id: 'meeting-round-120', name: 'ترابيزة اجتماعات مدورة ١٢٠', category: 'round-table', size: { w: cm(120), d: cm(120), h: cm(75) }, clearance: none, footprint: 'round' },
-  { id: 'meeting-chair', name: 'كرسي اجتماعات', category: 'chair', size: { w: cm(50), d: cm(55), h: cm(90) }, clearance: { ...none, back: cm(50) }, seats: 1 },
-  { id: 'whiteboard', name: 'سبورة ١٨٠', category: 'box', size: { w: cm(180), d: cm(10), h: m(2) }, clearance: { ...none, front: cm(120) } },
-  { id: 'phone-booth', name: 'كابينة مكالمات', category: 'box', size: { w: m(1), d: m(1), h: cm(220) }, clearance: { ...none, front: cm(90) }, seats: 1 },
+  { id: 'meeting-table-240', name: 'Meeting table 240 × 120', category: 'table', size: { w: cm(240), d: cm(120), h: cm(75) }, clearance: none },
+  { id: 'meeting-round-120', name: 'Round meeting table 120', category: 'round-table', size: { w: cm(120), d: cm(120), h: cm(75) }, clearance: none, footprint: 'round' },
+  { id: 'meeting-chair', name: 'Meeting chair', category: 'chair', size: { w: cm(50), d: cm(55), h: cm(90) }, clearance: { ...none, back: cm(50) }, seats: 1 },
+  { id: 'whiteboard', name: 'Whiteboard 180', category: 'box', size: { w: cm(180), d: cm(10), h: m(2) }, clearance: { ...none, front: cm(120) } },
+  { id: 'phone-booth', name: 'Phone booth', category: 'box', size: { w: m(1), d: m(1), h: cm(220) }, clearance: { ...none, front: cm(90) }, seats: 1 },
   // Storage and equipment
-  { id: 'cabinet', name: 'دولاب ملفات ٨٠×٤٥', category: 'shelf', size: { w: cm(80), d: cm(45), h: cm(180) }, clearance: { ...none, front: cm(80) } },
-  { id: 'drawer-unit', name: 'درج ملفات', category: 'box', size: { w: cm(40), d: cm(60), h: cm(70) }, clearance: { ...none, front: cm(70) } },
-  { id: 'bookcase', name: 'مكتبة ٩٠×٣٥', category: 'shelf', size: { w: cm(90), d: cm(35), h: m(2) }, clearance: { ...none, front: cm(70) } },
-  { id: 'locker', name: 'لوكر موظفين ٩٠×٥٠', category: 'shelf', size: { w: cm(90), d: cm(50), h: cm(180) }, clearance: { ...none, front: cm(80) } },
-  { id: 'printer', name: 'طابعة كبيرة', category: 'box', size: { w: cm(60), d: cm(55), h: cm(110) }, clearance: { ...none, front: cm(90) } },
+  { id: 'cabinet', name: 'File cabinet 80 × 45', category: 'shelf', size: { w: cm(80), d: cm(45), h: cm(180) }, clearance: { ...none, front: cm(80) } },
+  { id: 'drawer-unit', name: 'Drawer unit', category: 'box', size: { w: cm(40), d: cm(60), h: cm(70) }, clearance: { ...none, front: cm(70) } },
+  { id: 'bookcase', name: 'Bookcase 90 × 35', category: 'shelf', size: { w: cm(90), d: cm(35), h: m(2) }, clearance: { ...none, front: cm(70) } },
+  { id: 'locker', name: 'Staff lockers 90 × 50', category: 'shelf', size: { w: cm(90), d: cm(50), h: cm(180) }, clearance: { ...none, front: cm(80) } },
+  { id: 'printer', name: 'Large printer', category: 'box', size: { w: cm(60), d: cm(55), h: cm(110) }, clearance: { ...none, front: cm(90) } },
   // Breaks and waiting
-  { id: 'kitchenette', name: 'ركن شاي وقهوة ١٨٠×٦٠', category: 'counter', size: { w: cm(180), d: cm(60), h: cm(90) }, clearance: { ...none, front: cm(100) } },
-  { id: 'coffee-table', name: 'ترابيزة قهوة ١٠٠×٥٠', category: 'table', size: { w: cm(100), d: cm(50), h: cm(45) }, clearance: none },
-  { id: 'sofa', name: 'كنبة ٣ أفراد', category: 'sofa', size: { w: cm(210), d: cm(90), h: cm(85) }, clearance: { ...none, front: cm(60) }, seats: 3 },
-  { id: 'armchair', name: 'فوتيه', category: 'sofa', size: { w: cm(80), d: cm(80), h: cm(85) }, clearance: { ...none, front: cm(50) }, seats: 1 },
-  { id: 'plant', name: 'زرع', category: 'plant', size: { w: cm(50), d: cm(50), h: cm(150) }, clearance: none, footprint: 'round' },
+  { id: 'kitchenette', name: 'Kitchenette 180 × 60', category: 'counter', size: { w: cm(180), d: cm(60), h: cm(90) }, clearance: { ...none, front: cm(100) } },
+  { id: 'coffee-table', name: 'Coffee table 100 × 50', category: 'table', size: { w: cm(100), d: cm(50), h: cm(45) }, clearance: none },
+  { id: 'sofa', name: 'Sofa · 3 seats', category: 'sofa', size: { w: cm(210), d: cm(90), h: cm(85) }, clearance: { ...none, front: cm(60) }, seats: 3 },
+  { id: 'armchair', name: 'Armchair', category: 'sofa', size: { w: cm(80), d: cm(80), h: cm(85) }, clearance: { ...none, front: cm(50) }, seats: 1 },
+  { id: 'plant', name: 'Plant', category: 'plant', size: { w: cm(50), d: cm(50), h: cm(150) }, clearance: none, footprint: 'round' },
 ];
 
 export type OfficeStyle = 'open-plan' | 'meeting';
@@ -53,8 +53,8 @@ export interface OfficeStyleSpec {
 }
 
 export const OFFICE_STYLES: readonly OfficeStyleSpec[] = [
-  { id: 'open-plan', label: 'مكتب مفتوح', areaPerPerson: 6, walkway: cm(90) },
-  { id: 'meeting', label: 'غرفة اجتماعات', areaPerPerson: 2, walkway: cm(90) },
+  { id: 'open-plan', label: 'Open-plan office', areaPerPerson: 6, walkway: cm(90) },
+  { id: 'meeting', label: 'Meeting room', areaPerPerson: 2, walkway: cm(90) },
 ];
 
 export function officeStyle(id: string | null | undefined): OfficeStyleSpec {

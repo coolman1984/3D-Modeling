@@ -15,17 +15,17 @@ const cm = (v: number) => fromUnit(v, 'cm');
  * any other category is drawn as a plain box.
  */
 export const SHAPES = [
-  { key: 'table', label: 'ترابيزة' },
-  { key: 'round-table', label: 'ترابيزة مدورة' },
-  { key: 'chair', label: 'كرسي' },
-  { key: 'sofa', label: 'كنبة' },
-  { key: 'desk', label: 'مكتب' },
-  { key: 'counter', label: 'بوفيه / كاونتر' },
-  { key: 'stage', label: 'مسرح / منصة' },
-  { key: 'shelf', label: 'رف / دولاب' },
-  { key: 'plant', label: 'زرع' },
-  { key: 'dance-floor', label: 'أرضية / حلبة' },
-  { key: 'box', label: 'صندوق عام' },
+  { key: 'table', label: 'Table' },
+  { key: 'round-table', label: 'Round table' },
+  { key: 'chair', label: 'Chair' },
+  { key: 'sofa', label: 'Sofa' },
+  { key: 'desk', label: 'Desk' },
+  { key: 'counter', label: 'Counter / buffet' },
+  { key: 'stage', label: 'Stage / platform' },
+  { key: 'shelf', label: 'Shelf / cabinet' },
+  { key: 'plant', label: 'Plant' },
+  { key: 'dance-floor', label: 'Floor / dance floor' },
+  { key: 'box', label: 'Box' },
 ] as const;
 
 export type ShapeKey = (typeof SHAPES)[number]['key'];
@@ -67,7 +67,7 @@ export function newHall(name: string, widthMetres: number, depthMetres: number, 
 
 /** The 10 × 8 m reference hall: door on the south wall, a column in the middle, 3 m ceiling. */
 export function demoHall(): Project {
-  return roomProject('قاعة تجريبية ١٠×٨ م', {
+  return roomProject('Demo hall 10 × 8 m', {
     width: m(10),
     depth: m(8),
     ceilingHeight: m(3),

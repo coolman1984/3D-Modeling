@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Newsreader:opsz,wght@6..72,300..600&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+html,body{margin:0;background:#f3f2ee}*{box-sizing:border-box}
+a{color:#2b54d0;text-decoration:none}a:hover{color:#1d3c9e}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #2b54d0;outline-offset:1px}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#f3f2ee;color:#1a1917;font-family:Geist,'Helvetica Neue',Helvetica,sans-serif;font-size:13px;-webkit-font-smoothing:antialiased">
+  <header style="height:56px;display:flex;align-items:center;gap:28px;padding:0 32px;border-bottom:1px solid #e6e3dc;background:#fbfaf8">
+    <a href="Atrium%20Projects.dc.html" style="display:flex;align-items:center;gap:10px;color:#1a1917">
+      <span style="width:20px;height:20px;border:1.5px solid #1a1917;display:flex;align-items:center;justify-content:center"><span style="width:8px;height:8px;background:#1a1917"></span></span>
+      <span style="font-family:Newsreader,Georgia,serif;font-size:21px">Atrium</span>
+    </a>
+    <nav style="display:flex;gap:22px;font-size:13.5px">
+      <a href="Atrium%20Projects.dc.html" style="color:#5e5a52">Projects</a>
+      <a href="Atrium%20Editor.dc.html" style="color:#5e5a52">Object library</a>
+      <a href="Atrium%20Settings.dc.html" style="color:#1a1917;font-weight:500">Settings</a>
+    </nav>
+    <span style="flex:1"></span>
+    <span style="display:flex;align-items:center;gap:6px;color:{{ saved.fg }};font-size:12.5px"><iconify-icon icon="{{ saved.icon }}" width="14"></iconify-icon>{{ saved.label }}</span>
+  </header>
+  <div style="max-width:1080px;margin:0 auto;padding:48px 40px 80px;display:grid;grid-template-columns:200px minmax(0,1fr);gap:56px">
+    <aside>
+      <h1 style="margin:0 0 24px;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:40px;letter-spacing:-.02em">Settings</h1>
+      <nav style="display:flex;flex-direction:column">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+          <button onClick="{{ t.onClick }}" aria-current="{{ t.on }}" style="height:38px;border:0;border-left:1.5px solid {{ t.bd }};background:transparent;text-align:left;padding:0 14px;font-size:13.5px;color:{{ t.fg }};display:flex;align-items:center;gap:10px"><iconify-icon icon="{{ t.icon }}" width="15"></iconify-icon>{{ t.label }}</button>
+        </sc-for>
+      </nav>
+    </aside>
+    <main style="min-width:0">
+
+      <sc-if value="{{ isGeneral }}" hint-placeholder-val="{{ true }}">
+        <h2 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:26px">General</h2>
+        <p style="margin:6px 0 24px;color:#5e5a52">How this workspace is named and where projects are kept.</p>
+        <sc-for list="{{ general }}" as="g">
+          <div style="display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;padding:18px 0;border-top:1px solid #e6e3dc;align-items:center">
+            <div><div style="font-weight:500">{{ g.label }}</div><div style="color:#5e5a52;font-size:12.5px;margin-top:3px;line-height:1.45">{{ g.hint }}</div></div>
+            <input defaultValue="{{ g.v }}" readOnly="{{ g.ro }}" onChange="{{ dirty }}" aria-label="{{ g.label }}" style="height:38px;padding:0 12px;border:1px solid #e3e0d8;border-radius:4px;background:{{ g.bg }};font:inherit;font-size:13.5px;color:#1a1917;outline:none;max-width:420px" style-focus="border-color:#2b54d0;box-shadow:0 0 0 3px rgba(43,84,208,.14)">
+          </div>
+        </sc-for>
+      </sc-if>
+
+      <sc-if value="{{ isProviders }}">
+        <h2 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:26px">AI Providers</h2>
+        <p style="margin:6px 0 24px;color:#5e5a52;line-height:1.5;max-width:560px">The AI Planner can work through an assistant installed on this computer, or through a service using your own key. Keys stay on this computer.</p>
+        <sc-for list="{{ providers }}" as="p">
+          <div style="display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:16px;padding:18px 0;border-top:1px solid #e6e3dc;align-items:center">
+            <span style="width:36px;height:36px;border:1px solid #e3e0d8;border-radius:6px;background:#fbfaf8;display:flex;align-items:center;justify-content:center;color:#5e5a52"><iconify-icon icon="{{ p.icon }}" width="17"></iconify-icon></span>
+            <div style="min-width:0">
+              <div style="display:flex;align-items:center;gap:10px"><span style="font-weight:500;font-size:14px">{{ p.name }}</span><span style="display:flex;align-items:center;gap:5px;font-size:12px;color:{{ p.sc }}"><iconify-icon icon="{{ p.si }}" width="13"></iconify-icon>{{ p.status }}</span></div>
+              <div style="color:#5e5a52;font-size:12.5px;margin-top:3px">{{ p.detail }}</div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <sc-for list="{{ p.actions }}" as="a"><button onClick="{{ a.onClick }}" style="height:32px;padding:0 12px;border:1px solid {{ a.bd }};background:{{ a.bg }};color:{{ a.fg }};border-radius:4px;font-size:12.5px">{{ a.label }}</button></sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;padding:18px 0;border-top:1px solid #1a1917;margin-top:10px;align-items:center">
+          <div><div style="font-weight:500">Default planner</div><div style="color:#5e5a52;font-size:12.5px;margin-top:3px">Used when you open AI Planner</div></div>
+          <select onChange="{{ dirty }}" style="height:38px;max-width:320px;border:1px solid #e3e0d8;border-radius:4px;background:#fff;font:inherit;font-size:13.5px;padding:0 10px;color:#1a1917"><option>Claude Code</option><option>Anthropic API</option></select>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTools }}">
+        <h2 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:26px">Agent Tools</h2>
+        <p style="margin:6px 0 24px;color:#5e5a52;line-height:1.5;max-width:560px">Choose what the planner may do. Every change it makes is saved as its own revision with its name, and can be undone.</p>
+        <sc-for list="{{ tools }}" as="t">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 170px 40px;gap:16px;padding:14px 0;border-top:1px solid #e6e3dc;align-items:center">
+            <div><div style="font-weight:500">{{ t.name }}</div><div style="color:#5e5a52;font-size:12.5px;margin-top:3px">{{ t.hint }}</div></div>
+            <select disabled="{{ t.off }}" onChange="{{ dirty }}" aria-label="{{ t.name }} permission" style="height:32px;border:1px solid #e3e0d8;border-radius:4px;background:{{ t.selBg }};font:inherit;font-size:12.5px;padding:0 8px;color:#1a1917"><option>{{ t.mode }}</option><option>Allow</option><option>Ask me first</option></select>
+            <button onClick="{{ t.toggle }}" role="switch" aria-checked="{{ t.on }}" aria-label="{{ t.name }}" style="width:34px;height:20px;border:0;border-radius:10px;background:{{ t.track }};position:relative;padding:0"><span style="position:absolute;top:3px;left:{{ t.knob }}px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s"></span></button>
+          </div>
+        </sc-for>
+        <div style="margin-top:26px;padding:16px 18px;background:#fbfaf8;border:1px solid #e6e3dc;border-radius:6px">
+          <div style="font-weight:500">Connect another assistant</div>
+          <div style="color:#5e5a52;font-size:12.5px;margin-top:4px;line-height:1.5">Assistants that support the Model Context Protocol can use the same tools at this address.</div>
+          <div style="display:flex;gap:8px;margin-top:10px;max-width:460px"><input readOnly="{{ true }}" value="http://localhost:4317/mcp" aria-label="Tool address" style="flex:1;height:34px;padding:0 10px;border:1px solid #e3e0d8;border-radius:4px;background:#fff;font:12.5px ui-monospace,Menlo,monospace;color:#1a1917"><button onClick="{{ copy }}" style="height:34px;padding:0 12px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:12.5px;color:#1a1917">{{ copyLabel }}</button></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPrefs }}">
+        <h2 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:26px">Preferences</h2>
+        <p style="margin:6px 0 24px;color:#5e5a52">Units, precision and movement defaults for new projects.</p>
+        <sc-for list="{{ prefs }}" as="g">
+          <div style="display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;padding:16px 0;border-top:1px solid #e6e3dc;align-items:center">
+            <div><div style="font-weight:500">{{ g.label }}</div><div style="color:#5e5a52;font-size:12.5px;margin-top:3px">{{ g.hint }}</div></div>
+            <div style="display:flex;padding:3px;background:#e9e7e1;border-radius:6px;gap:2px;width:max-content">
+              <sc-for list="{{ g.opts }}" as="o"><button onClick="{{ o.onClick }}" aria-pressed="{{ o.on }}" style="height:28px;padding:0 12px;border:0;border-radius:4px;background:{{ o.bg }};color:{{ o.fg }};box-shadow:{{ o.sh }};font-size:12.5px">{{ o.label }}</button></sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </sc-if>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const INK = '#1a1917', INK2 = '#5e5a52', ACC = '#2b54d0';
+class Component extends DCLogic {
+  state = { tab: 'providers', saving: false, copied: false, anth: 'saved', tools: { read: true, place: true, remove: true, room: false, restore: false }, prefs: { units: 'Centimetres', grid: '10 cm', accel: 'On', lang: 'English' } };
+  touch = () => { clearTimeout(this.t); this.setState({ saving: true }); this.t = setTimeout(() => this.setState({ saving: false }), 800); };
+  renderVals() {
+    const s = this.state, set = (o) => () => this.setState(o);
+    const tabs = [['general', 'General', 'lucide:sliders-horizontal'], ['providers', 'AI Providers', 'lucide:sparkles'], ['tools', 'Agent Tools', 'lucide:wrench'], ['prefs', 'Preferences', 'lucide:ruler']].map(([id, label, icon]) => ({ label, icon, on: s.tab === id, bd: s.tab === id ? INK : '#e3e0d8', fg: s.tab === id ? INK : INK2, onClick: set({ tab: id }) }));
+    const ST = { ok: ['#2d7446', 'lucide:circle-check'], off: ['#8b867c', 'lucide:circle-dashed'], bad: ['#b93a2e', 'lucide:circle-x'] };
+    const btn = (label, onClick, primary) => ({ label, onClick, bd: primary ? INK : '#d9d5cc', bg: primary ? INK : '#fff', fg: primary ? '#fff' : INK });
+    const providers = [
+      { name: 'Claude Code', icon: 'lucide:terminal', k: 'ok', status: 'Connected', detail: 'Found on this computer · version 2.4', actions: [btn('Test', () => this.touch())] },
+      { name: 'Codex', icon: 'lucide:terminal', k: 'off', status: 'Unavailable', detail: 'Not installed on this computer', actions: [btn('How to install', () => {})] },
+      s.anth === 'saved'
+        ? { name: 'Anthropic API', icon: 'lucide:key-round', k: 'ok', status: 'Key saved', detail: 'Key ending in ••••4f2a · added Sep 14', actions: [btn('Replace', () => this.setState({ anth: 'none' })), btn('Remove', () => { this.setState({ anth: 'none' }); this.touch(); })] }
+        : { name: 'Anthropic API', icon: 'lucide:key-round', k: 'off', status: 'Not set up', detail: 'Paste a key to use the planner without an installed assistant', actions: [btn('Add key', () => { this.setState({ anth: 'saved' }); this.touch(); }, true)] },
+      { name: 'OpenAI API', icon: 'lucide:key-round', k: 'bad', status: 'Key rejected', detail: 'The saved key no longer works. Replace it to use this service.', actions: [btn('Replace', () => {})] },
+    ].map((p) => ({ ...p, sc: ST[p.k][0], si: ST[p.k][1] }));
+    const toolDefs = [['read', 'Read the project', 'Room, items, checks and history', 'Allow'], ['place', 'Place and move items', 'Add, move, rotate and duplicate', 'Allow'], ['remove', 'Remove items', 'Delete items from the plan', 'Ask me first'], ['room', 'Edit the room', 'Change dimensions, doors and columns', 'Ask me first'], ['restore', 'Restore revisions', 'Go back to an earlier revision', 'Ask me first']];
+    const tools = toolDefs.map(([id, name, hint, mode]) => { const on = s.tools[id]; return { name, hint, mode, on, off: !on, selBg: on ? '#fff' : '#f3f2ee', track: on ? ACC : '#d3cfc6', knob: on ? 17 : 3, toggle: () => { this.setState({ tools: { ...s.tools, [id]: !on } }); this.touch(); } }; });
+    const prefDefs = [['units', 'Units', 'How lengths are shown', ['Centimetres', 'Metres', 'Millimetres']], ['grid', 'Default grid', 'Snap step for new projects', ['1 cm', '5 cm', '10 cm', '25 cm']], ['accel', 'Speed up while held', 'Arrow keys move faster when held', ['On', 'Off']], ['lang', 'Language', 'Interface language', ['English']]];
+    const prefs = prefDefs.map(([id, label, hint, opts]) => ({ label, hint, opts: opts.map((o) => ({ label: o, on: s.prefs[id] === o, bg: s.prefs[id] === o ? '#fff' : 'transparent', fg: s.prefs[id] === o ? INK : INK2, sh: s.prefs[id] === o ? '0 1px 2px rgba(26,25,23,.1)' : 'none', onClick: () => { this.setState({ prefs: { ...s.prefs, [id]: o } }); this.touch(); } })) }));
+    return {
+      tabs, isGeneral: s.tab === 'general', isProviders: s.tab === 'providers', isTools: s.tab === 'tools', isPrefs: s.tab === 'prefs',
+      saved: s.saving ? { fg: INK2, icon: 'lucide:loader', label: 'Saving…' } : { fg: '#2d7446', icon: 'lucide:check', label: 'All changes saved' },
+      dirty: this.touch,
+      general: [['Workspace name', 'Shown on reports and exports', 'Al Noor Events', false], ['Prepared by', 'Name printed on client reports', 'Karim Hassan', false], ['Data folder', 'Projects and revisions are stored here', '~/Atrium/data', true], ['Server address', 'This computer', 'http://localhost:4317', true]].map(([label, hint, v, ro]) => ({ label, hint, v, ro, bg: ro ? '#f6f5f1' : '#fff' })),
+      providers, tools, prefs, copy: () => { this.setState({ copied: true }); setTimeout(() => this.setState({ copied: false }), 1500); }, copyLabel: s.copied ? 'Copied' : 'Copy',
+    };
+  }
+}
+</script>
+</body>
+</html>

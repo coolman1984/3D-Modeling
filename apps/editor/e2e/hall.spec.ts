@@ -1,22 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-
-async function newProject(page: Page, name: string, width: number, depth: number) {
-  await page.goto('/#/');
-  await page.locator('input[name="project-name"]').fill(name);
-  await page.locator('input[name="new-width"]').fill(String(width));
-  await page.locator('input[name="new-depth"]').fill(String(depth));
-  await page.getByRole('button', { name: 'اعمل المشروع' }).click();
-  await expect(page.locator('.toolbar h1')).toHaveText(name);
-  await expect(page.getByTestId('save-state')).toHaveText('محفوظ');
-  return /#\/p\/([\w-]+)/.exec(page.url())![1]!;
-}
-
-/** Send core commands the way any client does (one revision). Lengths in ticks: metres × 10 000. */
-async function send(page: Page, id: string, commands: unknown[]) {
-  const { revision } = await (await page.request.get(`/api/projects/${id}`)).json();
-  const response = await page.request.post(`/api/projects/${id}/commands`, { data: { commands, baseRevision: revision, actor: 'human' } });
-  expect(response.ok()).toBe(true);
-}
+import { expect, test } from '@playwright/test';
+import { newProject, openTab, send } from './helpers.js';
 
 const at = (id: string, definitionId: string, x: number, y: number, rotation = 0) => ({
   type: 'item.add',
@@ -24,11 +7,11 @@ const at = (id: string, definitionId: string, x: number, y: number, rotation = 0
 });
 
 test('hall pack: 29 hall items, rules that name the boxed-in seat, event style, and the rules in the report', async ({ page }) => {
-  const id = await newProject(page, 'قاعة القواعد', 10, 8);
+  const id = await newProject(page, 'Rules Hall', 10, 8);
 
   // The hall catalog, searchable.
   await expect(page.locator('[data-add]')).toHaveCount(29);
-  await page.locator('input[name="catalog-filter"]').fill('كوشة');
+  await page.locator('input[name="catalog-filter"]').fill('bridal');
   await expect(page.locator('[data-add]')).toHaveCount(1);
   await page.locator('[data-add="kosha"]').click();
   await page.locator('input[name="catalog-filter"]').fill('');
@@ -43,10 +26,11 @@ test('hall pack: 29 hall items, rules that name the boxed-in seat, event style, 
     at('t4', 'table-180', 3.8, 6.5, 90_000),
   ]);
   await expect(page.locator('[data-item-id]')).toHaveCount(6);
+  await openTab(page, 'Review');
   const walkway = page.locator('[data-rule="walkway"]');
   await expect(walkway).toHaveAttribute('data-status', 'fail');
-  await expect(walkway).toContainText('كرسي (chair-9)');
-  await walkway.getByRole('button').click();
+  await expect(walkway).toContainText('Banquet chair (chair-9)');
+  await walkway.click();
   await expect(page.locator('svg.plan')).toHaveAttribute('data-selected', 'chair-9');
   await expect(page.locator('[data-rule="exits"]')).toHaveAttribute('data-status', 'pass');
 
@@ -60,27 +44,28 @@ test('hall pack: 29 hall items, rules that name the boxed-in seat, event style, 
 
   // Theatre style asks for less floor per guest; the choice is remembered for the report.
   await page.locator('select[name="activity-style"]').selectOption('theatre');
-  await expect(page.locator('[data-rule="area-per-guest"]')).toContainText('٠٫٧ م²');
-  await expect(page.getByTestId('save-state')).toHaveText('محفوظ');
-  await page.getByRole('link', { name: 'التقرير' }).click();
+  await expect(page.locator('[data-rule="area-per-guest"]')).toContainText('0.7 m²');
+  await expect(page.getByTestId('save-state')).toHaveText(/^Saved/);
+  await page.getByRole('link', { name: 'Client report' }).click();
   const rules = page.getByTestId('report-rules');
-  await expect(page.getByLabel('قواعد النشاط')).toContainText('مسرح أو محاضرة');
+  await expect(page.getByLabel('Rules and issues')).toContainText('Event hall · Theatre · rows of chairs');
   await expect(rules.locator('[data-rule="walkway"]')).toHaveAttribute('data-status', 'fail');
-  await expect(page.getByTestId('report-verdict')).toContainText('قواعد');
+  await expect(page.getByTestId('report-verdict')).toContainText('Check before approval');
   await page.screenshot({ path: 'e2e-results/report-rules.png', fullPage: true });
-  await page.getByRole('link', { name: 'رجوع للتصميم' }).click();
+  await page.getByRole('link', { name: 'Back to plan' }).click();
+  await openTab(page, 'Review');
   await expect(page.locator('select[name="activity-style"]')).toHaveValue('theatre');
   await page.screenshot({ path: 'e2e-results/rules.png' });
 });
 
 test('an older project brings in the hall items it is missing in one step', async ({ page }) => {
-  const id = await newProject(page, 'مشروع قديم', 8, 6);
+  const id = await newProject(page, 'Old project', 8, 6);
   await send(page, id, [{ type: 'catalog.remove', id: 'kosha' }, { type: 'catalog.remove', id: 'dance-floor' }]);
   await expect(page.locator('[data-add]')).toHaveCount(27);
-  await page.getByRole('button', { name: 'هات أصناف القاعات الناقصة (٢)' }).click();
+  await page.getByRole('button', { name: 'Add 2 missing event hall item types' }).click();
   await expect(page.locator('[data-add]')).toHaveCount(29);
-  await expect(page.getByRole('button', { name: /هات أصناف القاعات/ })).toHaveCount(0);
+  await expect(page.getByTestId('bring-missing')).toHaveCount(0);
   await page.locator('[data-add="dance-floor"]').click();
-  await page.getByRole('button', { name: 'مجسم', exact: true }).click();
+  await page.getByRole('button', { name: '3D', exact: true }).click();
   await expect(page.getByTestId('view3d')).toHaveAttribute('data-items', '1');
 });

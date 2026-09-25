@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Newsreader:opsz,wght@6..72,300..600&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+html,body{margin:0;background:#f3f2ee}*{box-sizing:border-box}
+a{color:#1a1917;text-decoration:none}a:hover{color:#2b54d0}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #2b54d0;outline-offset:1px}
+@keyframes atr-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#f3f2ee;color:#1a1917;font-family:Geist,'Helvetica Neue',Helvetica,sans-serif;font-size:13px;-webkit-font-smoothing:antialiased">
+  <header style="height:56px;display:flex;align-items:center;gap:28px;padding:0 32px;border-bottom:1px solid #e6e3dc;background:#fbfaf8">
+    <a href="Atrium%20Projects.dc.html" style="display:flex;align-items:center;gap:10px">
+      <span style="width:20px;height:20px;border:1.5px solid #1a1917;display:flex;align-items:center;justify-content:center"><span style="width:8px;height:8px;background:#1a1917"></span></span>
+      <span style="font-family:Newsreader,Georgia,serif;font-size:21px">Atrium</span>
+    </a>
+    <nav style="display:flex;gap:22px;font-size:13.5px">
+      <a href="Atrium%20Projects.dc.html" style="color:#1a1917;font-weight:500">Projects</a>
+      <a href="Atrium%20Editor.dc.html" style="color:#5e5a52">Object library</a>
+      <a href="Atrium%20Settings.dc.html" style="color:#5e5a52">Settings</a>
+    </nav>
+    <span style="flex:1"></span>
+    <span style="display:flex;align-items:center;gap:6px;color:#5e5a52;font-size:12.5px"><span style="width:6px;height:6px;border-radius:50%;background:#2d7446"></span>Server connected</span>
+    <span style="width:28px;height:28px;border-radius:50%;background:#1a1917;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">KH</span>
+  </header>
+
+  <main style="max-width:1240px;margin:0 auto;padding:56px 40px 80px">
+    <div style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">
+        <h1 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:48px;letter-spacing:-.02em;line-height:1">Projects</h1>
+        <p style="margin:12px 0 0;color:#5e5a52;font-size:14px;max-width:520px;line-height:1.5;text-wrap:pretty">Measured spaces and the plans inside them. Check that everything fits and works before anything is ordered.</p>
+      </div>
+      <button onClick="{{ openNew }}" style="height:40px;padding:0 18px;border:0;background:#1a1917;color:#fff;border-radius:4px;font-size:13.5px;display:flex;align-items:center;gap:8px" style-hover="background:#33312d"><iconify-icon icon="lucide:plus" width="16"></iconify-icon>Create project</button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:16px;margin-top:40px;padding-bottom:14px;border-bottom:1px solid #1a1917;flex-wrap:wrap">
+      <div style="position:relative;width:300px;max-width:100%">
+        <iconify-icon icon="lucide:search" width="15" style="position:absolute;left:0;top:10px;color:#8b867c"></iconify-icon>
+        <input value="{{ q }}" onChange="{{ onQ }}" placeholder="Search projects" aria-label="Search projects" style="width:100%;height:36px;padding:0 0 0 24px;border:0;background:transparent;font:inherit;font-size:14px;color:#1a1917;outline:none">
+      </div>
+      <span style="flex:1"></span>
+      <div role="tablist" style="display:flex;gap:18px">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+          <button onClick="{{ f.onClick }}" role="tab" aria-selected="{{ f.on }}" style="border:0;background:transparent;padding:4px 0;font-size:13px;color:{{ f.fg }};border-bottom:1.5px solid {{ f.bd }}">{{ f.label }} <span style="color:#8b867c;font-size:11.5px">{{ f.n }}</span></button>
+        </sc-for>
+      </div>
+      <select aria-label="Sort" style="height:30px;border:1px solid #e3e0d8;border-radius:4px;background:#fbfaf8;font:inherit;font-size:12.5px;padding:0 6px;color:#1a1917"><option>Last edited</option><option>Name</option><option>Status</option></select>
+      <div role="group" aria-label="Layout" style="display:flex;padding:2px;background:#e9e7e1;border-radius:5px">
+        <sc-for list="{{ layouts }}" as="l">
+          <button onClick="{{ l.onClick }}" title="{{ l.label }}" aria-pressed="{{ l.on }}" style="width:30px;height:26px;border:0;border-radius:3px;background:{{ l.bg }};color:{{ l.fg }};display:flex;align-items:center;justify-content:center"><iconify-icon icon="{{ l.icon }}" width="15"></iconify-icon></button>
+        </sc-for>
+      </div>
+    </div>
+
+    <sc-if value="{{ empty }}">
+      <div style="padding:80px 0;text-align:center">
+        <div style="font-family:Newsreader,Georgia,serif;font-size:24px">No projects match “{{ q }}”</div>
+        <p style="color:#5e5a52;margin:8px 0 18px">Try a client name, a venue, or an activity.</p>
+        <button onClick="{{ clearQ }}" style="height:34px;padding:0 14px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:13px;color:#1a1917">Clear search</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:96px minmax(0,2.4fr) minmax(0,1.3fr) 110px 80px minmax(0,1.2fr) 110px 32px;gap:0 20px;padding:12px 0;color:#8b867c;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid #e6e3dc">
+        <span></span><span>Project</span><span>Activity</span><span>Room</span><span>Items</span><span>Status</span><span>Edited</span><span></span>
+      </div>
+      <sc-for list="{{ rows }}" as="p" hint-placeholder-count="6">
+        <a href="Atrium%20Editor.dc.html" style="display:grid;grid-template-columns:96px minmax(0,2.4fr) minmax(0,1.3fr) 110px 80px minmax(0,1.2fr) 110px 32px;gap:0 20px;align-items:center;padding:14px 0;border-bottom:1px solid #e6e3dc;color:#1a1917" style-hover="background:#f7f6f2">
+          <span style="height:60px;background:#fbfaf8;border:1px solid #e6e3dc;display:flex;align-items:center;justify-content:center">
+            <span style="position:relative;width:{{ p.tw }}px;height:{{ p.th }}px;border:1.5px solid #1a1917;background:#fff">
+              <sc-for list="{{ p.marks }}" as="m"><span style="position:absolute;left:{{ m.l }}%;top:{{ m.t }}%;width:{{ m.s }}px;height:{{ m.s2 }}px;border-radius:{{ m.r }};background:{{ m.c }}"></span></sc-for>
+            </span>
+          </span>
+          <span style="min-width:0"><span style="display:block;font-family:Newsreader,Georgia,serif;font-size:18px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span><span style="display:block;color:#5e5a52;font-size:12.5px;margin-top:2px">{{ p.client }}</span></span>
+          <span style="color:#1a1917">{{ p.activity }}<br><span style="color:#5e5a52;font-size:12.5px">{{ p.style }}</span></span>
+          <span style="font-variant-numeric:tabular-nums">{{ p.room }}</span>
+          <span style="font-variant-numeric:tabular-nums">{{ p.items }}</span>
+          <span style="display:flex;align-items:center;gap:7px;color:{{ p.sc }}"><iconify-icon icon="{{ p.si }}" width="14"></iconify-icon>{{ p.status }}</span>
+          <span style="color:#5e5a52"><span style="display:block">{{ p.edited }}</span><span style="font-size:12px;color:#8b867c">{{ p.by }}</span></span>
+          <button onClick="{{ stop }}" title="More" aria-label="More actions" style="width:30px;height:30px;border:0;background:transparent;border-radius:4px;color:#5e5a52;display:flex;align-items:center;justify-content:center" style-hover="background:#e9e7e1"><iconify-icon icon="lucide:ellipsis" width="16"></iconify-icon></button>
+        </a>
+      </sc-for>
+    </sc-if>
+
+    <sc-if value="{{ isGrid }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:32px 24px;margin-top:28px">
+        <sc-for list="{{ rows }}" as="p">
+          <a href="Atrium%20Editor.dc.html" style="display:flex;flex-direction:column;color:#1a1917" style-hover="color:#1a1917">
+            <span style="aspect-ratio:4/3;background:#fbfaf8;border:1px solid #e6e3dc;display:flex;align-items:center;justify-content:center;background-image:linear-gradient(to right, rgba(26,25,23,.04) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.04) 1px, transparent 1px);background-size:16px 16px">
+              <span style="position:relative;width:{{ p.gw }}px;height:{{ p.gh }}px;border:2px solid #1a1917;background:#fff">
+                <sc-for list="{{ p.gmarks }}" as="m"><span style="position:absolute;left:{{ m.l }}%;top:{{ m.t }}%;width:{{ m.s }}px;height:{{ m.s2 }}px;border-radius:{{ m.r }};background:{{ m.c }};border:{{ m.b }}"></span></sc-for>
+              </span>
+            </span>
+            <span style="display:flex;align-items:baseline;gap:10px;margin-top:14px"><span style="flex:1;font-family:Newsreader,Georgia,serif;font-size:20px;line-height:1.2">{{ p.name }}</span><span style="color:#8b867c;font-size:12px;white-space:nowrap">{{ p.edited }}</span></span>
+            <span style="display:flex;gap:6px;color:#5e5a52;font-size:12.5px;margin-top:4px">{{ p.activity }} · {{ p.room }} · {{ p.items }} items</span>
+            <span style="display:flex;align-items:center;gap:6px;color:{{ p.sc }};font-size:12.5px;margin-top:8px"><iconify-icon icon="{{ p.si }}" width="13"></iconify-icon>{{ p.status }}</span>
+          </a>
+        </sc-for>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{ newOpen }}">
+    <div onClick="{{ closeNew }}" style="position:fixed;inset:0;background:rgba(26,25,23,.3);display:flex;align-items:center;justify-content:center;padding:24px;z-index:10;animation:atr-in .14s">
+      <div onClick="{{ stop }}" role="dialog" aria-label="Create project" style="width:920px;max-width:100%;max-height:calc(100vh - 48px);overflow:auto;background:#fbfaf8;border:1px solid #e3e0d8;border-radius:8px;box-shadow:0 30px 80px rgba(26,25,23,.2);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+        <div style="padding:36px 36px 28px;border-right:1px solid #e6e3dc">
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#8b867c">New project</div>
+          <h2 style="margin:8px 0 0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:34px;letter-spacing:-.01em">Start with the room.</h2>
+          <p style="margin:8px 0 26px;color:#5e5a52;line-height:1.5">Doors, columns and items can be added inside the project.</p>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#5e5a52">Project name
+            <input value="{{ form.name }}" onChange="{{ onName }}" placeholder="Client · venue" style="height:40px;padding:0 12px;border:1px solid #d9d5cc;border-radius:4px;background:#fff;font:inherit;font-size:15px;color:#1a1917;outline:none" style-focus="border-color:#2b54d0;box-shadow:0 0 0 3px rgba(43,84,208,.14)">
+          </label>
+          <div style="margin-top:18px;font-size:12px;color:#5e5a52">Activity</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+            <sc-for list="{{ activities }}" as="a">
+              <button onClick="{{ a.onClick }}" aria-pressed="{{ a.on }}" style="height:56px;border:1px solid {{ a.bd }};background:{{ a.bg }};border-radius:4px;padding:0 14px;display:flex;align-items:center;gap:10px;text-align:left;color:#1a1917">
+                <iconify-icon icon="{{ a.icon }}" width="18" style="color:{{ a.ic }}"></iconify-icon><span><span style="display:block;font-size:13.5px;font-weight:500">{{ a.label }}</span><span style="display:block;font-size:11.5px;color:#5e5a52">{{ a.hint }}</span></span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:18px">
+            <sc-for list="{{ sizeFields }}" as="f">
+              <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:#5e5a52">{{ f.label }}
+                <span style="position:relative"><input value="{{ f.v }}" onChange="{{ f.onChange }}" style="width:100%;height:40px;padding:0 30px 0 12px;border:1px solid #d9d5cc;border-radius:4px;background:#fff;font:inherit;font-size:15px;color:#1a1917;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;box-shadow:0 0 0 3px rgba(43,84,208,.14)"><span style="position:absolute;right:11px;top:12px;font-size:12px;color:#8b867c">m</span></span>
+              </label>
+            </sc-for>
+          </div>
+          <div style="margin-top:22px;height:150px;border:1px solid #e6e3dc;background:#fff;display:flex;align-items:center;justify-content:center;background-image:linear-gradient(to right, rgba(26,25,23,.05) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.05) 1px, transparent 1px);background-size:12px 12px">
+            <span style="position:relative;width:{{ prev.w }}px;height:{{ prev.h }}px;border:2px solid #1a1917;background:#faf9f6;transition:width .2s,height .2s">
+              <span style="position:absolute;left:0;right:0;top:-20px;text-align:center;font-size:11.5px;color:#2b54d0;font-variant-numeric:tabular-nums">{{ prev.wl }}</span>
+              <span style="position:absolute;top:50%;left:calc(100% + 8px);transform:translateY(-50%);font-size:11.5px;color:#2b54d0;white-space:nowrap;font-variant-numeric:tabular-nums">{{ prev.dl }}</span>
+            </span>
+          </div>
+          <div style="margin-top:8px;color:#5e5a52;font-size:12px">{{ prev.area }}</div>
+        </div>
+        <div style="padding:36px 32px 28px;display:flex;flex-direction:column">
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#8b867c">Templates</div>
+          <div style="margin-top:12px;display:flex;flex-direction:column">
+            <sc-for list="{{ templates }}" as="t">
+              <button onClick="{{ t.onClick }}" aria-pressed="{{ t.on }}" style="display:flex;gap:16px;align-items:center;padding:14px 12px;border:0;border-bottom:1px solid #e6e3dc;background:{{ t.bg }};text-align:left;color:#1a1917;border-radius:{{ t.r }}" style-hover="background:#f3f2ee">
+                <span style="width:64px;height:48px;flex:none;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e6e3dc"><span style="width:{{ t.w }}px;height:{{ t.h }}px;border:1.5px solid #1a1917"></span></span>
+                <span style="flex:1"><span style="display:block;font-family:Newsreader,Georgia,serif;font-size:18px">{{ t.name }}</span><span style="display:block;color:#5e5a52;font-size:12px;margin-top:2px">{{ t.desc }}</span></span>
+                <iconify-icon icon="{{ t.check }}" width="16" style="color:#2b54d0"></iconify-icon>
+              </button>
+            </sc-for>
+          </div>
+          <span style="flex:1;min-height:24px"></span>
+          <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+            <span style="flex:1;color:#8b867c;font-size:12px">{{ formHint }}</span>
+            <button onClick="{{ closeNew }}" style="height:38px;padding:0 16px;border:1px solid #d9d5cc;background:#fff;border-radius:4px;font-size:13.5px;color:#1a1917">Cancel</button>
+            <a href="Atrium%20Editor.dc.html" style="height:38px;padding:0 18px;border-radius:4px;font-size:13.5px;display:flex;align-items:center;background:{{ createBg }};color:#fff;pointer-events:{{ createPE }}">Create project</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const ACC = '#2b54d0', INK = '#1a1917', INK2 = '#5e5a52';
+const PROJECTS = [
+  { name: 'Al Noor Wedding · Grand Hall', client: 'Al Noor Events', activity: 'Event hall', style: 'Wedding banquet', w: 24, d: 16, items: 20, status: '2 errors · 3 warnings', kind: 'error', edited: '2 min ago', by: 'You', a: 'hall', dots: 12 },
+  { name: 'Kemet Bank · Level 4', client: 'Kemet Bank facilities', activity: 'Office', style: 'Open plan', w: 32, d: 18, items: 148, status: 'No issues', kind: 'ok', edited: 'Yesterday', by: 'Mona Adel', a: 'office', dots: 18 },
+  { name: 'Nile Tech Summit · Main Hall', client: 'Nile Tech', activity: 'Event hall', style: 'Conference · theatre', w: 40, d: 26, items: 412, status: '1 warning', kind: 'warn', edited: 'Sep 21', by: 'AI Planner', a: 'rows', dots: 30 },
+  { name: 'Sahel Studio · Meeting Room B', client: 'Sahel Studio', activity: 'Office', style: 'Meeting room', w: 7.2, d: 5.4, items: 14, status: 'Ready to share', kind: 'ok', edited: 'Sep 18', by: 'You', a: 'meet', dots: 1 },
+  { name: 'Graduation Gala 2026', client: 'Cairo Science School', activity: 'Event hall', style: 'Gala dinner', w: 30, d: 20, items: 0, status: 'Empty room', kind: 'draft', edited: 'Sep 12', by: 'You', a: 'empty', dots: 0 },
+  { name: 'Harbor Logistics · Ops Floor', client: 'Harbor Logistics', activity: 'Office', style: 'Open plan', w: 22, d: 14, items: 86, status: '2 checks unknown', kind: 'unknown', edited: 'Aug 30', by: 'Omar Said', a: 'office', dots: 12 },
+];
+const ST = { error: ['#b93a2e', 'lucide:circle-x'], warn: ['#9a6400', 'lucide:triangle-alert'], ok: ['#2d7446', 'lucide:circle-check'], draft: ['#8b867c', 'lucide:circle-dashed'], unknown: [INK2, 'lucide:circle-help'] };
+const TEMPLATES = [
+  { id: 'hall', name: 'Event hall', desc: '24 × 16 m · 4.5 m ceiling · 3 doors', w: 24, d: 16, h: 4.5, a: 'hall' },
+  { id: 'office', name: 'Open office', desc: '32 × 18 m · 3.0 m ceiling · 2 doors · 6 columns', w: 32, d: 18, h: 3, a: 'office' },
+  { id: 'meet', name: 'Meeting room', desc: '7.2 × 5.4 m · 2.8 m ceiling · 1 door', w: 7.2, d: 5.4, h: 2.8, a: 'office' },
+  { id: 'blank', name: 'Blank', desc: 'Any size · add everything yourself', w: 20, d: 12, h: 3, a: 'hall' },
+];
+function marks(p, scale) {
+  const out = [];
+  if (p.a === 'hall') for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) out.push({ l: 8 + c * 22 + (c > 1 ? 8 : 0), t: 30 + r * 22, s: 6 * scale, s2: 6 * scale, r: '50%', c: '#1a1917', b: '0' });
+  if (p.a === 'hall') out.push({ l: 34, t: 4, s: 22 * scale, s2: 5 * scale, r: '0', c: '#1a1917', b: '0' }, { l: 42, t: 32, s: 12 * scale, s2: 12 * scale, r: '0', c: '#dbe3fb', b: '1px solid #2b54d0' });
+  if (p.a === 'office') for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) out.push({ l: 6 + c * 15, t: 14 + r * 28, s: 7 * scale, s2: 4 * scale, r: '0', c: '#1a1917', b: '0' });
+  if (p.a === 'rows') for (let r = 0; r < 7; r++) for (let c = 0; c < 2; c++) out.push({ l: 8 + c * 46, t: 26 + r * 10, s: 16 * scale, s2: 1.5 * scale, r: '0', c: '#1a1917', b: '0' });
+  if (p.a === 'rows') out.push({ l: 25, t: 4, s: 22 * scale, s2: 4 * scale, r: '0', c: '#1a1917', b: '0' });
+  if (p.a === 'meet') out.push({ l: 22, t: 34, s: 22 * scale, s2: 10 * scale, r: '0', c: 'transparent', b: '1.5px solid #1a1917' });
+  return out;
+}
+class Component extends DCLogic {
+  state = { q: '', filter: 'All', layout: 'list', newOpen: false, tpl: 'hall', name: '', act: 'hall', w: '24', d: '16', h: '4.5' };
+  renderVals() {
+    const s = this.state, set = (o) => () => this.setState(o);
+    const q = s.q.trim().toLowerCase();
+    const rows = PROJECTS.filter((p) => (s.filter === 'All' || p.activity === s.filter) && (!q || (p.name + p.client + p.activity + p.style).toLowerCase().includes(q))).map((p) => {
+      const k = Math.min(60 / p.w, 40 / p.d), g = Math.min(220 / p.w, 150 / p.d);
+      return { ...p, room: `${p.w} × ${p.d} m`, sc: ST[p.kind][0], si: ST[p.kind][1], tw: Math.round(p.w * k), th: Math.round(p.d * k), gw: Math.round(p.w * g), gh: Math.round(p.d * g), marks: marks(p, 0.5), gmarks: marks(p, 1.4) };
+    });
+    const count = (f) => PROJECTS.filter((p) => f === 'All' || p.activity === f).length;
+    const filters = ['All', 'Event hall', 'Office'].map((label) => ({ label, n: count(label), on: s.filter === label, fg: s.filter === label ? INK : INK2, bd: s.filter === label ? INK : 'transparent', onClick: set({ filter: label }) }));
+    const layouts = [['list', 'List', 'lucide:list'], ['grid', 'Grid', 'lucide:layout-grid']].map(([id, label, icon]) => ({ label, icon, on: s.layout === id, bg: s.layout === id ? '#fff' : 'transparent', fg: s.layout === id ? INK : INK2, onClick: set({ layout: id }) }));
+    const w = parseFloat(s.w) || 0, d = parseFloat(s.d) || 0, k = w && d ? Math.min(260 / w, 110 / d) : 0;
+    const valid = s.name.trim() && w > 0 && d > 0 && parseFloat(s.h) > 0;
+    return {
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }), clearQ: set({ q: '' }), filters, layouts, rows, empty: !rows.length, isList: s.layout === 'list' && rows.length > 0, isGrid: s.layout === 'grid',
+      stop: (e) => { e.stopPropagation(); }, newOpen: s.newOpen, openNew: set({ newOpen: true }), closeNew: set({ newOpen: false }),
+      form: { name: s.name }, onName: (e) => this.setState({ name: e.target.value }),
+      activities: [['hall', 'Event hall', 'Weddings, conferences, galas', 'lucide:party-popper'], ['office', 'Office', 'Workstations, meeting rooms', 'lucide:briefcase']].map(([id, label, hint, icon]) => ({ label, hint, icon, on: s.act === id, bd: s.act === id ? ACC : '#d9d5cc', bg: s.act === id ? '#eef2fd' : '#fff', ic: s.act === id ? ACC : INK2, onClick: set({ act: id }) })),
+      sizeFields: [['Width', 'w'], ['Depth', 'd'], ['Ceiling height', 'h']].map(([label, key]) => ({ label, v: s[key], onChange: (e) => this.setState({ [key]: e.target.value, tpl: s.tpl === 'blank' ? 'blank' : s.tpl }) })),
+      prev: { w: Math.max(8, Math.round(w * k)), h: Math.max(8, Math.round(d * k)), wl: `${w.toFixed(2)} m`, dl: `${d.toFixed(2)} m`, area: w && d ? `Floor area ${(w * d).toFixed(0)} m² · ceiling ${parseFloat(s.h || 0).toFixed(2)} m` : 'Enter a width and depth' },
+      templates: TEMPLATES.map((t) => { const kk = Math.min(44 / t.w, 32 / t.d); return { ...t, w: Math.round(t.w * kk), h: Math.round(t.d * kk), on: s.tpl === t.id, bg: s.tpl === t.id ? '#f3f2ee' : 'transparent', r: '0', check: s.tpl === t.id ? 'lucide:check' : '', onClick: set({ tpl: t.id, w: String(t.w), d: String(t.d), h: String(t.h), act: t.a }) }; }),
+      formHint: valid ? 'Opens the plan editor' : 'Add a project name to continue', createBg: valid ? '#1a1917' : '#bdb8ae', createPE: valid ? 'auto' : 'none',
+    };
+  }
+}
+</script>
+</body>
+</html>

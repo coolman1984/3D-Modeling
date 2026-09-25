@@ -98,13 +98,15 @@ didn't create, force-pushing, rewriting history, or changing anything outside th
 
 ## User interface
 
-- The owner and first users read Arabic: UI text is Arabic, panels are right-to-left, and the
-  plan canvas keeps its own math orientation (X east, Y north).
-- It is a working tool, not a landing page. Leave out: cream or off-white page backgrounds,
-  gradients and glassmorphism, oversized hero text, italic accent words, numbered "01 / 02"
-  section labels, monospace labels, pill-shaped buttons, emoji inside the app, and decorative
-  shadows. Prefer dense, calm panels, one accent colour, and red, amber and blue reserved for
-  error, warning and info.
+- The approved visual target is the "Atrium" Claude Design export in `design-reference/`
+  (`Atrium * v2.dc.html`). It is a visual reference only: never copy its mock logic.
+  See `docs/redesign-audit.md` and decision 0007.
+- UI text is English, left-to-right; the plan canvas keeps its own math orientation (X east, Y north).
+- Visual system: tokens on `:root` in `apps/editor/src/styles.css` (warm-neutral page, Newsreader serif
+  headings, Geist controls, thin borders, one blue accent; red, amber and green only for error,
+  warning and pass). Icons are Phosphor "light" from `@phosphor-icons/react`; fonts are bundled.
+- It is a working tool: the plan is the hero. No gradients or glass except the 3D backdrop, no
+  pill buttons, no emoji inside the app, only functional shadows (menus, dialogs, floating tools).
 - Every UI change goes through core commands; the UI never edits a project directly.
 - Agents and people share one path: server tools → core commands → one revision with the actor's name.
   Never add a way to change a project that skips the store.

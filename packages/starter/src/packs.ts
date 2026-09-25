@@ -19,8 +19,8 @@ export interface Pack {
 }
 
 export const PACKS: readonly Pack[] = [
-  { id: 'hall', label: 'قاعة مناسبات', catalog: STARTER_CATALOG, styles: HALL_STYLES, check: (p, s) => checkHall(p, s as HallStyle) },
-  { id: 'office', label: 'مكتب', catalog: OFFICE_CATALOG, styles: OFFICE_STYLES, check: (p, s) => checkOffice(p, s as OfficeStyle) },
+  { id: 'hall', label: 'Event hall', catalog: STARTER_CATALOG, styles: HALL_STYLES, check: (p, s) => checkHall(p, s as HallStyle) },
+  { id: 'office', label: 'Office', catalog: OFFICE_CATALOG, styles: OFFICE_STYLES, check: (p, s) => checkOffice(p, s as OfficeStyle) },
 ];
 
 export function packOf(id: string | null | undefined): Pack {

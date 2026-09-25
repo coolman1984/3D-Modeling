@@ -51,8 +51,8 @@ describe('store', () => {
     expect(result.ok).toBe(true);
     expect(store.getProject(project.id)?.revision).toBe(1);
     expect(store.history(project.id).map((h) => [h.revision, h.actor, h.summary])).toEqual([
-      [1, 'agent:claude-code', 'إضافة'],
-      [0, 'human', 'إنشاء المشروع'],
+      [1, 'agent:claude-code', 'Added'],
+      [0, 'human', 'Created the project'],
     ]);
     expect(store.listProjects()[0]).toMatchObject({ id: project.id, revision: 1, itemCount: 1 });
   });
@@ -82,7 +82,7 @@ describe('store', () => {
     const project = store.createProject(demoHall(), 'human');
     const copy = store.duplicateProject(project.id, 'human');
     expect(copy?.id).not.toBe(project.id);
-    expect(copy?.name).toContain('نسخة');
+    expect(copy?.name).toContain('(copy)');
     expect(store.deleteProject(project.id)).toBe(true);
     expect(store.getProject(project.id)).toBeNull();
     expect(store.listProjects()).toHaveLength(1);
@@ -128,7 +128,7 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: 1.2 }] }).isError).toBe(false);
     expect(store.getProject(project.id)!.items['chair-1']?.elevation).toBe(m(1.2));
     expect(runTool(ctx, 'get_project', { project_id: project.id }).text).toContain('chair-1 | chair | 1 | 1 | 0 | 1.2');
-    expect(store.history(project.id)[0]?.summary).toBe('تحريك عناصر');
+    expect(store.history(project.id)[0]?.summary).toBe('Moved items');
     runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: 0 }] });
     expect(store.getProject(project.id)!.items['chair-1']).not.toHaveProperty('elevation');
     expect(runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: -1 }] }).isError).toBe(true);
@@ -186,7 +186,7 @@ describe('agent output', () => {
   it('turns Claude Code stream events into short lines', () => {
     expect(readableAgentLine('{"type":"assistant","message":{"content":[{"type":"text","text":"أبدأ"},{"type":"tool_use","name":"mcp__planner__place_items"}]}}')).toBe('أبدأ\n🔧 place_items');
     expect(readableAgentLine('{"type":"system","subtype":"init"}')).toBeNull();
-    expect(readableAgentLine('{"type":"result","subtype":"success"}')).toBe('✔ خلص');
+    expect(readableAgentLine('{"type":"result","subtype":"success"}')).toBe('✔ Done');
     expect(readableAgentLine('plain text from codex')).toBe('plain text from codex');
   });
 });
@@ -305,7 +305,7 @@ describe('HTTP app', () => {
     const started = await json(`/api/projects/${project.id}/agent-runs`, { method: 'POST', body: JSON.stringify({ agent: 'ghost', prompt: 'x' }) });
     const run = store.getRun(started.body.id)!;
     expect(run.status).toBe('failed');
-    expect(run.log).toContain('مش لاقي');
+    expect(run.log).toContain('is not installed');
   });
 });
 
@@ -389,7 +389,7 @@ describe('API agent', () => {
         return r && r.status !== 'running' ? r : null;
       });
       expect(finished.status).toBe('failed');
-      expect(finished.log).toContain('مفتاح');
+      expect(finished.log).toContain('API key');
     } finally {
       if (saved !== undefined) process.env.ANTHROPIC_API_KEY = saved;
       await app.close();

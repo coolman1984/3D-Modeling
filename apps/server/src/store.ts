@@ -129,7 +129,7 @@ export class Store extends EventEmitter<StoreEvents> {
   }
 
   /** Store a new project; its id is replaced by a fresh one. */
-  createProject(project: Project, actor: string, summary = 'إنشاء المشروع'): Project {
+  createProject(project: Project, actor: string, summary = 'Created the project'): Project {
     const id = `p-${randomUUID().slice(0, 8)}`;
     const fresh: Project = { ...project, id, revision: 0 };
     const problems = validateProject(fresh);
@@ -187,7 +187,7 @@ export class Store extends EventEmitter<StoreEvents> {
     const old = this.getRevision(id, revision);
     if (!current || !old) return { ok: false, status: 404 };
     const restored: Project = { ...old, revision: current.revision + 1 };
-    this.commit(restored, actor, `رجوع للنسخة ${revision}`, []);
+    this.commit(restored, actor, `Restored revision ${revision}`, []);
     return { ok: true, project: restored };
   }
 
@@ -215,7 +215,7 @@ export class Store extends EventEmitter<StoreEvents> {
   duplicateProject(id: string, actor: string): Project | null {
     const source = this.getProject(id);
     if (!source) return null;
-    return this.createProject({ ...source, name: `${source.name} (نسخة)` }, actor, `نسخة من ${source.name}`);
+    return this.createProject({ ...source, name: `${source.name} (copy)` }, actor, `Copied from ${source.name}`);
   }
 
   getSetting<T>(key: string): T | undefined {
@@ -330,20 +330,20 @@ function toRun(row: Record<string, string>): AgentRun {
 }
 
 const COMMAND_WORDS: Record<string, string> = {
-  'item.add': 'إضافة',
-  'item.move': 'تحريك',
-  'item.rotate': 'لف',
-  'item.elevate': 'رفع',
-  'item.remove': 'مسح',
-  'item.lock': 'قفل',
-  'catalog.define': 'تعريف صنف',
-  'catalog.remove': 'مسح صنف',
-  'space.set': 'تعديل القاعة',
-  'project.rename': 'تغيير الاسم',
-  batch: 'مجموعة تعديلات',
+  'item.add': 'Added',
+  'item.move': 'Moved',
+  'item.rotate': 'Rotated',
+  'item.elevate': 'Raised',
+  'item.remove': 'Removed',
+  'item.lock': 'Locked',
+  'catalog.define': 'Item type saved',
+  'catalog.remove': 'Item type removed',
+  'space.set': 'Room changed',
+  'project.rename': 'Renamed',
+  batch: 'Several changes',
 };
 
-/** A short Arabic summary such as "إضافة ×3، تحريك". */
+/** A short summary such as "Added ×3, Moved". */
 export function describeCommands(commands: readonly Command[]): string {
   const counts = new Map<string, number>();
   const walk = (c: Command) => {
@@ -351,5 +351,5 @@ export function describeCommands(commands: readonly Command[]): string {
     else counts.set(c.type, (counts.get(c.type) ?? 0) + 1);
   };
   commands.forEach(walk);
-  return [...counts].map(([type, n]) => `${COMMAND_WORDS[type] ?? type}${n > 1 ? ` ×${n}` : ''}`).join('، ') || 'تعديل';
+  return [...counts].map(([type, n]) => `${COMMAND_WORDS[type] ?? type}${n > 1 ? ` ×${n}` : ''}`).join(', ') || 'Changed';
 }

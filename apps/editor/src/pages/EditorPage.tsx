@@ -9,15 +9,52 @@ import {
   type Id,
   type ItemDefinition,
   type ItemInstance,
+  type Issue,
   type Project,
+  type Vec2,
 } from '@space-planner/core';
-import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { checkPack } from '@space-planner/starter';
+import {
+  ArrowUUpLeft,
+  ArrowUUpRight,
+  CaretLeft,
+  CheckCircle,
+  Columns,
+  Copy,
+  Crosshair,
+  CrosshairSimple,
+  Cube,
+  Cursor,
+  DotsThree,
+  DownloadSimple,
+  Eye,
+  FileText,
+  FrameCorners,
+  GearSix,
+  GridFour,
+  Keyboard,
+  LineSegments,
+  ListBullets,
+  Magnet,
+  Ruler,
+  SidebarSimple,
+  Sparkle,
+  Square,
+  SquaresFour,
+  Trash,
+  Warning,
+  WifiSlash,
+  XCircle,
+} from '@phosphor-icons/react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { actorName, api, subscribe } from '../api.js';
+import { loadActivity, saveActivity, type Activity } from '../logic/activity.js';
 import { acceleratedStep, copyOffset, keyIntent, loadControls, saveControls, turnNudge, type ControlSettings } from '../logic/controls.js';
+import { formatCount, formatMetres } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import { REJECTION_MESSAGES } from '../logic/messages.js';
 import { findFreeSpot } from '../logic/placement.js';
-import { reduce, startSession, visibleProject } from '../logic/session.js';
+import { reduce, startSession, visibleProject, type Action } from '../logic/session.js';
 import {
   duplicateCommands,
   elevateCommands,
@@ -31,26 +68,25 @@ import {
 } from '../logic/transform.js';
 import { toWorld, type Viewport } from '../logic/viewport.js';
 import { AgentPanel } from '../ui/AgentPanel.js';
-import { Tabs } from '../ui/Fields.js';
+import { Brand, Menu, Segmented, useToast } from '../ui/Fields.js';
 import { HistoryPanel } from '../ui/HistoryPanel.js';
-import { ItemTypesPanel } from '../ui/ItemTypes.js';
-import { ControlsPanel, IssuesPanel, MetricsPanel, RulesPanel, SelectionPanel } from '../ui/Panels.js';
-import { checkPack } from '@space-planner/starter';
-import { loadActivity, saveActivity, type Activity } from '../logic/activity.js';
+import { PropertiesPanel, ReviewPanel, statusLine, summarize } from '../ui/Inspector.js';
+import { ItemTypeDialog, LibraryPanel } from '../ui/ItemTypes.js';
+import { ControlsPanel, GRID_OPTIONS, ObjectsPanel } from '../ui/Panels.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
 import { View3D } from '../ui/View3D.js';
 
-const SNAP_OPTIONS = [
-  { label: 'بدون', ticks: 1 },
-  { label: '١ سم', ticks: fromUnit(1, 'cm') },
-  { label: '٥ سم', ticks: fromUnit(5, 'cm') },
-  { label: '١٠ سم', ticks: fromUnit(10, 'cm') },
-];
-
 type ViewMode = 'plan' | '3d' | 'split';
-type StartTab = 'items' | 'room' | 'controls';
-type EndTab = 'check' | 'history' | 'agent';
+type LeftPanel = 'library' | 'objects' | 'space' | 'precision';
+type RightTab = 'properties' | 'review' | 'history';
+
+const LEFT_PANELS: ReadonlyArray<{ id: LeftPanel; label: string; title: string; icon: ReactNode }> = [
+  { id: 'library', label: 'Library', title: 'Object library', icon: <SquaresFour size={21} /> },
+  { id: 'objects', label: 'Objects', title: 'Objects', icon: <ListBullets size={21} /> },
+  { id: 'space', label: 'Space', title: 'Space', icon: <FrameCorners size={21} /> },
+  { id: 'precision', label: 'Precision', title: 'Precision', icon: <CrosshairSimple size={21} /> },
+];
 
 function download(name: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -74,13 +110,28 @@ export function EditorPage({ projectId }: { projectId: string }) {
   }, [projectId]);
   if (missing) {
     return (
-      <div className="page">
-        <p>المشروع ده مش موجود.</p>
-        <a href="#/" className="button">رجوع للمشاريع</a>
+      <div className="site">
+        <div className="center-empty">
+          <div className="serif">This project does not exist</div>
+          <p>It may have been deleted.</p>
+          <a href="#/" className="btn">
+            Back to projects
+          </a>
+        </div>
       </div>
     );
   }
-  return project ? <Editor key={project.id} initial={project} /> : <div className="page"><p className="muted">بيحمّل…</p></div>;
+  if (!project) {
+    return (
+      <div className="editor" style={{ alignItems: 'center', justifyContent: 'center', color: 'var(--ink-4)', gap: 10 }}>
+        <span style={{ width: 180, height: 2, background: 'var(--line-mid)', overflow: 'hidden', borderRadius: 1 }}>
+          <span style={{ display: 'block', width: '40%', height: '100%', background: 'var(--accent)', animation: 'atr-pulse 1s infinite' }} />
+        </span>
+        Loading plan
+      </div>
+    );
+  }
+  return <Editor key={project.id} initial={project} />;
 }
 
 function Editor({ initial }: { initial: Project }) {
@@ -91,12 +142,20 @@ function Editor({ initial }: { initial: Project }) {
     setControlsState(next);
     saveControls(next);
   }, []);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [toast, setNotice] = useToast();
   const [view, setView] = useState<ViewMode>('plan');
-  const [startTab, setStartTab] = useState<StartTab>('items');
-  const [endTab, setEndTab] = useState<EndTab>('check');
+  const [left, setLeft] = useState<LeftPanel | null>('library');
+  const [right, setRight] = useState<RightTab>('properties');
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiRunning, setAiRunning] = useState(false);
   const [editingType, setEditingType] = useState<Id | 'new' | null>(null);
   const [fitToken, setFitToken] = useState(0);
+  const [focus, setFocus] = useState<number | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [preview, setPreview] = useState<{ revision: number; project: Project } | null>(null);
+  const [scale, setScale] = useState({ zoom: 1, ratio: 100 });
+  const lastGrid = useRef(controls.grid > 1 ? controls.grid : fromUnit(5, 'cm'));
   const sending = useRef(false);
   const canvasBox = useRef<HTMLDivElement>(null);
 
@@ -108,11 +167,16 @@ function Editor({ initial }: { initial: Project }) {
   const metrics = useMemo(() => measureProject(checked), [checked]);
   const [activity, setActivity] = useState<Activity>(() => loadActivity(initial));
   const rules = useMemo(() => checkPack(checked, activity.pack, activity.style), [checked, activity]);
+  const summary = useMemo(() => summarize(issues, rules), [issues, rules]);
+  const previewIssues = useMemo(() => (preview ? checkProject(preview.project) : []), [preview]);
 
-  const load = useCallback((next: Project, message?: string) => {
-    dispatch({ type: 'load', project: next });
-    if (message) setNotice(message);
-  }, []);
+  const load = useCallback(
+    (next: Project, message?: string) => {
+      dispatch({ type: 'load', project: next });
+      if (message) setNotice(message);
+    },
+    [setNotice],
+  );
 
   // Save local edits to the server one at a time, in order. If someone else changed the
   // project meanwhile (an agent, another window), take the server's version.
@@ -123,15 +187,16 @@ function Editor({ initial }: { initial: Project }) {
     api
       .sendCommands(project.id, [entry.command], entry.revision - 1)
       .then((result) => {
+        setOffline(false);
         if (result.ok) dispatch({ type: 'saved', revision: entry.revision });
-        else if ('conflict' in result) load(result.project, 'المشروع اتعدّل من مكان تاني؛ اتحمّلت آخر نسخة.');
+        else if ('conflict' in result) load(result.project, 'The project was changed elsewhere; the latest version is loaded.');
         else if ('rejection' in result) void api.getProject(project.id).then((p) => load(p, REJECTION_MESSAGES[result.rejection.code]));
       })
-      .catch(() => setNotice('مقدرتش أحفظ التعديل؛ البرنامج شغّال؟'))
+      .catch(() => setOffline(true))
       .finally(() => {
         sending.current = false;
       });
-  }, [session.outbox, project.id, load]);
+  }, [session.outbox, project.id, load, retry]);
 
   // Live changes made by agents or other windows.
   const latest = useRef({ revision: project.revision, pending: session.outbox.length });
@@ -146,18 +211,23 @@ function Editor({ initial }: { initial: Project }) {
       }),
     [project.id, load],
   );
-  useEffect(
-    () =>
-      subscribe({
-        project: (e) => {
-          if (e.projectId !== project.id || e.revision <= latest.current.revision) return;
-          const message = `${actorName(e.actor)}: ${e.summary}`;
-          if (latest.current.pending > 0) missed.current = { revision: e.revision, message };
-          else fetchLatest(message);
-        },
-      }),
-    [project.id, fetchLatest],
-  );
+  useEffect(() => {
+    const refreshRuns = () =>
+      void api
+        .runs(project.id)
+        .then((runs) => setAiRunning(runs[0]?.status === 'running'))
+        .catch(() => undefined);
+    refreshRuns();
+    return subscribe({
+      project: (e) => {
+        if (e.projectId !== project.id || e.revision <= latest.current.revision) return;
+        const message = `${actorName(e.actor)}: ${e.summary}`;
+        if (latest.current.pending > 0) missed.current = { revision: e.revision, message };
+        else fetchLatest(message);
+      },
+      run: (e) => e.projectId === project.id && refreshRuns(),
+    });
+  }, [project.id, fetchLatest]);
   useEffect(() => {
     const waiting = missed.current;
     if (session.outbox.length > 0 || !waiting) return;
@@ -167,15 +237,22 @@ function Editor({ initial }: { initial: Project }) {
 
   useEffect(() => {
     if (session.rejection) setNotice(REJECTION_MESSAGES[session.rejection.code]);
-  }, [session.rejection]);
+  }, [session.rejection, setNotice]);
 
-  const addItem = (definition: ItemDefinition) => {
+  const fit = useCallback(() => {
+    setViewport(null);
+    setFitToken((n) => n + 1);
+  }, []);
+
+  const addItem = (definition: ItemDefinition, at?: Vec2) => {
     const id = nextId(definition.id, takenIds(project));
     const room = boundsOf(project.space.boundary);
-    let spot = { x: (room.minX + room.maxX) / 2, y: (room.minY + room.maxY) / 2 };
+    let spot = at ?? { x: (room.minX + room.maxX) / 2, y: (room.minY + room.maxY) / 2 };
     const box = canvasBox.current;
-    if (viewport && box && view !== '3d') {
-      const centre = toWorld(viewport, { x: box.clientWidth / 2, y: box.clientHeight / 2 });
+    if (!at && viewport && box && view !== '3d') {
+      const pane = box.querySelector('.pane') as HTMLElement | null;
+      const width = pane?.clientWidth ?? box.clientWidth;
+      const centre = toWorld(viewport, { x: width / 2, y: box.clientHeight / 2 });
       if (centre.x > room.minX && centre.x < room.maxX && centre.y > room.minY && centre.y < room.maxY) spot = centre;
     }
     const item = { id, definitionId: definition.id, rotation: 0, locked: false };
@@ -190,6 +267,7 @@ function Editor({ initial }: { initial: Project }) {
   const lastPane = useRef<'plan' | '3d'>('plan');
   const nudge = useRef<{ dx: number; dy: number; dz: number; repeats: number } | null>(null);
   const clipboard = useRef<readonly ItemInstance[]>([]);
+  const blocked = preview !== null || editingType !== null;
   useEffect(() => {
     const typing = (event: Event) => event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName);
     const ids = session.selectedIds;
@@ -200,7 +278,7 @@ function Editor({ initial }: { initial: Project }) {
       dispatch({ type: 'preview-commit' });
     };
     const onKey = (event: KeyboardEvent) => {
-      if (typing(event)) return;
+      if (typing(event) || blocked) return;
       const intent = keyIntent({ key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey }, controls);
       if (!intent) return;
       if (intent.kind === 'nudge' || intent.kind === 'raise') {
@@ -255,7 +333,7 @@ function Editor({ initial }: { initial: Project }) {
         case 'copy':
         case 'cut':
           clipboard.current = ids.map((id) => project.items[id]).filter((i): i is ItemInstance => i !== undefined);
-          if (clipboard.current.length > 0) setNotice(`اتنسخ ${clipboard.current.length} عنصر.`);
+          if (clipboard.current.length > 0) setNotice(`Copied ${clipboard.current.length} ${clipboard.current.length === 1 ? 'item' : 'items'}.`);
           if (intent.kind === 'cut') run(removeCommands(project, ids), []);
           break;
         case 'paste': {
@@ -266,8 +344,7 @@ function Editor({ initial }: { initial: Project }) {
           break;
         }
         case 'frame':
-          setViewport(null);
-          setFitToken((n) => n + 1);
+          fit();
           break;
       }
     };
@@ -282,189 +359,395 @@ function Editor({ initial }: { initial: Project }) {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', endNudge);
     };
-  }, [session.selectedIds, session.preview, project, controls, view]);
+  }, [session.selectedIds, session.preview, project, controls, view, blocked, fit, setNotice]);
 
   const [renaming, setRenaming] = useState(false);
   const saving = session.outbox.length > 0;
+  const status = statusLine(summary);
+  const openReview = () => {
+    setAiOpen(false);
+    setRight('review');
+  };
+  const focusIssue = (issue: Issue) => {
+    setAiOpen(false);
+    setRight('review');
+    setFocus(issues.indexOf(issue));
+  };
+  const onZoom = useCallback((zoom: number, ratio: number) => setScale((s) => (s.zoom === zoom && s.ratio === ratio ? s : { zoom, ratio })), []);
+  const room = boundsOf(project.space.boundary);
+  const roomLine = `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m${project.space.ceilingHeight === undefined ? ' · Ceiling not set' : ` · Ceiling ${formatMetres(project.space.ceilingHeight)} m`}`;
+  const single = session.selectedIds.length === 1 ? project.items[session.selectedIds[0]!] : undefined;
+  const gridLabel = controls.grid <= 1 ? 'off' : (GRID_OPTIONS.find((o) => o.ticks === controls.grid)?.label ?? `${controls.grid / 100} cm`);
+  const shownProject = preview ? preview.project : shown;
+  const shownIssues = preview ? previewIssues : issues;
+  const paneDispatch = useCallback((a: Action) => (preview ? undefined : dispatch(a)), [preview]);
+  const leftPanel = LEFT_PANELS.find((p) => p.id === left);
+
+  const toggleSnap = () => {
+    if (controls.grid > 1) {
+      lastGrid.current = controls.grid;
+      setControls({ ...controls, grid: 1 });
+    } else setControls({ ...controls, grid: lastGrid.current });
+  };
 
   return (
-    <div className="app">
-      <header className="toolbar">
-        <a href="#/" className="button" title="كل المشاريع">
-          المشاريع
-        </a>
-        {renaming ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const name = String(new FormData(e.currentTarget).get('name') ?? '').trim();
-              if (name && name !== project.name) dispatch({ type: 'command', command: { type: 'project.rename', name } });
-              setRenaming(false);
-            }}
-          >
-            <input name="name" defaultValue={project.name} autoFocus onBlur={(e) => e.currentTarget.form?.requestSubmit()} />
-          </form>
-        ) : (
-          <h1 onDoubleClick={() => setRenaming(true)} title="دبل كليك لتغيير الاسم">
-            {project.name}
-          </h1>
-        )}
-        <span className={`save-state ${saving ? 'busy' : ''}`} data-testid="save-state">
-          {saving ? 'بيحفظ…' : 'محفوظ'}
-        </span>
-        <div className="toolbar-group">
-          <button type="button" onClick={() => dispatch({ type: 'undo' })} disabled={session.history.undoStack.length === 0} title="Ctrl+Z">
-            رجوع
-          </button>
-          <button type="button" onClick={() => dispatch({ type: 'redo' })} disabled={session.history.redoStack.length === 0} title="Ctrl+Y">
-            إعادة
-          </button>
-        </div>
-        <div className="toolbar-group segmented" role="group" aria-label="طريقة العرض">
-          {(
-            [
-              ['plan', 'مسطح'],
-              ['3d', 'مجسم'],
-              ['split', 'الاتنين'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={view === id ? 'active' : ''}
-              aria-pressed={view === id}
-              onClick={() => {
-                setView(id);
-                setViewport(null);
-                setFitToken((n) => n + 1);
+    <div className="editor">
+      <header className="topbar">
+        <Brand />
+        <nav className="crumbs" aria-label="Breadcrumbs">
+          <a href="#/">
+            <CaretLeft size={15} />
+            Projects
+          </a>
+          <span className="crumb-sep" />
+          {renaming ? (
+            <form
+              className="rename"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = String(new FormData(e.currentTarget).get('name') ?? '').trim();
+                if (name && name !== project.name) dispatch({ type: 'command', command: { type: 'project.rename', name } });
+                setRenaming(false);
               }}
             >
-              {label}
+              <input className="input" name="name" aria-label="Project name" defaultValue={project.name} autoFocus onBlur={(e) => e.currentTarget.form?.requestSubmit()} />
+            </form>
+          ) : (
+            <h1 className="project-name" onDoubleClick={() => setRenaming(true)} title="Double-click to rename">
+              {project.name}
+            </h1>
+          )}
+          <span className="save-state" data-testid="save-state" data-saving={saving}>
+            <span className={`dot${saving ? ' pulse' : ''}`} style={{ background: offline ? 'var(--warning)' : saving ? 'var(--accent)' : 'var(--ok)' }} />
+            {offline ? 'Offline · changes kept here' : saving ? 'Saving…' : `Saved · Revision ${project.revision}`}
+          </span>
+        </nav>
+        <div className="icon-pair">
+          <button type="button" className="btn ghost icon" onClick={() => dispatch({ type: 'undo' })} disabled={session.history.undoStack.length === 0} title="Undo · Ctrl Z" aria-label="Undo">
+            <ArrowUUpLeft size={17} />
+          </button>
+          <button type="button" className="btn ghost icon" onClick={() => dispatch({ type: 'redo' })} disabled={session.history.redoStack.length === 0} title="Redo · Ctrl Y" aria-label="Redo">
+            <ArrowUUpRight size={17} />
+          </button>
+        </div>
+        <span className="spacer" />
+        <Segmented
+          label="View"
+          className="view-switch"
+          value={view}
+          onChange={(id) => {
+            setView(id);
+            fit();
+          }}
+          options={[
+            { id: 'plan', label: <><Square size={15} />Plan</> },
+            { id: '3d', label: <><Cube size={15} />3D</> },
+            { id: 'split', label: <><Columns size={15} />Split</> },
+          ]}
+        />
+        <a className={`btn ghost${saving ? ' disabled' : ''}`} href={saving ? undefined : `#/p/${project.id}/report`} aria-disabled={saving} title="Printable report for the client">
+          <FileText size={16} />
+          <span className="hide-narrow">Client report</span>
+        </a>
+        <button type="button" className={`btn${aiOpen ? ' accent' : ''}`} aria-pressed={aiOpen} onClick={() => setAiOpen((o) => !o)}>
+          <Sparkle size={15} />
+          AI Planner
+          {aiRunning && <span className="dot pulse" style={{ background: 'var(--accent)' }} />}
+        </button>
+        <Menu
+          label="More actions"
+          button={(open, toggle) => (
+            <button type="button" className="btn ghost icon" title="More actions" aria-label="More actions" aria-expanded={open} onClick={toggle}>
+              <DotsThree size={18} />
+            </button>
+          )}
+        >
+          {(close) => (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  download(`${project.name}.json`, serializeProject(project));
+                  close();
+                }}
+              >
+                <DownloadSimple size={15} />
+                Export project file
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  close();
+                  void api.duplicateProject(project.id).then((p) => (window.location.hash = `#/p/${p.id}`));
+                }}
+              >
+                <Copy size={15} />
+                Duplicate project
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setLeft('precision');
+                  close();
+                }}
+              >
+                <Keyboard size={15} />
+                Keyboard shortcuts
+              </button>
+              <a role="menuitem" href="#/settings" onClick={close}>
+                <GearSix size={15} />
+                Settings
+              </a>
+              <button
+                type="button"
+                role="menuitem"
+                className="danger"
+                onClick={() => {
+                  close();
+                  if (window.confirm(`Delete “${project.name}” and its whole history? This cannot be undone.`)) void api.deleteProject(project.id).then(() => (window.location.hash = '#/'));
+                }}
+              >
+                <Trash size={15} />
+                Delete project
+              </button>
+            </>
+          )}
+        </Menu>
+      </header>
+
+      {offline && (
+        <div className="offline-bar" role="status">
+          <WifiSlash size={15} />
+          <span>
+            <strong style={{ fontWeight: 600 }}>Connection lost.</strong> Your last {formatCount(session.outbox.length)} {session.outbox.length === 1 ? 'change is' : 'changes are'} kept here and will be saved when the server is back.
+          </span>
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>
+            Try again
+          </button>
+        </div>
+      )}
+
+      <div className="editor-body">
+        <aside className={`rail${left ? ' joined' : ''}`} aria-label="Tools">
+          {LEFT_PANELS.map((p) => (
+            <button key={p.id} type="button" className={`rail-btn${left === p.id ? ' active' : ''}`} aria-pressed={left === p.id} title={p.title} onClick={() => setLeft(left === p.id ? null : p.id)}>
+              {p.icon}
+              {p.label}
             </button>
           ))}
-        </div>
-        <div className="toolbar-group">
-          <button
-            type="button"
-            onClick={() => {
-              setViewport(null);
-              setFitToken((n) => n + 1);
-            }}
-          >
-            اعرض القاعة كلها
-          </button>
-          <label className="field compact">
-            <span>المغناطيس</span>
-            <select value={SNAP_OPTIONS.some((o) => o.ticks === controls.grid) ? controls.grid : 'other'} onChange={(e) => e.target.value !== 'other' && setControls({ ...controls, grid: Number(e.target.value) })}>
-              {SNAP_OPTIONS.map((o) => (
-                <option key={o.ticks} value={o.ticks}>
-                  {o.label}
-                </option>
-              ))}
-              {!SNAP_OPTIONS.some((o) => o.ticks === controls.grid) && <option value="other">مخصوص</option>}
-            </select>
-          </label>
-          <button type="button" onClick={() => download(`${project.name}.json`, serializeProject(project))}>
-            صدّر ملف
-          </button>
-          <a
-            className={`button${saving ? ' disabled' : ''}`}
-            href={saving ? undefined : `#/p/${project.id}/report`}
-            aria-disabled={saving}
-            title="تقرير للعميل جاهز للطباعة"
-          >
-            التقرير
+          <span className="spacer" />
+          <a href="#/settings" className="rail-gear" title="Settings" aria-label="Settings">
+            <GearSix size={18} />
           </a>
-        </div>
-        <p className="notice" role="status">
-          {notice}
-        </p>
-      </header>
-      <aside className="sidebar start">
-        <Tabs
-          value={startTab}
-          onChange={setStartTab}
-          tabs={[
-            { id: 'items', label: 'العناصر' },
-            { id: 'room', label: 'القاعة' },
-            { id: 'controls', label: 'الدقة والسرعة' },
-          ]}
-        />
-        {startTab === 'items' && (
-          <>
-            <SelectionPanel project={project} selectedIds={session.selectedIds} controls={controls} dispatch={dispatch} onEditType={setEditingType} />
-            <ItemTypesPanel project={project} pack={activity.pack} onAdd={addItem} dispatch={dispatch} editing={editingType} setEditing={setEditingType} />
-          </>
+        </aside>
+
+        {leftPanel && (
+          <aside className="leftpanel" aria-label={leftPanel.title}>
+            <div className="panel-head">
+              <h2>{leftPanel.title}</h2>
+              <button type="button" className="btn ghost icon" style={{ width: 28, height: 28 }} title="Collapse panel" aria-label="Collapse panel" onClick={() => setLeft(null)}>
+                <SidebarSimple size={16} />
+              </button>
+            </div>
+            {left === 'library' && <LibraryPanel project={project} pack={activity.pack} onAdd={(d) => addItem(d)} dispatch={dispatch} onEdit={setEditingType} />}
+            {left === 'objects' && <ObjectsPanel project={project} issues={issues} selectedIds={session.selectedIds} dispatch={dispatch} />}
+            {left === 'space' && <RoomPanel project={project} dispatch={dispatch} />}
+            {left === 'precision' && <ControlsPanel controls={controls} onChange={setControls} />}
+          </aside>
         )}
-        {startTab === 'room' && <RoomPanel project={project} dispatch={dispatch} />}
-        {startTab === 'controls' && (
-          <>
-            <ControlsPanel controls={controls} onChange={setControls} />
-            <SelectionPanel project={project} selectedIds={session.selectedIds} controls={controls} dispatch={dispatch} onEditType={setEditingType} />
-          </>
-        )}
-      </aside>
-      <main className={`canvas view-${view}`} ref={canvasBox}>
-        {view !== '3d' && (
-          <div className="pane" onPointerDownCapture={() => (lastPane.current = 'plan')}>
-            <PlanCanvas
-              project={shown}
-              saved={project}
-              issues={issues}
-              selectedIds={session.selectedIds}
-              controls={controls}
-              viewport={viewport}
-              onViewport={setViewport}
-              dispatch={dispatch}
-            />
-            <p className="hint">اسحب العناصر · اسحب الأرضية للاختيار بمربع · الزرار الأوسط أو اليمين أو المسطرة للتحريك · العجلة للتكبير · الأسهم للتحريك الدقيق</p>
+
+        <main className={`workspace${view === 'split' ? ' split' : ''}`} ref={canvasBox}>
+          {view !== '3d' && (
+            <section className="pane" aria-label="Plan view" onPointerDownCapture={() => (lastPane.current = 'plan')}>
+              <div className="pane-title">
+                <div className="serif">Plan</div>
+                <div className="sub" data-testid="room-size">
+                  {roomLine}
+                </div>
+              </div>
+              <PlanCanvas
+                project={shownProject}
+                saved={preview ? preview.project : project}
+                issues={shownIssues}
+                selectedIds={preview ? [] : session.selectedIds}
+                controls={controls}
+                viewport={viewport}
+                onViewport={setViewport}
+                dispatch={paneDispatch}
+                readOnly={preview !== null}
+                onDropType={(id, at) => {
+                  const definition = project.catalog[id];
+                  if (definition) addItem(definition, at);
+                }}
+                onFit={fit}
+                onZoom={onZoom}
+              />
+            </section>
+          )}
+          {view !== 'plan' && (
+            <section className="pane" aria-label="3D pane" onPointerDownCapture={() => (lastPane.current = '3d')}>
+              <View3D
+                project={shownProject}
+                saved={preview ? preview.project : project}
+                issues={shownIssues}
+                selectedIds={preview ? [] : session.selectedIds}
+                controls={controls}
+                dispatch={paneDispatch}
+                fitToken={fitToken}
+                onHeading={(q) => (heading.current = q)}
+              />
+            </section>
+          )}
+          {preview && (
+            <div className="pane-banner dark" role="status" data-testid="preview-banner">
+              <Eye size={14} />
+              Previewing revision {preview.revision}
+              <button
+                type="button"
+                className="btn light"
+                onClick={() => {
+                  const revision = preview.revision;
+                  void api.restore(project.id, revision).then((r) => {
+                    setPreview(null);
+                    load(r.project, `Restored revision ${revision}`);
+                  });
+                }}
+              >
+                Restore revision
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setPreview(null)}>
+                Exit
+              </button>
+            </div>
+          )}
+          {!preview && aiRunning && (
+            <div className="pane-banner ai" role="status">
+              <span className="dot pulse" style={{ background: 'var(--accent)', width: 7, height: 7 }} />
+              AI Planner is editing · changes appear as they are saved
+            </div>
+          )}
+          <div className="toast" role="status" data-testid="notice" hidden={!toast}>
+            <CheckCircle size={15} />
+            {toast}
           </div>
-        )}
-        {view !== 'plan' && (
-          <div className="pane" onPointerDownCapture={() => (lastPane.current = '3d')}>
-            <View3D
-              project={shown}
-              saved={project}
-              issues={issues}
-              selectedIds={session.selectedIds}
-              controls={controls}
-              dispatch={dispatch}
-              fitToken={fitToken}
-              onHeading={(q) => (heading.current = q)}
-            />
-            <p className="hint">اسحب العنصر يتحرك على الأرض · Shift + سحب يرفعه وينزّله · اسحب الفاضي عشان تلف حوالين القاعة · الزرار اليمين للتحريك</p>
-          </div>
-        )}
-      </main>
-      <aside className="sidebar end">
-        <Tabs
-          value={endTab}
-          onChange={setEndTab}
-          tabs={[
-            { id: 'check', label: 'المشاكل والأرقام' },
-            { id: 'history', label: 'السجل' },
-            { id: 'agent', label: 'الوكيل الذكي' },
-          ]}
-        />
-        {endTab === 'check' && (
-          <>
-            <IssuesPanel project={shown} issues={issues} dispatch={dispatch} />
-            <RulesPanel
-              project={checked}
-              rules={rules}
-              activity={activity}
-              onActivity={(next) => {
-                setActivity(next);
-                saveActivity(project.id, next);
-              }}
-              dispatch={dispatch}
-            />
-            <MetricsPanel metrics={metrics} />
-          </>
-        )}
-        {endTab === 'history' && <HistoryPanel project={project} busy={saving} onRestored={(p) => load(p, 'اترجعت النسخة.')} />}
-        {endTab === 'agent' && <AgentPanel project={project} />}
-      </aside>
+        </main>
+
+        <aside className={`inspector${aiOpen ? ' ai' : ''}`} aria-label="Inspector">
+          {aiOpen ? (
+            <AgentPanel project={project} pack={activity.pack} onClose={() => setAiOpen(false)} />
+          ) : (
+            <>
+              <div className="insp-tabs" role="tablist">
+                {(
+                  [
+                    ['properties', 'Properties'],
+                    ['review', 'Review'],
+                    ['history', 'History'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button key={id} type="button" role="tab" aria-selected={right === id} className={right === id ? 'active' : ''} onClick={() => setRight(id)}>
+                    {label}
+                    {id === 'review' && summary.findings > 0 && (
+                      <span className={`count-badge${summary.errors === 0 ? ' warning' : ''}`} data-testid="review-badge">
+                        {summary.findings}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="insp-scroll">
+                {right === 'properties' && (
+                  <PropertiesPanel
+                    project={project}
+                    selectedIds={session.selectedIds}
+                    controls={controls}
+                    issues={issues}
+                    metrics={metrics}
+                    activity={activity}
+                    summary={summary}
+                    dispatch={dispatch}
+                    onEditType={setEditingType}
+                    onOpenReview={openReview}
+                    onShow3D={() => {
+                      if (view === 'plan') {
+                        setView('split');
+                        fit();
+                      }
+                    }}
+                    onFocusIssue={focusIssue}
+                  />
+                )}
+                {right === 'review' && (
+                  <ReviewPanel
+                    project={checked}
+                    issues={issues}
+                    rules={rules}
+                    activity={activity}
+                    summary={summary}
+                    focus={focus}
+                    onFocus={setFocus}
+                    onActivity={(next) => {
+                      setActivity(next);
+                      saveActivity(project.id, next);
+                    }}
+                    dispatch={dispatch}
+                  />
+                )}
+                {right === 'history' && (
+                  <HistoryPanel
+                    project={project}
+                    busy={saving}
+                    previewing={preview?.revision ?? null}
+                    onPreview={(revision) => void api.revision(project.id, revision).then((p) => setPreview({ revision, project: p }))}
+                    onRestored={(p, revision) => {
+                      setPreview(null);
+                      load(p, `Restored revision ${revision}`);
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </aside>
+      </div>
+
+      <footer className="statusbar" aria-label="Status">
+        <span title="Drawing scale and zoom">
+          <Ruler size={13} />
+          1:{Math.round(scale.ratio)} · {Math.round(scale.zoom * 100)}%
+        </span>
+        <span>
+          <GridFour size={13} />
+          Grid {gridLabel}
+        </span>
+        <button type="button" className={controls.grid > 1 ? 'on' : ''} aria-pressed={controls.grid > 1} onClick={toggleSnap} data-testid="snap-toggle">
+          <Magnet size={13} />
+          Snap {controls.grid > 1 ? 'on' : 'off'}
+        </button>
+        <button type="button" className={controls.guides ? 'on' : ''} aria-pressed={controls.guides} onClick={() => setControls({ ...controls, guides: !controls.guides })}>
+          <LineSegments size={13} />
+          Guides {controls.guides ? 'on' : 'off'}
+        </button>
+        <span>
+          <Cursor size={13} />
+          {session.selectedIds.length ? `${formatCount(session.selectedIds.length)} selected` : 'Nothing selected'}
+        </span>
+        <span className="hide-narrow">
+          <Crosshair size={13} />
+          {single ? `X ${formatCount(single.position.x / 100)} · Y ${formatCount(single.position.y / 100)} cm` : 'X — · Y —'}
+        </span>
+        <span className="spacer" />
+        <button type="button" className={`state ${status.tone}`} onClick={openReview} data-testid="status-validation">
+          {status.tone === 'error' ? <XCircle size={13} /> : status.tone === 'warning' ? <Warning size={13} /> : <CheckCircle size={13} />}
+          {status.text}
+        </button>
+      </footer>
+
+      {editingType && <ItemTypeDialog key={editingType} project={project} editing={editingType} onClose={() => setEditingType(null)} dispatch={dispatch} />}
     </div>
   );
 }

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Newsreader:opsz,wght@6..72,300..600&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+html,body{margin:0;background:#f3f2ee}*{box-sizing:border-box}
+a{color:#1a1917;text-decoration:none}a:hover{color:#2b54d0}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #2b54d0;outline-offset:2px}
+@keyframes atr-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes atr-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#f3f2ee;color:#1a1917;font-family:Geist,'Helvetica Neue',Helvetica,sans-serif;font-size:13px;-webkit-font-smoothing:antialiased">
+  <header style="height:60px;display:flex;align-items:center;gap:36px;padding:0 40px;max-width:1360px;margin:0 auto">
+    <a href="Atrium%20Projects%20v2.dc.html" style="display:flex;align-items:center;gap:10px">
+      <span style="width:20px;height:20px;border:1.5px solid #1a1917;display:flex;align-items:center;justify-content:center"><span style="width:8px;height:8px;background:#1a1917"></span></span>
+      <span style="font-family:Newsreader,Georgia,serif;font-size:22px;letter-spacing:-.01em">Atrium</span>
+    </a>
+    <nav style="display:flex;gap:26px;font-size:13.5px;white-space:nowrap">
+      <a href="Atrium%20Projects%20v2.dc.html" style="color:#1a1917">Projects</a>
+      <a href="Atrium%20Editor%20v2.dc.html" style="color:#6f6a61">Object library</a>
+      <a href="Atrium%20Settings%20v2.dc.html" style="color:#6f6a61">Settings</a>
+    </nav>
+    <span style="flex:1"></span>
+    <span style="display:flex;align-items:center;gap:7px;color:#6f6a61;font-size:12.5px;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:#2d7446"></span>Server connected</span>
+    <span title="Karim Hassan" style="width:30px;height:30px;border-radius:50%;background:#1a1917;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">KH</span>
+  </header>
+
+  <main style="max-width:1360px;margin:0 auto;padding:40px 40px 96px">
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:32px;align-items:end">
+      <div>
+        <h1 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:64px;letter-spacing:-.03em;line-height:.95">Projects</h1>
+        <p style="margin:18px 0 0;color:#6f6a61;font-size:15px;max-width:520px;line-height:1.5;text-wrap:pretty">{{ lede }}</p>
+      </div>
+      <button onClick="{{ openNew }}" style="height:44px;padding:0 20px;border:0;background:#1a1917;color:#fff;border-radius:4px;font-size:14px;display:flex;align-items:center;gap:10px;white-space:nowrap" style-hover="background:#35332f"><iconify-icon icon="ph:plus-light" width="17"></iconify-icon>Create project</button>
+    </div>
+
+    <!-- Continue -->
+    <sc-if value="{{ showContinue }}" hint-placeholder-val="{{ true }}">
+      <a href="Atrium%20Editor%20v2.dc.html" style="margin-top:48px;display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));min-height:300px;background:#171614;color:#f3f2ee;border-radius:6px;overflow:hidden" style-hover="color:#f3f2ee">
+        <div style="padding:40px 44px;display:flex;flex-direction:column">
+          <div style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#a29d93;font-weight:500">Continue where you left off</div>
+          <div style="margin-top:18px;font-family:Newsreader,Georgia,serif;font-size:40px;letter-spacing:-.02em;line-height:1.02">Al Noor Wedding<br>Grand Hall</div>
+          <div style="margin-top:14px;color:#b9b4aa;font-size:13.5px">Event hall · Wedding banquet · 24 × 16 m · 120 seats</div>
+          <span style="flex:1;min-height:24px"></span>
+          <div style="display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap;font-size:12.5px;color:#d8d5cf;white-space:nowrap">
+            <span style="display:flex;align-items:center;gap:7px;color:#f0a79d"><iconify-icon icon="ph:x-circle-light" width="15"></iconify-icon>2 errors to fix</span>
+            <span style="display:flex;align-items:center;gap:7px;color:#e5c07a"><iconify-icon icon="ph:warning-light" width="15"></iconify-icon>3 warnings</span>
+            <span style="color:#a29d93">Revision 42 · 2 min ago</span>
+            <span style="flex:1"></span>
+            <span style="display:flex;align-items:center;gap:8px;height:36px;padding:0 16px;border-radius:4px;background:#f3f2ee;color:#171614;font-size:13px">Open plan<iconify-icon icon="ph:arrow-right-light" width="15"></iconify-icon></span>
+          </div>
+        </div>
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;padding:36px;background:#1f1e1b;background-image:linear-gradient(to right, rgba(255,255,255,.035) 1px, transparent 1px),linear-gradient(to bottom, rgba(255,255,255,.035) 1px, transparent 1px);background-size:24px 24px">
+          <div style="position:relative;width:min(100%,420px);aspect-ratio:3/2;border:2px solid #e9e6e0;container-type:inline-size">
+            <sc-for list="{{ hero.shapes }}" as="it"><span style="position:absolute;left:{{ it.l }}%;top:{{ it.t }}%;width:{{ it.w }}%;height:{{ it.h }}%;border-radius:{{ it.r }};border:1px solid {{ it.c }};background:{{ it.bg }}"></span></sc-for>
+            <sc-for list="{{ hero.seats }}" as="s"><span style="position:absolute;left:{{ s.l }}%;top:{{ s.t }}%;width:{{ s.w }}%;height:{{ s.h }}%;border:1px solid rgba(233,230,224,.45);border-radius:1px;transform:rotate({{ s.a }}deg)"></span></sc-for>
+            <sc-for list="{{ hero.cols }}" as="c"><span style="position:absolute;left:{{ c.l }}%;top:{{ c.t }}%;width:{{ c.w }}%;height:{{ c.h }}%;background:#e9e6e0"></span></sc-for>
+          </div>
+        </div>
+      </a>
+    </sc-if>
+
+    <div style="display:flex;align-items:center;gap:24px;margin-top:64px;padding-bottom:16px;flex-wrap:wrap">
+      <h2 style="margin:0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:28px;letter-spacing:-.015em">All projects</h2>
+      <div role="tablist" style="display:flex;gap:20px;margin-left:12px">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+          <button onClick="{{ f.onClick }}" role="tab" aria-selected="{{ f.on }}" style="border:0;background:transparent;padding:4px 0;font-size:13.5px;color:{{ f.fg }};box-shadow:inset 0 -1px 0 {{ f.bd }}" style-hover="color:#1a1917">{{ f.label }} <span style="color:#a29d93;font-size:12px">{{ f.n }}</span></button>
+        </sc-for>
+      </div>
+      <span style="flex:1"></span>
+      <div style="position:relative;width:260px;max-width:100%">
+        <iconify-icon icon="ph:magnifying-glass-light" width="16" style="position:absolute;left:12px;top:11px;color:#8b867c"></iconify-icon>
+        <input value="{{ q }}" onChange="{{ onQ }}" placeholder="Search projects" aria-label="Search projects" style="width:100%;height:38px;padding:0 12px 0 36px;border:1px solid transparent;border-radius:4px;background:#ebeae5;font:inherit;font-size:13.5px;color:#1a1917;outline:none" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)">
+      </div>
+      <select aria-label="Sort" style="height:38px;border:0;border-radius:4px;background:#ebeae5;font:inherit;font-size:13px;padding:0 10px;color:#1a1917"><option>Last edited</option><option>Name</option><option>Status</option></select>
+      <div role="group" aria-label="Layout" style="display:flex;padding:3px;background:#ebeae5;border-radius:5px;gap:2px">
+        <sc-for list="{{ layouts }}" as="l">
+          <button onClick="{{ l.onClick }}" title="{{ l.label }}" aria-pressed="{{ l.on }}" style="width:32px;height:30px;border:0;border-radius:3px;background:{{ l.bg }};color:{{ l.fg }};box-shadow:{{ l.sh }};display:flex;align-items:center;justify-content:center"><iconify-icon icon="{{ l.icon }}" width="17"></iconify-icon></button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="height:1px;background:#1a1917"></div>
+
+    <sc-if value="{{ loading }}">
+      <sc-for list="{{ skel }}" as="k">
+        <div style="display:grid;grid-template-columns:128px minmax(0,1fr) 200px;gap:28px;align-items:center;padding:20px 0;border-bottom:1px solid #e9e6e0">
+          <div style="height:84px;background:#ebeae5;border-radius:3px;animation:atr-pulse 1.4s infinite"></div>
+          <div><div style="height:16px;width:40%;background:#ebeae5;border-radius:2px;animation:atr-pulse 1.4s infinite"></div><div style="height:10px;width:24%;margin-top:10px;background:#efeee9;border-radius:2px"></div></div>
+          <div style="height:10px;width:60%;background:#efeee9;border-radius:2px"></div>
+        </div>
+      </sc-for>
+    </sc-if>
+
+    <sc-if value="{{ empty }}">
+      <div style="padding:96px 0;text-align:center">
+        <div style="font-family:Newsreader,Georgia,serif;font-size:30px;letter-spacing:-.015em">No projects match “{{ q }}”</div>
+        <p style="color:#6f6a61;margin:10px 0 22px;font-size:14px">Try a client name, a venue, or an activity.</p>
+        <button onClick="{{ clearQ }}" style="height:36px;padding:0 16px;border:1px solid #d6d2c9;background:transparent;border-radius:4px;font-size:13px;color:#1a1917" style-hover="border-color:#1a1917">Clear search</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:128px minmax(0,2.2fr) minmax(0,1.2fr) 96px 72px minmax(0,1.3fr) 104px 36px;gap:0 24px;padding:14px 0;color:#8b867c;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase">
+        <span></span><span>Project</span><span>Activity</span><span>Room</span><span>Items</span><span>Validation</span><span>Edited</span><span></span>
+      </div>
+      <sc-for list="{{ rows }}" as="p" hint-placeholder-count="6">
+        <div style="position:relative;border-top:1px solid #e9e6e0">
+          <a href="Atrium%20Editor%20v2.dc.html" style="display:grid;grid-template-columns:128px minmax(0,2.2fr) minmax(0,1.2fr) 96px 72px minmax(0,1.3fr) 104px 36px;gap:0 24px;align-items:center;padding:18px 0;color:#1a1917;transition:background .12s" style-hover="background:#efeee9;color:#1a1917">
+            <span style="height:84px;background:#fbfaf8;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(26,25,23,.06);display:flex;align-items:center;justify-content:center;margin-left:8px">
+              <span style="position:relative;width:{{ p.tw }}px;height:{{ p.th }}px;border:1.5px solid #1a1917">
+                <sc-for list="{{ p.marks }}" as="m"><span style="position:absolute;left:{{ m.l }}%;top:{{ m.t }}%;width:{{ m.s }}px;height:{{ m.s2 }}px;border-radius:{{ m.r }};background:{{ m.c }};border:{{ m.b }}"></span></sc-for>
+              </span>
+            </span>
+            <span style="min-width:0"><span style="display:block;font-family:Newsreader,Georgia,serif;font-size:21px;letter-spacing:-.01em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span><span style="display:block;color:#6f6a61;font-size:12.5px;margin-top:4px">{{ p.client }}</span></span>
+            <span>{{ p.activity }}<span style="display:block;color:#6f6a61;font-size:12.5px;margin-top:2px">{{ p.style }}</span></span>
+            <span style="font-variant-numeric:tabular-nums">{{ p.room }}</span>
+            <span style="font-variant-numeric:tabular-nums;color:{{ p.itemsFg }}">{{ p.itemsLabel }}</span>
+            <span style="display:flex;align-items:center;gap:8px;color:{{ p.sc }}"><iconify-icon icon="{{ p.si }}" width="16"></iconify-icon>{{ p.status }}</span>
+            <span style="color:#6f6a61">{{ p.edited }}<span style="display:block;font-size:12px;color:#8b867c;margin-top:2px">{{ p.by }}</span></span>
+            <span></span>
+          </a>
+          <button onClick="{{ p.toggleMenu }}" title="More actions" aria-label="More actions" aria-expanded="{{ p.menuOpen }}" style="position:absolute;right:0;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;background:{{ p.menuBg }};border-radius:4px;color:#1a1917;display:flex;align-items:center;justify-content:center" style-hover="background:#e3e1db"><iconify-icon icon="ph:dots-three-light" width="20"></iconify-icon></button>
+          <sc-if value="{{ p.menuOpen }}">
+            <div style="position:absolute;right:0;top:calc(50% + 22px);width:200px;background:#fff;border-radius:6px;box-shadow:0 0 0 1px rgba(26,25,23,.06),0 14px 36px rgba(26,25,23,.12);padding:6px;z-index:5;animation:atr-in .14s">
+              <sc-for list="{{ menu }}" as="m"><button onClick="{{ m.onClick }}" style="width:100%;height:34px;border:0;background:transparent;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:4px;color:{{ m.fg }};font-size:13px;text-align:left" style-hover="background:#f3f2ee"><iconify-icon icon="{{ m.icon }}" width="16"></iconify-icon>{{ m.label }}</button></sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </sc-if>
+
+    <sc-if value="{{ isGrid }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:48px 28px;margin-top:32px">
+        <sc-for list="{{ rows }}" as="p">
+          <a href="Atrium%20Editor%20v2.dc.html" style="display:flex;flex-direction:column;color:#1a1917" style-hover="color:#2b54d0">
+            <span style="aspect-ratio:4/3;background:#fbfaf8;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(26,25,23,.06);display:flex;align-items:center;justify-content:center;background-image:linear-gradient(to right, rgba(26,25,23,.035) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.035) 1px, transparent 1px);background-size:18px 18px">
+              <span style="position:relative;width:{{ p.gw }}px;height:{{ p.gh }}px;border:2px solid #1a1917;background:#fff">
+                <sc-for list="{{ p.gmarks }}" as="m"><span style="position:absolute;left:{{ m.l }}%;top:{{ m.t }}%;width:{{ m.s }}px;height:{{ m.s2 }}px;border-radius:{{ m.r }};background:{{ m.c }};border:{{ m.b }}"></span></sc-for>
+              </span>
+            </span>
+            <span style="display:flex;align-items:baseline;gap:12px;margin-top:18px"><span style="flex:1;font-family:Newsreader,Georgia,serif;font-size:23px;letter-spacing:-.012em;line-height:1.15">{{ p.name }}</span><span style="color:#8b867c;font-size:12px;white-space:nowrap">{{ p.edited }}</span></span>
+            <span style="color:#6f6a61;font-size:13px;margin-top:6px">{{ p.activity }} · {{ p.room }} · {{ p.itemsLabel }}</span>
+            <span style="display:flex;align-items:center;gap:7px;color:{{ p.sc }};font-size:13px;margin-top:10px"><iconify-icon icon="{{ p.si }}" width="15"></iconify-icon>{{ p.status }}</span>
+          </a>
+        </sc-for>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{ hasToast }}">
+    <div role="status" style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:10px 16px;background:#1a1917;color:#f3f2ee;border-radius:6px;font-size:13px;display:flex;gap:10px;align-items:center;animation:atr-in .16s;z-index:20"><iconify-icon icon="ph:check-light" width="16"></iconify-icon>{{ toast }}</div>
+  </sc-if>
+
+  <sc-if value="{{ newOpen }}">
+    <div onClick="{{ closeNew }}" style="position:fixed;inset:0;background:rgba(23,22,20,.36);display:flex;align-items:center;justify-content:center;padding:24px;z-index:10;animation:atr-in .14s">
+      <div onClick="{{ stop }}" role="dialog" aria-label="Create project" style="width:980px;max-width:100%;max-height:calc(100vh - 48px);overflow:auto;background:#f8f7f4;border-radius:8px;box-shadow:0 40px 100px rgba(23,22,20,.28);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)">
+        <div style="padding:44px 44px 36px">
+          <div style="font-size:10.5px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#8b867c">New project</div>
+          <h2 style="margin:12px 0 0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:44px;letter-spacing:-.025em;line-height:1">Start with the room.</h2>
+          <p style="margin:12px 0 30px;color:#6f6a61;line-height:1.5;font-size:14px">Doors, columns and items can be added inside the project.</p>
+          <label style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:#6f6a61">Project name
+            <input value="{{ form.name }}" onChange="{{ onName }}" placeholder="Client — venue" style="height:44px;padding:0 14px;border:1px solid {{ form.nameBd }};border-radius:4px;background:#efeee9;font:inherit;font-size:16px;color:#1a1917;outline:none" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)">
+          </label>
+          <div style="margin-top:20px;font-size:12px;color:#6f6a61">Activity</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:7px">
+            <sc-for list="{{ activities }}" as="a">
+              <button onClick="{{ a.onClick }}" aria-pressed="{{ a.on }}" style="height:60px;border:1px solid {{ a.bd }};background:{{ a.bg }};border-radius:4px;padding:0 14px;display:flex;align-items:center;gap:12px;text-align:left;color:#1a1917" style-hover="border-color:#1a1917">
+                <iconify-icon icon="{{ a.icon }}" width="22" style="color:{{ a.ic }}"></iconify-icon><span><span style="display:block;font-size:13.5px;font-weight:500">{{ a.label }}</span><span style="display:block;font-size:12px;color:#6f6a61;margin-top:1px">{{ a.hint }}</span></span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:20px">
+            <sc-for list="{{ sizeFields }}" as="f">
+              <label style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:#6f6a61">{{ f.label }}
+                <span style="position:relative"><input value="{{ f.v }}" onChange="{{ f.onChange }}" inputMode="decimal" style="width:100%;height:44px;padding:0 30px 0 14px;border:1px solid {{ f.bd }};border-radius:4px;background:#efeee9;font:inherit;font-size:16px;color:#1a1917;outline:none;font-variant-numeric:tabular-nums" style-focus="border-color:#2b54d0;background:#fff;box-shadow:0 0 0 3px rgba(43,84,208,.12)"><span style="position:absolute;right:12px;top:14px;font-size:12px;color:#8b867c">m</span></span>
+              </label>
+            </sc-for>
+          </div>
+          <sc-if value="{{ sizeError }}"><div style="margin-top:8px;color:#b93a2e;font-size:12px;display:flex;gap:6px;align-items:center"><iconify-icon icon="ph:x-circle-light" width="14"></iconify-icon>Width, depth and ceiling height must be more than 0.</div></sc-if>
+        </div>
+        <div style="padding:44px 40px 36px;display:flex;flex-direction:column;background:#efeee9">
+          <div style="height:190px;display:flex;align-items:center;justify-content:center;background:#fbfaf8;border-radius:4px;background-image:linear-gradient(to right, rgba(26,25,23,.05) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.05) 1px, transparent 1px);background-size:14px 14px">
+            <span style="position:relative;width:{{ prev.w }}px;height:{{ prev.h }}px;border:2px solid #1a1917;background:#fff;transition:width .2s,height .2s">
+              <span style="position:absolute;left:0;right:0;top:-20px;text-align:center;font-size:11.5px;color:#2b54d0;font-variant-numeric:tabular-nums">{{ prev.wl }}</span>
+              <span style="position:absolute;top:50%;left:calc(100% + 8px);transform:translateY(-50%);font-size:11.5px;color:#2b54d0;white-space:nowrap;font-variant-numeric:tabular-nums">{{ prev.dl }}</span>
+            </span>
+          </div>
+          <div style="margin-top:10px;color:#6f6a61;font-size:12px">{{ prev.area }}</div>
+          <div style="margin-top:28px;font-size:10.5px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#8b867c">Templates</div>
+          <div style="margin-top:8px;display:flex;flex-direction:column">
+            <sc-for list="{{ templates }}" as="t">
+              <button onClick="{{ t.onClick }}" aria-pressed="{{ t.on }}" style="display:flex;gap:16px;align-items:center;padding:12px;border:0;background:{{ t.bg }};text-align:left;color:#1a1917;border-radius:4px;box-shadow:{{ t.sh }}" style-hover="background:#f8f7f4">
+                <span style="width:54px;height:40px;flex:none;display:flex;align-items:center;justify-content:center"><span style="width:{{ t.w }}px;height:{{ t.h }}px;border:1.5px solid #1a1917"></span></span>
+                <span style="flex:1"><span style="display:block;font-family:Newsreader,Georgia,serif;font-size:19px;letter-spacing:-.01em">{{ t.name }}</span><span style="display:block;color:#6f6a61;font-size:12px;margin-top:2px">{{ t.desc }}</span></span>
+                <iconify-icon icon="{{ t.check }}" width="18" style="color:#2b54d0"></iconify-icon>
+              </button>
+            </sc-for>
+          </div>
+          <span style="flex:1;min-height:24px"></span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="flex:1;color:#8b867c;font-size:12px">{{ formHint }}</span>
+            <button onClick="{{ closeNew }}" style="height:42px;padding:0 18px;border:1px solid #d6d2c9;background:transparent;border-radius:4px;font-size:13.5px;color:#1a1917" style-hover="border-color:#1a1917">Cancel</button>
+            <button onClick="{{ create }}" disabled="{{ invalid }}" style="height:42px;padding:0 20px;border:0;border-radius:4px;font-size:13.5px;display:flex;align-items:center;gap:8px;background:{{ createBg }};color:#fff;cursor:{{ createCursor }}"><sc-if value="{{ creating }}"><iconify-icon icon="ph:spinner-gap-light" width="16" style="animation:atr-pulse 1s infinite"></iconify-icon></sc-if>{{ createLabel }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const ACC = '#2b54d0', INK = '#1a1917', INK2 = '#6f6a61';
+const PROJECTS = [
+  { id: 1, name: 'Al Noor Wedding — Grand Hall', client: 'Al Noor Events', activity: 'Event hall', style: 'Wedding banquet', w: 24, d: 16, items: 20, status: '2 errors · 3 warnings', kind: 'error', edited: '2 min ago', by: 'You', a: 'hall' },
+  { id: 2, name: 'Kemet Bank — Level 4', client: 'Kemet Bank facilities', activity: 'Office', style: 'Open plan', w: 32, d: 18, items: 148, status: 'No issues', kind: 'ok', edited: 'Yesterday', by: 'Mona Adel', a: 'office' },
+  { id: 3, name: 'Nile Tech Summit — Main Hall', client: 'Nile Tech', activity: 'Event hall', style: 'Conference · theatre', w: 40, d: 26, items: 412, status: '1 warning', kind: 'warn', edited: 'Sep 21', by: 'AI Planner', a: 'rows' },
+  { id: 4, name: 'Sahel Studio — Meeting Room B', client: 'Sahel Studio', activity: 'Office', style: 'Meeting room', w: 7.2, d: 5.4, items: 14, status: 'Ready to share', kind: 'ok', edited: 'Sep 18', by: 'You', a: 'meet' },
+  { id: 5, name: 'Graduation Gala 2026', client: 'Cairo Science School', activity: 'Event hall', style: 'Gala dinner', w: 30, d: 20, items: 0, status: 'Not checked yet', kind: 'draft', edited: 'Sep 12', by: 'You', a: 'empty' },
+  { id: 6, name: 'Harbor Logistics — Ops Floor', client: 'Harbor Logistics', activity: 'Office', style: 'Open plan', w: 22, d: 14, items: 86, status: '2 checks unknown', kind: 'unknown', edited: 'Aug 30', by: 'Omar Said', a: 'office' },
+];
+const ST = { error: ['#b93a2e', 'ph:x-circle-light'], warn: ['#9a6400', 'ph:warning-light'], ok: ['#2d7446', 'ph:check-circle-light'], draft: ['#8b867c', 'ph:circle-dashed-light'], unknown: [INK2, 'ph:question-light'] };
+const TEMPLATES = [
+  { id: 'hall', name: 'Event hall', desc: '24 × 16 m · 4.5 m ceiling · 3 doors', w: 24, d: 16, h: 4.5, a: 'hall' },
+  { id: 'office', name: 'Open office', desc: '32 × 18 m · 3.0 m ceiling · 6 columns', w: 32, d: 18, h: 3, a: 'office' },
+  { id: 'meet', name: 'Meeting room', desc: '7.2 × 5.4 m · 2.8 m ceiling · 1 door', w: 7.2, d: 5.4, h: 2.8, a: 'office' },
+  { id: 'blank', name: 'Blank', desc: 'Any size · add everything yourself', w: 20, d: 12, h: 3, a: 'hall' },
+];
+function marks(p, k) {
+  const out = [], dot = (l, t, s, s2, r, c, b = '0') => out.push({ l, t, s: s * k, s2: s2 * k, r, c, b });
+  if (p.a === 'hall') { for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) dot(8 + c * 22 + (c > 1 ? 6 : 0), 30 + r * 22, 6, 6, '50%', 'transparent', '1px solid #1a1917'); dot(32, 4, 22, 5, '0', '#1a1917'); dot(42, 34, 12, 12, '0', '#dbe3fb', '1px solid #2b54d0'); }
+  if (p.a === 'office') for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) dot(6 + c * 15, 14 + r * 28, 7, 4, '0', '#1a1917');
+  if (p.a === 'rows') { for (let r = 0; r < 7; r++) for (let c = 0; c < 2; c++) dot(8 + c * 46, 26 + r * 10, 16, 1.5, '0', '#1a1917'); dot(25, 4, 22, 4, '0', '#1a1917'); }
+  if (p.a === 'meet') dot(22, 34, 22, 10, '0', 'transparent', '1.5px solid #1a1917');
+  return out;
+}
+class Component extends DCLogic {
+  state = { lib: null, loading: true, q: '', filter: 'All', layout: 'list', newOpen: false, tpl: 'hall', name: '', act: 'hall', w: '24', d: '16', h: '4.5', menu: null, toast: null, creating: false, touched: false };
+  componentDidMount() {
+    import(new URL('./atrium-data-v2.js', document.baseURI).href).then((lib) => this.setState({ lib }));
+    this.t = setTimeout(() => this.setState({ loading: false }), 700);
+    this.close = () => this.state.menu && this.setState({ menu: null });
+    window.addEventListener('click', this.close);
+  }
+  componentWillUnmount() { clearTimeout(this.t); window.removeEventListener('click', this.close); }
+  flash(toast) { clearTimeout(this.tt); this.setState({ toast, menu: null }); this.tt = setTimeout(() => this.setState({ toast: null }), 2400); }
+  renderVals() {
+    const s = this.state, set = (o) => () => this.setState(o);
+    const q = s.q.trim().toLowerCase();
+    const rows = s.loading ? [] : PROJECTS.filter((p) => (s.filter === 'All' || p.activity === s.filter) && (!q || (p.name + p.client + p.activity + p.style).toLowerCase().includes(q))).map((p) => {
+      const k = Math.min(96 / p.w, 62 / p.d), g = Math.min(230 / p.w, 160 / p.d);
+      return { ...p, room: `${p.w} × ${p.d} m`, itemsLabel: p.items ? `${p.items}` : 'Empty', itemsFg: p.items ? INK : '#8b867c', sc: ST[p.kind][0], si: ST[p.kind][1], tw: Math.round(p.w * k), th: Math.round(p.d * k), gw: Math.round(p.w * g), gh: Math.round(p.d * g), marks: marks(p, 0.7), gmarks: marks(p, 1.4),
+        menuOpen: s.menu === p.id, menuBg: s.menu === p.id ? '#e3e1db' : 'transparent', toggleMenu: (e) => { e.stopPropagation(); this.setState({ menu: s.menu === p.id ? null : p.id }); } };
+    });
+    const count = (f) => PROJECTS.filter((p) => f === 'All' || p.activity === f).length;
+    const filters = ['All', 'Event hall', 'Office'].map((label) => ({ label, n: count(label), on: s.filter === label, fg: s.filter === label ? INK : INK2, bd: s.filter === label ? INK : 'transparent', onClick: set({ filter: label }) }));
+    const layouts = [['list', 'List', 'ph:list-bullets-light'], ['grid', 'Grid', 'ph:squares-four-light']].map(([id, label, icon]) => ({ label, icon, on: s.layout === id, bg: s.layout === id ? '#fff' : 'transparent', fg: s.layout === id ? INK : INK2, sh: s.layout === id ? '0 1px 2px rgba(26,25,23,.1)' : 'none', onClick: set({ layout: id }) }));
+    const w = parseFloat(s.w) || 0, d = parseFloat(s.d) || 0, h = parseFloat(s.h) || 0, k = w && d ? Math.min(300 / w, 130 / d) : 0;
+    const sizeOk = w > 0 && d > 0 && h > 0, valid = !!s.name.trim() && sizeOk;
+    let hero = { shapes: [], seats: [], cols: [] };
+    if (s.lib) {
+      const pl = s.lib.plan(s.lib.ITEMS, [], []);
+      hero = { shapes: pl.shapes.map((x) => ({ ...x, c: x.it.t === 'dance' ? '#7f9cf0' : 'rgba(233,230,224,.8)', bg: x.it.t === 'stage' ? '#e9e6e0' : x.it.t === 'dance' ? 'rgba(127,156,240,.15)' : 'transparent' })), seats: pl.seats, cols: pl.cols };
+    }
+    return {
+      lede: 'Measured spaces and the plans inside them. Check that everything fits and works before anything is ordered.',
+      showContinue: !q && s.filter !== 'Office', hero,
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }), clearQ: set({ q: '' }), filters, layouts, rows, loading: s.loading, skel: [1, 2, 3, 4],
+      empty: !s.loading && !rows.length, isList: s.layout === 'list' && rows.length > 0, isGrid: s.layout === 'grid' && rows.length > 0,
+      menu: [['Open', 'ph:arrow-up-right-light', INK], ['Duplicate', 'ph:copy-light', INK], ['Export project file', 'ph:download-simple-light', INK], ['Delete', 'ph:trash-light', '#b93a2e']].map(([label, icon, fg]) => ({ label, icon, fg, onClick: (e) => { e.stopPropagation(); this.flash(label === 'Delete' ? 'Project moved to trash · Undo' : label === 'Duplicate' ? 'Project duplicated' : label === 'Open' ? 'Opening…' : 'Project file saved'); } })),
+      hasToast: !!s.toast, toast: s.toast,
+      stop: (e) => e.stopPropagation(), newOpen: s.newOpen, openNew: set({ newOpen: true, touched: false }), closeNew: set({ newOpen: false, creating: false }),
+      form: { name: s.name, nameBd: s.touched && !s.name.trim() ? '#b93a2e' : 'transparent' }, onName: (e) => this.setState({ name: e.target.value }),
+      activities: [['hall', 'Event hall', 'Weddings, conferences, galas', 'ph:confetti-light'], ['office', 'Office', 'Workstations, meeting rooms', 'ph:briefcase-light']].map(([id, label, hint, icon]) => ({ label, hint, icon, on: s.act === id, bd: s.act === id ? ACC : '#dcd8cf', bg: s.act === id ? '#eef2fd' : 'transparent', ic: s.act === id ? ACC : INK2, onClick: set({ act: id }) })),
+      sizeFields: [['Width', 'w'], ['Depth', 'd'], ['Ceiling height', 'h']].map(([label, key]) => ({ label, v: s[key], bd: parseFloat(s[key]) > 0 ? 'transparent' : '#b93a2e', onChange: (e) => this.setState({ [key]: e.target.value }) })),
+      sizeError: !sizeOk,
+      prev: { w: Math.max(8, Math.round(w * k)), h: Math.max(8, Math.round(d * k)), wl: `${w.toFixed(2)} m`, dl: `${d.toFixed(2)} m`, area: w && d ? `Floor area ${(w * d).toFixed(0)} m² · ceiling ${h.toFixed(2)} m` : 'Enter a width and depth' },
+      templates: TEMPLATES.map((t) => { const kk = Math.min(46 / t.w, 32 / t.d); return { ...t, w: Math.round(t.w * kk), h: Math.round(t.d * kk), on: s.tpl === t.id, bg: s.tpl === t.id ? '#fbfaf8' : 'transparent', sh: s.tpl === t.id ? '0 0 0 1px rgba(43,84,208,.35)' : 'none', check: s.tpl === t.id ? 'ph:check-light' : '', onClick: set({ tpl: t.id, w: String(t.w), d: String(t.d), h: String(t.h), act: t.a }) }; }),
+      formHint: valid ? 'Opens the plan editor' : 'Add a project name to continue', invalid: !valid || s.creating, createBg: valid ? INK : '#bdb8ae', createCursor: valid ? 'pointer' : 'not-allowed',
+      creating: s.creating, createLabel: s.creating ? 'Creating…' : 'Create project',
+      create: () => { if (!valid) { this.setState({ touched: true }); return; } this.setState({ creating: true }); setTimeout(() => { location.href = 'Atrium%20Editor%20v2.dc.html'; }, 900); },
+    };
+  }
+}
+</script>
+</body>
+</html>

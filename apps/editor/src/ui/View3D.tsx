@@ -1,6 +1,7 @@
 import { boundsOf, type Id, type Issue, type ItemDefinition, type Project, type Vec2 } from '@space-planner/core';
 import { shapeOf, type ShapeKey } from '@space-planner/starter';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Scissors, Square } from '@phosphor-icons/react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { headingQuarter, type ControlSettings } from '../logic/controls.js';
@@ -29,22 +30,23 @@ const DOOR_HEIGHT = 2.1;
 const WALL_THICKNESS = 0.12;
 
 const COLORS = {
-  floor: 0xe9e4dc,
-  wall: 0xf7f7f5,
+  floor: 0xf4f2ed,
+  wall: 0xfbfaf8,
   wood: 0xa7784e,
   darkWood: 0x6f4f35,
-  cloth: 0xf4f1ea,
-  fabric: 0x4c7d84,
+  cloth: 0xfbfaf7,
+  fabric: 0xd9d4ca,
   metal: 0x8c939c,
-  stage: 0x3b3f46,
+  stage: 0x2b2a27,
   plantPot: 0x8a5a3c,
   leaves: 0x4f8a4b,
-  box: 0xb8c0c9,
-  column: 0xd4d6d9,
-  blocked: 0xc62828,
-  selected: 0x0d7f73,
-  error: 0xc62828,
-  warning: 0xb86e00,
+  box: 0xd6d2c9,
+  column: 0x3a3834,
+  blocked: 0xb93a2e,
+  selected: 0x2b54d0,
+  error: 0xb93a2e,
+  warning: 0x9a6400,
+  grid: 0x1a1917,
 };
 
 /**
@@ -71,8 +73,8 @@ function frameRoom(scene: THREE.Scene, camera: THREE.PerspectiveCamera, room: { 
   return centre;
 }
 
-function lights(scene: THREE.Scene): void {
-  scene.background = new THREE.Color(0xe9ecf0);
+function lights(scene: THREE.Scene, background: number | null = 0xefede8): void {
+  scene.background = background === null ? null : new THREE.Color(background);
   scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b2a8, 1.6));
   const sun = new THREE.DirectionalLight(0xffffff, 1.8);
   sun.castShadow = true;
@@ -189,7 +191,7 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number): THREE.Gro
     }
     case 'stage': {
       g.add(box(w, h, d, COLORS.stage));
-      g.add(box(w, 0.02, d, COLORS.darkWood, 0, h + 0.01));
+      g.add(box(w, 0.02, d, 0x3a3834, 0, h + 0.01));
       break;
     }
     case 'shelf': {
@@ -242,7 +244,7 @@ function tint(group: THREE.Object3D, color: number, strength: number): void {
 function disposeTree(object: THREE.Object3D): void {
   object.traverse((o) => {
     const mesh = o as THREE.Mesh;
-    if (mesh.isMesh) {
+    if (mesh.isMesh || (o as THREE.LineSegments).isLineSegments) {
       mesh.geometry.dispose();
       (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => m.dispose());
     }
@@ -300,6 +302,13 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
   floor.receiveShadow = true;
   group.add(floor);
 
+  // A light one-metre grid on the floor, as on the plan.
+  const box3 = boundsOf(project.space.boundary);
+  const points: THREE.Vector3[] = [];
+  for (let x = Math.ceil(box3.minX / TICKS_PER_METRE) * TICKS_PER_METRE; x <= box3.maxX; x += TICKS_PER_METRE) points.push(at({ x, y: box3.minY }, 0.003), at({ x, y: box3.maxY }, 0.003));
+  for (let y = Math.ceil(box3.minY / TICKS_PER_METRE) * TICKS_PER_METRE; y <= box3.maxY; y += TICKS_PER_METRE) points.push(at({ x: box3.minX, y }, 0.003), at({ x: box3.maxX, y }, 0.003));
+  if (points.length > 0) group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: COLORS.grid, transparent: true, opacity: 0.07 })));
+
   const b = project.space.boundary;
   for (let i = 0; i < b.length; i++) wallEdge(project, b[i]!, b[(i + 1) % b.length]!, wallHeight, group);
 
@@ -314,7 +323,7 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
 
   for (const o of project.space.obstacles) {
     const s = new THREE.Shape(o.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
-    const height = o.kind === 'column' ? ceiling : 0.01;
+    const height = o.kind === 'column' ? wallHeight : 0.01;
     const mesh = new THREE.Mesh(
       new THREE.ExtrudeGeometry(s, { depth: height, bevelEnabled: false }),
       o.kind === 'column' ? material(COLORS.column) : new THREE.MeshStandardMaterial({ color: COLORS.blocked, transparent: true, opacity: 0.35 }),
@@ -364,6 +373,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     content: THREE.Group | null;
   } | null>(null);
   const [fullWalls, setFullWalls] = useState(false);
+  const [topView, setTopView] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The event handlers are set up once; they read the latest props through this ref.
   const latest = useRef({ saved, selectedIds, settings, dispatch, onHeading });
@@ -374,9 +384,9 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     if (!host) return;
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
     } catch {
-      setError('المتصفح ده مش بيدعم العرض المجسم.');
+      setError('This browser cannot show the 3D view.');
       return;
     }
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
@@ -386,7 +396,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    lights(scene);
+    lights(scene, null);
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -562,6 +572,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     const aspect = host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
     t.controls.target.copy(frameRoom(t.scene, t.camera, room, aspect));
     t.controls.update();
+    setTopView(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomKey, fitToken]);
 
@@ -575,7 +586,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${project.name} - مجسم.png`;
+      link.download = `${project.name} - 3D.png`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -583,18 +594,72 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     }, 'image/png');
   };
 
+  /** Turn the camera around the point it looks at, keeping its height and distance. */
+  const orbit = (degrees: number) => {
+    const t = three.current;
+    if (!t) return;
+    const offset = t.camera.position.clone().sub(t.controls.target);
+    if (topView) {
+      setTopView(false);
+      t.controls.target.copy(frameRoom(t.scene, t.camera, room, aspect()));
+      t.controls.update();
+      return;
+    }
+    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), (degrees * Math.PI) / 180);
+    t.camera.position.copy(t.controls.target).add(offset);
+    t.controls.update();
+  };
+  const aspect = () => {
+    const host = hostRef.current;
+    return host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
+  };
+  const perspective = () => {
+    const t = three.current;
+    if (!t) return;
+    setTopView(false);
+    t.controls.target.copy(frameRoom(t.scene, t.camera, room, aspect()));
+    t.controls.update();
+  };
+  const fromAbove = () => {
+    const t = three.current;
+    if (!t) return;
+    setTopView(true);
+    const centre = frameRoom(t.scene, t.camera, room, aspect());
+    const size = Math.max(mt(room.maxX - room.minX), mt(room.maxY - room.minY), 2);
+    const back = aspect() < 1.2 ? 1.05 / aspect() : 1;
+    t.controls.target.copy(centre);
+    t.camera.position.set(centre.x, size * 1.3 * back, centre.z + 0.001);
+    t.controls.update();
+  };
+
+  const tools: Array<{ label: string; icon: ReactElement; onClick: () => void; on?: boolean; sep?: boolean }> = [
+    { label: 'Fit view', icon: <CornersOut size={15} />, onClick: perspective },
+    { label: 'Orbit left', icon: <ArrowCounterClockwise size={15} />, onClick: () => orbit(-45) },
+    { label: 'Orbit right', icon: <ArrowClockwise size={15} />, onClick: () => orbit(45), sep: true },
+    { label: 'Perspective', icon: <Cube size={15} />, onClick: perspective, on: !topView },
+    { label: 'Top view', icon: <Square size={15} />, onClick: fromAbove, on: topView, sep: true },
+    { label: fullWalls ? 'Cut the walls at 1.10 m' : 'Show full walls', icon: <Scissors size={15} />, onClick: () => setFullWalls((v) => !v), on: !fullWalls },
+    { label: 'Save image', icon: <Camera size={15} />, onClick: savePicture },
+  ];
+
   return (
-    <div className="view3d" ref={hostRef} data-testid="view3d" aria-label="العرض المجسم">
+    <div className="view3d" ref={hostRef} data-testid="view3d" aria-label="3D view">
+      <div className="pane-title">
+        <div className="serif">{topView ? 'Top view' : 'Perspective'}</div>
+        <div className="sub">{fullWalls ? 'Full-height walls' : 'Walls cut at 1.10 m'} · Drag to orbit · Scroll to zoom</div>
+      </div>
       {error ? (
         <p className="view3d-error">{error}</p>
       ) : (
-        <div className="view3d-tools">
-          <button type="button" onClick={() => setFullWalls((v) => !v)}>
-            {fullWalls ? 'حيطان قصيرة' : 'حيطان كاملة'}
-          </button>
-          <button type="button" onClick={savePicture}>
-            احفظ صورة
-          </button>
+        <div className="floating-tools" role="toolbar" aria-label="3D view tools">
+          {tools.map((t) => (
+            <span key={t.label} style={{ display: 'contents' }}>
+              <button type="button" title={t.label} aria-label={t.label} aria-pressed={t.on} className={t.on ? 'on' : ''} onClick={t.onClick}>
+                {t.icon}
+              </button>
+              {t.sep && <span className="sep" />}
+            </span>
+          ))}
         </div>
       )}
     </div>

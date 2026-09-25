@@ -11,7 +11,7 @@ import {
 } from '@space-planner/core';
 import { checkPack, packOf, type RuleResult } from '@space-planner/starter';
 import { activityOf, type Activity } from './activity.js';
-import { describeIssue, describeRule, ISSUE_TITLES, RULE_TITLES } from './messages.js';
+import { describeIssue, describeRule, issueAmounts, issueHeadline, ISSUE_TITLES, RULE_TITLES, ruleFigures } from './messages.js';
 
 /** One line of the client's bill of materials; `key` is the number drawn on the plan. */
 export interface ReportLine {
@@ -27,6 +27,14 @@ export interface ReportIssue {
   readonly severity: Severity;
   readonly title: string;
   readonly text: string;
+}
+
+/** A design issue as the report lists it: what, where, by how much, and what to do. */
+export interface ReportFinding extends ReportIssue {
+  readonly headline: string;
+  readonly where: string;
+  readonly gap?: string;
+  readonly need?: string;
 }
 
 /**
@@ -57,11 +65,11 @@ export interface ReportData {
   readonly lines: readonly ReportLine[];
   /** Plan number of each placed item, by item id. */
   readonly keyOf: Readonly<Record<Id, number>>;
-  readonly issues: readonly ReportIssue[];
+  readonly issues: readonly ReportFinding[];
   readonly counts: { readonly error: number; readonly warning: number; readonly info: number };
-  /** The activity and style the rules were checked for, e.g. "قاعة مناسبات", "مسرح أو محاضرة". */
+  /** The activity and style the rules were checked for, e.g. "Event hall", "Theatre · rows of chairs". */
   readonly activity: { readonly pack: string; readonly label: string; readonly style: string; readonly styleLabel: string };
-  readonly rules: readonly (ReportIssue & { readonly code: RuleResult['code']; readonly status: RuleResult['status'] })[];
+  readonly rules: readonly (ReportIssue & { readonly code: RuleResult['code']; readonly status: RuleResult['status']; readonly measured: string; readonly required: string })[];
   /** 'ready' only when nothing is wrong or unknown and every hall rule passes. */
   readonly verdict: 'ready' | 'check' | 'problems';
 }
@@ -107,7 +115,17 @@ export function buildReport(project: Project, chosen: Activity = activityOf('hal
     },
     lines,
     keyOf,
-    issues: issues.map((issue) => ({ severity: issue.severity, title: ISSUE_TITLES[issue.code], text: describeIssue(project, issue) })),
+    issues: issues.map((issue) => {
+      const amounts = issueAmounts(issue);
+      return {
+        severity: issue.severity,
+        title: ISSUE_TITLES[issue.code],
+        text: describeIssue(project, issue),
+        headline: issueHeadline(project, issue),
+        where: issue.entityIds.join(', '),
+        ...(amounts ? { gap: amounts.gap, need: amounts.need } : {}),
+      };
+    }),
     counts,
     activity: { pack: pack.id, label: pack.label, style: activity.style, styleLabel: pack.styles.find((s) => s.id === activity.style)!.label },
     rules: rules.map((rule) => ({
@@ -116,6 +134,7 @@ export function buildReport(project: Project, chosen: Activity = activityOf('hal
       severity: rule.status === 'fail' ? 'warning' : 'info',
       title: RULE_TITLES[rule.code],
       text: describeRule(project, rule),
+      ...ruleFigures(project, rule),
     })),
     verdict: counts.error > 0 ? 'problems' : counts.warning > 0 || counts.info > 0 || rules.some((r) => r.status !== 'pass') ? 'check' : 'ready',
   };
