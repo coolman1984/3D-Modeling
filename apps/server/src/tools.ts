@@ -19,6 +19,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
+import { factoryMetrics, isFactory, lineSimulator, newFactory, nextOf, stationOf, stationsOf, withNext } from '@space-planner/starter';
 import { baysOf, rackOf, rackRows, rectZone, routeToBay, topBeam, TRUCK_PROFILES, truckOf, warehouseMetrics, isWarehouse, newWarehouse, ZONE_KINDS } from '@space-planner/starter';
 import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, detectPack, extremePointPacker, isContainer, newContainer, newRoom, packContainer, packOf, PACKS, ROUND_SHAPES, SHAPES, stepOf, stopOf, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
@@ -169,11 +170,34 @@ export function describeProject(project: Project): string {
   lines.push(`Metrics: ${metrics.seats} seats, ${metrics.itemCount} items, floor ${toSquareMetres(metrics.floorArea).toFixed(2)} m², occupied ${(metrics.occupancy * 100).toFixed(1)}%`);
   if (isContainer(project)) lines.push(...describeLoad(project));
   if (isWarehouse(project)) lines.push(...describeWarehouse(project));
+  if (isFactory(project)) lines.push(...describeFactory(project));
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', factory: 'Production line' };
+
+const secOf = (ms: number | undefined) => (ms === undefined ? 'not set' : `${Math.round(ms / 100) / 10} s`);
+
+/** Production line facts for agents: stations with cycle times and flows. */
+function describeFactory(project: Project): string[] {
+  const f = factoryMetrics(project, 'cart');
+  const lines = [
+    'Stations take parts in at their input side (default: back; conveyors: left end) and send them out at their output side (default: front; conveyors: right end). Flows are the "next" station ids (connect_flow).',
+    `Flows: ${f.flows}, straight length ${mOf(f.straightLength)}, ${f.crossings} crossing(s). Throughput comes only from simulate_line with the cycle times people entered.`,
+    'Station types (id | kind | cycle | capacity | maintenance back/left/right/front cm):',
+  ];
+  for (const d of Object.values(project.catalog)) {
+    const st = stationOf(d);
+    if (st) lines.push(`  ${d.id} | ${st.kind} | ${secOf(st.cycle)} | ${st.capacity ?? '-'} | ${st.maintenance ? [st.maintenance.back, st.maintenance.left, st.maintenance.right, st.maintenance.front].map((v) => toUnit(v, 'cm')).join('/') : 'not stated'}`);
+  }
+  const stations = stationsOf(project);
+  if (stations.length) {
+    lines.push('Placed stations (id | kind | sends parts to):');
+    for (const st of stations) lines.push(`  ${st.item.id} | ${st.data.kind} | ${nextOf(st.item).join(', ') || '-'}`);
+  }
+  return lines;
+}
 
 const mOf = (ticks: number | undefined) => (ticks === undefined ? 'unknown' : `${Math.round(toUnit(ticks, 'm') * 100) / 100} m`);
 
@@ -261,6 +285,14 @@ function describeRules(project: Project, packId: PackId = detectPack(project), s
         return `  rack access from the docks: ${r.measured} of ${r.required} bays: ${r.status}${r.entityIds.length ? ` — cut off: ${r.entityIds.join(', ')}` : ''}`;
       case 'docks':
         return `  docks: ${r.measured} (needs ${r.required}): ${r.status}`;
+      case 'maintenance-access':
+        return `  maintenance space free: ${r.measured} of ${r.required} stations: ${r.status}${r.entityIds.length ? ` — blocked at ${r.entityIds.join(', ')}` : ''}`;
+      case 'flow-links':
+        return `  flows from a source to a sink through every station: ${r.status}${r.entityIds.length ? ` — check ${r.entityIds.join(', ')}` : ''}`;
+      case 'flow-path':
+        return `  material can be moved along ${r.measured} of ${r.required} flows: ${r.status}${r.entityIds.length ? ` — blocked after ${r.entityIds.join(', ')}` : ''}`;
+      case 'flow-crossings':
+        return `  flow crossings: ${r.measured}: ${r.status}${r.entityIds.length ? ` — ${r.entityIds.join(', ')}` : ''}`;
       case 'unpacked':
         return `  planned pieces placed: ${r.measured} of ${r.required}: ${r.status}${r.entityIds.length ? ` — short: ${r.entityIds.join(', ')}` : ''}`;
       default:
@@ -306,6 +338,34 @@ function rackMeta(value: unknown, rest: Record<string, string | number | boolean
   return Object.keys(meta).length > 0 ? { meta } : {};
 }
 
+/** Station fields of define_item → the type's meta, over the rest of its meta. */
+function stationMeta(value: unknown, rest: Record<string, string | number | boolean> | undefined): { meta?: Record<string, string | number | boolean> } {
+  const meta: Record<string, string | number | boolean> = { ...(rest ?? {}) };
+  if (typeof value === 'object' && value !== null) {
+    const st = value as Record<string, unknown>;
+    const kind = str(st, 'kind');
+    if (!['source', 'machine', 'buffer', 'conveyor', 'sink'].includes(kind)) throw new ToolError('station kind must be source, machine, buffer, conveyor or sink');
+    meta.station = kind;
+    const cycle = num(st, 'cycle_s', true);
+    if (cycle !== undefined) {
+      if (cycle <= 0 || cycle > 86_400) throw new ToolError('cycle_s must be between 0 and 86400');
+      meta.cycle = Math.round(cycle * 1000);
+    }
+    const capacity = num(st, 'capacity', true);
+    if (capacity !== undefined) meta.capacity = Math.max(1, Math.round(capacity));
+    const mc = typeof st.maintenance_cm === 'object' && st.maintenance_cm !== null ? (st.maintenance_cm as Record<string, unknown>) : undefined;
+    if (mc) {
+      for (const [k, key] of [['front', 'maintFront'], ['back', 'maintBack'], ['left', 'maintLeft'], ['right', 'maintRight']] as const) {
+        const v = num(mc, k, true);
+        if (v !== undefined) meta[key] = centimetres(v);
+      }
+    }
+    if (typeof st.in_side === 'string') meta.inSide = st.in_side;
+    if (typeof st.out_side === 'string') meta.outSide = st.out_side;
+  }
+  return Object.keys(meta).length > 0 ? { meta } : {};
+}
+
 function rackHeight(value: unknown): number | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const r = value as Record<string, unknown>;
@@ -339,7 +399,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Warehouses: activity "warehouse" (default 48 × 30 m, 10 m clear height) with two docks and a staging zone on the south wall and sample rack types. Returns the new project id.',
+    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Warehouses: activity "warehouse" (default 48 × 30 m, 10 m clear height) with two docks and a staging zone on the south wall and sample rack types. Production lines: activity "factory" (default 40 × 20 m, 6 m) with sample stations. Returns the new project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -356,6 +416,14 @@ export const TOOLS: readonly ToolDef[] = [
     run: (ctx, input) => {
       if (str(input, 'activity', true) === 'container') {
         const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}`;
+      }
+      if (str(input, 'activity', true) === 'factory') {
+        const w = num(input, 'width_m', true) ?? 40;
+        const d = num(input, 'depth_m', true) ?? 20;
+        const h = num(input, 'ceiling_m', true) ?? 6;
+        if (w < 5 || d < 5 || w > 500 || d > 500) throw new ToolError('factory sides must be between 5 and 500 m');
+        const created = ctx.store.createProject(newFactory(str(input, 'name'), { width: metres(w), depth: metres(d), height: metres(h) }), ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
       if (str(input, 'activity', true) === 'warehouse') {
@@ -490,6 +558,19 @@ export const TOOLS: readonly ToolDef[] = [
         seats: { type: 'integer', description: 'Seats this item adds to capacity.' },
         footprint: { type: 'string', enum: ['rect', 'round'], description: 'Floor outline; "round" for round tables and pots (an ellipse inside width × depth). Defaults to round for round-table and plant.' },
         mass_kg: { type: 'number', description: 'Mass of one piece.' },
+        station: {
+          type: 'object',
+          description: 'Production line station: kind (source, machine, buffer, conveyor, sink), cycle_s (a source’s release interval, a machine’s cycle, a conveyor’s transit time — as measured, never guessed), capacity (parts a buffer or conveyor holds), maintenance_cm (free space per side), in_side / out_side.',
+          properties: {
+            kind: { type: 'string', enum: ['source', 'machine', 'buffer', 'conveyor', 'sink'] },
+            cycle_s: { type: 'number' },
+            capacity: { type: 'integer' },
+            maintenance_cm: { type: 'object', properties: { front: { type: 'number' }, back: { type: 'number' }, left: { type: 'number' }, right: { type: 'number' } } },
+            in_side: { type: 'string', enum: ['front', 'back', 'left', 'right'] },
+            out_side: { type: 'string', enum: ['front', 'back', 'left', 'right'] },
+          },
+          required: ['kind'],
+        },
         rack: {
           type: 'object',
           description: 'Warehouse pallet rack bay (category "rack"): load levels including the floor, pallets per level, level height, load per pallet position. The height is then levels × level height.',
@@ -522,7 +603,7 @@ export const TOOLS: readonly ToolDef[] = [
         ...(seats === undefined ? {} : { seats }),
         ...(footprint === 'round' ? { footprint: 'round' as const } : {}),
         ...(input.mass_kg === undefined ? {} : { mass: Math.round(num(input, 'mass_kg') * 1000) }),
-        ...rackMeta(input.rack, cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta).meta),
+        ...stationMeta(input.station, rackMeta(input.rack, cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta).meta).meta),
       };
       const existed = Boolean(project.catalog[definition.id]);
       const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'Changed' : 'Added'} item type ${definition.name}`);
@@ -736,6 +817,44 @@ export const TOOLS: readonly ToolDef[] = [
       let length = 0;
       for (let i = 1; i < route.length; i++) length += Math.hypot(route[i]!.x - route[i - 1]!.x, route[i]!.y - route[i - 1]!.y);
       return `Route to ${bayId}: ${mOf(length)} (straight segments between cell centres; the drive is about this long).\nCorners (m): ${route.map((p) => `(${toUnit(p.x, 'm').toFixed(2)}, ${toUnit(p.y, 'm').toFixed(2)})`).join(' → ')}`;
+    },
+  },
+  {
+    name: 'connect_flow',
+    description: 'Production lines: send parts from one placed station to another (or stop, with remove: true). One revision. A station may send to several (parts go to whichever can take one) and receive from several.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, from: { type: 'string' }, to: { type: 'string' }, remove: { type: 'boolean' }, summary },
+      required: ['project_id', 'from', 'to'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const from = project.items[str(input, 'from')];
+      const to = project.items[str(input, 'to')];
+      if (!from || !stationOf(project.catalog[from.definitionId])) throw new ToolError(`"${str(input, 'from')}" is not a placed station`);
+      if (!to || !stationOf(project.catalog[to.definitionId])) throw new ToolError(`"${str(input, 'to')}" is not a placed station`);
+      const next = input.remove === true ? nextOf(from).filter((id) => id !== to.id) : [...nextOf(from), to.id];
+      const updated = commit(ctx, project, [{ type: 'item.meta', id: from.id, meta: withNext(from, next) }], str(input, 'summary', true) || `${input.remove === true ? 'Removed' : 'Added'} flow ${from.id} → ${to.id}`);
+      return afterChange(updated, `Flows from ${from.id}: ${nextOf(updated.items[from.id]!).join(', ') || 'none'}.`) + '\n' + describeRules(updated).join('\n');
+    },
+  },
+  {
+    name: 'simulate_line',
+    description: 'Production lines: simulate the line for some hours from the stations’ cycle times (deterministic). Gives parts made, parts per hour, work in progress, and for each station the share of time busy, blocked (finished part waiting) and starved (waiting for a part), and the bottleneck. Refuses when a cycle time or capacity is missing. Nothing changes.',
+    inputSchema: { type: 'object', properties: { project_id: projectId, hours: { type: 'number', description: 'Default 8 (one shift).' } }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const hours = num(input, 'hours', true) ?? 8;
+      if (hours <= 0 || hours > 24 * 31) throw new ToolError('hours must be between 0 and 744');
+      const r = lineSimulator.run(project, { hours });
+      if (!r.ok) {
+        const why = { 'missing-cycle': 'no cycle time for', 'missing-capacity': 'no capacity for', 'unknown-next': 'flows to a missing station or a source from', 'no-source': 'there is no source', 'no-sink': 'there is no sink' }[r.problem];
+        return `Cannot simulate: ${why}${r.ids.length ? ` ${r.ids.join(', ')}` : ''}. Set the data with define_item "station" or fix the flows; the drawing alone never gives a throughput.`;
+      }
+      const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
+      const rows = [...r.stations].map(([id, st]) => `  ${id}: busy ${pct(st.busy)}, blocked ${pct(st.blocked)}, starved ${pct(st.starved)}, out ${st.out}${st.averageContent ? `, holds ${Math.round(st.averageContent * 10) / 10} on average` : ''}`);
+      return [`Simulated ${hours} h: ${r.produced} parts, ${Math.round(r.perHour * 10) / 10} per hour, ${Math.round(r.wipAverage * 10) / 10} parts in progress on average; bottleneck ${r.bottleneck ?? 'none'}.`, ...rows].join('\n');
     },
   },
   {

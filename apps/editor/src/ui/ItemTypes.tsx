@@ -11,7 +11,7 @@ import { Dialog, LineTabs, NumberField, SwitchRow } from './Fields.js';
 const cm = (v: number) => fromUnit(v, 'cm');
 
 /** Library categories, from the item's shape. Item types not from any pack are "Custom". */
-export type Category = 'All' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Storage' | 'Other' | 'Custom';
+export type Category = 'All' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Storage' | 'Production' | 'Other' | 'Custom';
 const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Custom'>>> = {
   table: 'Tables',
   'round-table': 'Tables',
@@ -25,8 +25,10 @@ const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Cu
   plant: 'Other',
   box: 'Other',
   rack: 'Storage',
+  machine: 'Production',
+  conveyor: 'Production',
 };
-const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Storage', 'Other', 'Custom'];
+const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Storage', 'Production', 'Other', 'Custom'];
 const PACK_IDS = new Set(PACKS.flatMap((p) => p.catalog.map((d) => d.id)));
 
 export function categoryOf(definition: ItemDefinition): Exclude<Category, 'All'> {
@@ -193,9 +195,26 @@ interface Draft {
   allowTilt: boolean | undefined;
   stackGroup: string;
   stop: number | undefined;
+  /** Production line station data (factories); '' = not a station. */
+  station: string;
+  cycleS: number | undefined;
+  capacity: number | undefined;
+  maintFront: number | undefined;
+  maintBack: number | undefined;
+  maintLeft: number | undefined;
+  maintRight: number | undefined;
 }
 
 const CARGO_KEYS = ['quantity', 'stackable', 'maxLoadOnTop', 'allowTilt', 'stackGroup', 'stop'] as const;
+const STATION_KEYS = ['station', 'cycle', 'capacity', 'maintFront', 'maintBack', 'maintLeft', 'maintRight'] as const;
+const STATION_KINDS = [
+  ['', 'Not a station'],
+  ['source', 'Source (parts come in)'],
+  ['machine', 'Machine'],
+  ['buffer', 'Buffer'],
+  ['conveyor', 'Conveyor'],
+  ['sink', 'Sink (parts leave)'],
+] as const;
 
 function draftOf(definition: ItemDefinition): Draft {
   const c = (t: number) => toUnit(t, 'cm');
@@ -220,14 +239,31 @@ function draftOf(definition: ItemDefinition): Draft {
     allowTilt: typeof m.allowTilt === 'boolean' ? m.allowTilt : undefined,
     stackGroup: typeof m.stackGroup === 'string' ? m.stackGroup : '',
     stop: typeof m.stop === 'number' ? m.stop : undefined,
+    station: typeof m.station === 'string' ? m.station : '',
+    cycleS: typeof m.cycle === 'number' ? m.cycle / 1000 : undefined,
+    capacity: typeof m.capacity === 'number' ? m.capacity : undefined,
+    maintFront: typeof m.maintFront === 'number' ? c(m.maintFront) : undefined,
+    maintBack: typeof m.maintBack === 'number' ? c(m.maintBack) : undefined,
+    maintLeft: typeof m.maintLeft === 'number' ? c(m.maintLeft) : undefined,
+    maintRight: typeof m.maintRight === 'number' ? c(m.maintRight) : undefined,
   };
 }
 
-const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false, massKg: undefined, quantity: undefined, stackable: undefined, maxLoadKg: undefined, allowTilt: undefined, stackGroup: '', stop: undefined };
+const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false, massKg: undefined, quantity: undefined, stackable: undefined, maxLoadKg: undefined, allowTilt: undefined, stackGroup: '', stop: undefined, station: '', cycleS: undefined, capacity: undefined, maintFront: undefined, maintBack: undefined, maintLeft: undefined, maintRight: undefined };
 
-/** The type's meta with the cargo fields from the dialog; other packs' keys are kept as they were. */
-function metaOf(previous: ItemDefinition['meta'], d: Draft): { meta?: Record<string, string | number | boolean> } {
-  const meta: Record<string, string | number | boolean> = Object.fromEntries(Object.entries(previous ?? {}).filter(([k]) => !(CARGO_KEYS as readonly string[]).includes(k)));
+/**
+ * The type's meta with the fields the dialog shows (cargo always; station data for production
+ * lines); other keys are kept as they were.
+ */
+function metaOf(previous: ItemDefinition['meta'], d: Draft, pack: PackId): { meta?: Record<string, string | number | boolean> } {
+  const managed: readonly string[] = pack === 'factory' ? [...CARGO_KEYS, ...STATION_KEYS] : CARGO_KEYS;
+  const meta: Record<string, string | number | boolean> = Object.fromEntries(Object.entries(previous ?? {}).filter(([k]) => !managed.includes(k)));
+  if (pack === 'factory' && d.station) {
+    meta.station = d.station;
+    if (d.cycleS !== undefined && d.cycleS > 0) meta.cycle = Math.round(d.cycleS * 1000);
+    if (d.capacity !== undefined && d.capacity > 0) meta.capacity = Math.round(d.capacity);
+    for (const [key, v] of [['maintFront', d.maintFront], ['maintBack', d.maintBack], ['maintLeft', d.maintLeft], ['maintRight', d.maintRight]] as const) if (v !== undefined) meta[key] = cm(v);
+  }
   if (d.quantity !== undefined && d.quantity > 0) meta.quantity = Math.round(d.quantity);
   if (d.stackable !== undefined) meta.stackable = d.stackable;
   if (d.maxLoadKg !== undefined) meta.maxLoadOnTop = Math.round(d.maxLoadKg * 1000);
@@ -257,7 +293,7 @@ export function ItemTypeDialog({
   const used = draft.id ? Object.values(project.items).filter((i) => i.definitionId === draft.id).length : 0;
   const valid = draft.name.trim() !== '' && draft.w > 0 && draft.d > 0 && draft.h > 0;
   const save = () => {
-    const taken = new Set([...Object.keys(project.catalog), ...Object.keys(project.items), project.id, ...project.space.doors.map((d) => d.id), ...project.space.obstacles.map((o) => o.id)]);
+    const taken = new Set([...Object.keys(project.catalog), ...Object.keys(project.items), project.id, ...project.space.doors.map((d) => d.id), ...project.space.obstacles.map((o) => o.id), ...(project.space.zones ?? []).map((z) => z.id)]);
     const id = draft.id ?? nextId(shapeOf(draft.category) === 'box' ? 'item' : draft.category, taken);
     dispatch({
       type: 'command',
@@ -272,7 +308,7 @@ export function ItemTypeDialog({
           ...(draft.seats > 0 ? { seats: Math.round(draft.seats) } : {}),
           ...(draft.round ? { footprint: 'round' as const } : {}),
           ...(draft.massKg !== undefined && draft.massKg > 0 ? { mass: Math.round(draft.massKg * 1000) } : {}),
-          ...metaOf(existing?.meta, draft),
+          ...metaOf(existing?.meta, draft, pack),
         },
       },
     });
@@ -352,6 +388,53 @@ export function ItemTypeDialog({
               </div>
               <SwitchRow name="type-stackable" label="Other pieces may rest on it" on={draft.stackable !== false} onChange={(on) => setDraft((d) => ({ ...d, stackable: on }))} />
               <SwitchRow name="type-allow-tilt" label="May lie on its side" hint="Off means “this way up”" on={draft.allowTilt === true} onChange={(on) => setDraft((d) => ({ ...d, allowTilt: on }))} />
+            </div>
+          )}
+          {pack === 'factory' && (
+            <div aria-label="Station">
+              <div className="kicker" style={{ marginBottom: 8 }}>
+                Production line
+              </div>
+              <select className="input" name="type-station" aria-label="Station kind" value={draft.station} onChange={(e) => setDraft((d) => ({ ...d, station: e.target.value }))}>
+                {STATION_KINDS.map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              {draft.station && (
+                <>
+                  <div className="grid-2" style={{ marginTop: 8 }}>
+                    {draft.station !== 'buffer' && draft.station !== 'sink' && (
+                      <NumberField
+                        name="type-cycle"
+                        label={draft.station === 'source' ? 'Every' : draft.station === 'conveyor' ? 'Transit' : 'Cycle'}
+                        wideKey
+                        ariaLabel={draft.station === 'source' ? 'Release interval in seconds' : draft.station === 'conveyor' ? 'Transit time in seconds' : 'Cycle time in seconds'}
+                        unit="s"
+                        value={draft.cycleS}
+                        min={0.001}
+                        max={86_400}
+                        allowEmpty
+                        onChange={(v) => setDraft((d) => ({ ...d, cycleS: v }))}
+                      />
+                    )}
+                    {(draft.station === 'buffer' || draft.station === 'conveyor') && (
+                      <NumberField name="type-capacity" label="Holds" wideKey ariaLabel="Parts it holds" unit="parts" value={draft.capacity} min={1} max={100_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, capacity: v }))} />
+                    )}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12, margin: '8px 0 6px' }}>
+                    Maintenance space · leave empty when not stated
+                  </div>
+                  <div className="grid-4">
+                    <NumberField name="type-maint-front" label="F" ariaLabel="Maintenance space in front" unit="cm" value={draft.maintFront} min={0} max={100_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, maintFront: v }))} />
+                    <NumberField name="type-maint-back" label="B" ariaLabel="Maintenance space behind" unit="cm" value={draft.maintBack} min={0} max={100_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, maintBack: v }))} />
+                    <NumberField name="type-maint-left" label="L" ariaLabel="Maintenance space on the left" unit="cm" value={draft.maintLeft} min={0} max={100_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, maintLeft: v }))} />
+                    <NumberField name="type-maint-right" label="R" ariaLabel="Maintenance space on the right" unit="cm" value={draft.maintRight} min={0} max={100_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, maintRight: v }))} />
+                  </div>
+                  <p className="hint">Enter measured times: throughput is simulated only from these, never from the drawing.</p>
+                </>
+              )}
             </div>
           )}
           <div>

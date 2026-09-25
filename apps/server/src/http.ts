@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, fromUnit, type Command } from '@space-planner/core';
-import { demoHall, newContainer, newRoom, newWarehouse, packOf } from '@space-planner/starter';
+import { demoHall, newContainer, newFactory, newRoom, newWarehouse, packOf } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
 import type { Store } from './store.js';
@@ -129,6 +129,12 @@ export function createApp(options: AppOptions): App {
       if (activity === 'container') {
         const type = typeof body.container_type === 'string' ? body.container_type : '20gp';
         send(res, 201, store.createProject(newContainer(name, type), 'human'));
+        return;
+      }
+      if (activity === 'factory') {
+        const width = body.width_m === undefined ? 40 : positiveNumber(body.width_m, 'width_m', 500);
+        const depth = body.depth_m === undefined ? 20 : positiveNumber(body.depth_m, 'depth_m', 500);
+        send(res, 201, store.createProject(newFactory(name, { width: fromUnit(width, 'm'), depth: fromUnit(depth, 'm'), height: fromUnit(ceiling ?? 6, 'm') }), 'human'));
         return;
       }
       if (activity === 'warehouse') {

@@ -41,7 +41,11 @@ export type RuleCode =
   | 'lift-height'
   | 'ceiling-clearance'
   | 'rack-access'
-  | 'docks';
+  | 'docks'
+  | 'maintenance-access'
+  | 'flow-links'
+  | 'flow-path'
+  | 'flow-crossings';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -86,6 +90,10 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'ceiling-clearance': { kind: 'common-guidance', title: 'Storage kept at least 45 cm below the ceiling for sprinklers, as widely used fire codes ask; not checked against a local code', ruleSet: 'starter.warehouse.v1' },
   'rack-access': { kind: 'engineering', title: 'A truck of the chosen type can drive from a dock to the front of every rack bay', ruleSet: 'starter.warehouse.v1' },
   docks: { kind: 'engineering', title: 'At least one dock zone to receive and ship goods', ruleSet: 'starter.warehouse.v1' },
+  'maintenance-access': { kind: 'engineering', title: 'The maintenance space each machine type states is free of other equipment, columns and walls', ruleSet: 'starter.factory.v1' },
+  'flow-links': { kind: 'engineering', title: 'Every station lies on a flow from a source to a sink, and every flow names a station', ruleSet: 'starter.factory.v1' },
+  'flow-path': { kind: 'common-guidance', title: 'Material can be moved along every flow with the chosen handling equipment (typical widths; measure your own)', ruleSet: 'starter.factory.v1' },
+  'flow-crossings': { kind: 'company-policy', title: 'Lean layout practice: material flows do not cross', ruleSet: 'starter.factory.v1' },
 };
 
 export interface RuleResult {
@@ -98,7 +106,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'no-ceiling' | 'no-docks';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'no-ceiling' | 'no-docks' | 'no-stations' | 'no-flows' | 'no-maintenance-data';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }

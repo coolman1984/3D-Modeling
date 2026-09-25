@@ -184,6 +184,39 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'add_rack_rows', { project_id: id, definition_id: 'chair', x_m: 1, y_m: 1, bays: 1, rows: 1 }).isError).toBe(true);
   });
 
+  it('lets an agent lay out a production line: stations, flows, rules and a simulated shift', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'Line 1', activity: 'factory', width_m: 30, depth_m: 15, ceiling_m: 6 });
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    expect(created.text).toContain('cnc | machine | 90 s | - | 80/60/60/0');
+    runTool(ctx, 'place_items', { project_id: id, items: [
+      { definition_id: 'goods-in', x_m: 3, y_m: 7, rotation_deg: 270, id: 'in' },
+      { definition_id: 'cnc', x_m: 8, y_m: 7, rotation_deg: 270, id: 'cnc-1' },
+      { definition_id: 'assembly', x_m: 14, y_m: 7, rotation_deg: 270, id: 'asm' },
+      { definition_id: 'goods-out', x_m: 20, y_m: 7, rotation_deg: 270, id: 'out' },
+    ] });
+    for (const [from, to] of [['in', 'cnc-1'], ['cnc-1', 'asm'], ['asm', 'out']]) expect(runTool(ctx, 'connect_flow', { project_id: id, from, to }).isError).toBe(false);
+    expect(store.getProject(id)!.items['cnc-1']!.meta).toEqual({ next: 'asm' });
+    expect(store.history(id)[0]).toMatchObject({ actor: 'agent:test', summary: 'Added flow asm → out' });
+    const check = runTool(ctx, 'check_project', { project_id: id }).text;
+    expect(check).toContain('maintenance space free: 1 of 1 stations: pass');
+    expect(check).toContain('material can be moved along 3 of 3 flows: pass');
+    expect(check).toContain('flow crossings: 0: pass');
+    const sim = runTool(ctx, 'simulate_line', { project_id: id, hours: 8 }).text;
+    expect(sim).toContain('Simulated 8 h: 318 parts, 39.8 per hour');
+    expect(sim).toContain('bottleneck cnc-1');
+    // A station type without a cycle time: no throughput, and the tool says why.
+    runTool(ctx, 'define_item', { project_id: id, id: 'deburr', name: 'Deburring', category: 'machine', width_cm: 120, depth_cm: 80, height_cm: 100, station: { kind: 'machine', maintenance_cm: { back: 60 } } });
+    runTool(ctx, 'place_items', { project_id: id, items: [{ definition_id: 'deburr', x_m: 11, y_m: 11, id: 'deb' }] });
+    runTool(ctx, 'connect_flow', { project_id: id, from: 'cnc-1', to: 'deb' });
+    runTool(ctx, 'connect_flow', { project_id: id, from: 'deb', to: 'asm' });
+    expect(runTool(ctx, 'simulate_line', { project_id: id }).text).toContain('Cannot simulate: no cycle time for deb');
+    expect(store.getProject(id)!.catalog.deburr!.meta).toEqual({ station: 'machine', maintBack: 6000 });
+    runTool(ctx, 'connect_flow', { project_id: id, from: 'cnc-1', to: 'deb', remove: true });
+    expect(store.getProject(id)!.items['cnc-1']!.meta).toEqual({ next: 'asm' });
+    expect(runTool(ctx, 'connect_flow', { project_id: id, from: 'cnc-1', to: 'nowhere' }).isError).toBe(true);
+  });
+
   it('variants: an agent proposes in a variant, compares, and the person adopts it as one revision of the base', () => {
     const ctx = { store, actor: 'agent:test' };
     const id = /Created (p-[\w]+)/.exec(runTool(ctx, 'create_project', { name: 'DC', activity: 'warehouse', width_m: 30, depth_m: 20, ceiling_m: 8 }).text)![1]!;

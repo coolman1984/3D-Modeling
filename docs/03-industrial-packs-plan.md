@@ -171,6 +171,9 @@ buffers, conveyors, sources, sinks, flow relations drawn as directed paths, flow
 crossings; spatial feasibility separate from operation. `SimulationPort` with a small deterministic
 TypeScript discrete-event simulator (throughput, WIP, blocking, starvation) as an optional tool.
 
+**Status (2026-09-25): done** — decision 0013. Flows live in item `meta.next`; the simulator is in
+`packages/industry`; transport time between stations is zero unless a conveyor is placed.
+
 ### T9 — Vehicle depot / garage MVP
 Vehicle profiles (length, width, height, wheelbase, overhangs, minimum turning radius, reverse
 allowed), bays (90°, angled, parallel, maintenance, wash, charge), lanes (one / two-way), gates.

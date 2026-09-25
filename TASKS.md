@@ -47,7 +47,23 @@
 - [x] Server: `variant_of` column (old databases upgraded on open, test), create / family / adopt in the store, HTTP routes, `create_variant` / `compare_variants` / `adopt_variant` tools
 - [x] Editor: Variants dialog (comparison, open, adopt, new variant), "Variant of …" on the projects page; browser journey
 
-## Next: T8 — production line MVP (plan §7)
+## Done: T8 — production line MVP (done definition in the plan §7, decision 0013)
+
+- [x] Industry: deterministic line simulator (sources, machines, buffers, conveyors, sinks; busy / blocked / starved, WIP, bottleneck), hand-checked cases, property test, planted bug
+- [x] Starter: station data in meta, flows in item meta, sample stations, handling profiles, 4 placement rules with sources, factory metrics and figures, `SimulationPort` + `lineSimulator`
+- [x] Server: create factories (HTTP + tool), `define_item` station, `connect_flow`, `simulate_line`, line facts and rule lines for agents
+- [x] Editor: production in the create dialog, station data (kind, cycle, capacity, maintenance) in the item-type dialog, Line panel with simulation, flow inspector, arrows (crossings in red), maintenance space, machine and conveyor 3D models, report with a simulated shift; browser journey
+- [x] Docs, `pnpm check`, commit
+
+## Found along the way (T8)
+
+- Ports sat closer to machines than half a cart, so every flow looked blocked: routes now end
+  within reach of the port.
+- People could not enter cycle times on screen (only agents could); the item-type dialog now has station fields.
+- A change from elsewhere restarts the editor's undo list (existing, deliberate); the browser
+  test was reordered rather than the behaviour changed.
+
+## Next: T9 — vehicle depot / garage MVP (plan §7)
 
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)

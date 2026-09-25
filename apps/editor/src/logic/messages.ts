@@ -139,6 +139,10 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'ceiling-clearance': 'Clearance below the ceiling',
   'rack-access': 'Every rack face reachable from a dock',
   docks: 'At least one dock',
+  'maintenance-access': 'Maintenance space kept free',
+  'flow-links': 'Every station on a flow from source to sink',
+  'flow-path': 'Material can be moved along every flow',
+  'flow-crossings': 'Flows do not cross',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -202,6 +206,14 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} bays` };
     case 'docks':
       return { measured: rule.measured === undefined ? dash : formatCount(rule.measured), required: `${formatCount(rule.required ?? 1)} or more` };
+    case 'maintenance-access':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} free`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} stations` };
+    case 'flow-links':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} connected`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} stations` };
+    case 'flow-path':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} passable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} flows` };
+    case 'flow-crossings':
+      return { measured: rule.measured === undefined ? dash : formatCount(rule.measured), required: 'None' };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -237,6 +249,12 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'The ceiling height is not set, so the clearance above the racks cannot be checked.';
       case 'no-docks':
         return 'There is no dock zone or door for trucks to start from.';
+      case 'no-stations':
+        return 'There are no stations in the plan yet.';
+      case 'no-flows':
+        return 'No flows connect the stations yet.';
+      case 'no-maintenance-data':
+        return 'No station type states the space it needs for maintenance.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -298,6 +316,20 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass'
         ? `The truck can drive from a dock to the front of all ${count(rule.required ?? 0)} rack bays.`
         : `The truck cannot reach ${count(rule.entityIds.length)} of ${count(rule.required ?? 0)} rack bays from a dock: ${list(rule.entityIds)}. Open an aisle end or move what blocks it.`;
+    case 'maintenance-access':
+      return rule.status === 'pass'
+        ? `The maintenance space of all ${count(rule.required ?? 0)} stations that state one is free.`
+        : `Something stands in the maintenance space of ${list(rule.entityIds)}. Move it, or the station, so technicians can reach it.`;
+    case 'flow-links':
+      return rule.status === 'pass'
+        ? 'Every station lies on a flow from a source to a sink.'
+        : `Not on a complete flow from a source to a sink: ${list(rule.entityIds)}. Connect them, or remove flows to stations that are gone.`;
+    case 'flow-path':
+      return rule.status === 'pass'
+        ? `Material can be moved along all ${count(rule.required ?? 0)} flows with the chosen equipment.`
+        : `Material cannot be moved on from ${list(rule.entityIds)} with the chosen equipment: the way to the next station is blocked or too narrow.`;
+    case 'flow-crossings':
+      return rule.status === 'pass' ? 'No material flows cross.' : `${count(rule.measured ?? 0)} ${rule.measured === 1 ? 'pair of flows crosses' : 'pairs of flows cross'} (${list(rule.entityIds)}). Reorder stations to keep flows apart.`;
     case 'docks':
       return rule.status === 'pass' ? `${count(rule.measured ?? 0)} ${rule.measured === 1 ? 'dock' : 'docks'} to receive and ship goods.` : 'There is no dock zone. Add one where trucks load and unload.';
     case 'unpacked':

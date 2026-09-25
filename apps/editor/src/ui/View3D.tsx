@@ -62,6 +62,9 @@ const COLORS = {
   beam: 0xc27a3a,
   pallet: 0xb58b5a,
   load: 0xd9c6a5,
+  machine: 0xd9dde3,
+  machineDoor: 0x9aa6b5,
+  roller: 0xb8bcc2,
 };
 
 /** Floor tints for zones, by kind; unknown kinds are grey. */
@@ -237,6 +240,27 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: Rac
       for (const sx of [-1, 1]) g.add(box(0.03, h, d, COLORS.wood, sx * (w / 2 - 0.015)));
       g.add(box(w, h, 0.02, COLORS.wood, 0, h / 2, d / 2 - 0.01));
       for (let i = 0; i < 5; i++) g.add(box(w - 0.06, 0.025, d - 0.02, COLORS.wood, 0, 0.05 + (i * (h - 0.08)) / 4));
+      break;
+    }
+    case 'machine': {
+      // A machine body on a plinth, a darker door band at the front and a control panel.
+      g.add(box(w, 0.08, d, COLORS.column, 0, 0.04));
+      g.add(box(w * 0.98, h - 0.08, d * 0.96, COLORS.machine, 0, 0.08 + (h - 0.08) / 2));
+      g.add(box(w * 0.6, (h - 0.08) * 0.55, 0.02, COLORS.machineDoor, -w * 0.12, 0.08 + (h - 0.08) * 0.45, d * 0.48 + 0.01));
+      g.add(box(Math.min(0.35, w * 0.2), Math.min(0.45, h * 0.3), 0.08, COLORS.column, w * 0.36, Math.min(h - 0.1, 1.4), d * 0.48 + 0.04));
+      break;
+    }
+    case 'conveyor': {
+      // Frame legs, side rails and a belt of rollers along the width (the direction parts travel).
+      const top = Math.max(0.3, h);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(0.05, top - 0.06, 0.05, COLORS.metal, sx * (w / 2 - 0.1), (top - 0.06) / 2, sz * (d / 2 - 0.05)));
+      for (const sz of [-1, 1]) g.add(box(w, 0.08, 0.04, COLORS.metal, 0, top - 0.04, sz * (d / 2 - 0.02)));
+      const rollers = Math.max(2, Math.round(w / 0.12));
+      for (let i = 0; i < rollers; i++) {
+        const roller = cylinder(0.025, d - 0.1, COLORS.roller, -w / 2 + (i + 0.5) * (w / rollers), top - 0.03, 0, 12);
+        roller.rotation.x = Math.PI / 2;
+        g.add(roller);
+      }
       break;
     }
     case 'plant': {

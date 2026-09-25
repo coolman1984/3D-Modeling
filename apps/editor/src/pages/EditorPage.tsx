@@ -38,6 +38,7 @@ import {
   Package,
   Warehouse,
   GitFork,
+  Factory,
   Magnet,
   Ruler,
   SidebarSimple,
@@ -81,14 +82,16 @@ import { RoomPanel } from '../ui/RoomPanel.js';
 import { View3D, type SceneLook } from '../ui/View3D.js';
 import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 import { WarehousePanel } from '../ui/Warehouse.js';
+import { LinePanel, lineOverlay } from '../ui/Factory.js';
 import { VariantsDialog } from '../ui/Variants.js';
 
 type ViewMode = 'plan' | '3d' | 'split';
-type LeftPanel = 'load' | 'warehouse' | 'library' | 'objects' | 'space' | 'precision';
+type LeftPanel = 'load' | 'warehouse' | 'line' | 'library' | 'objects' | 'space' | 'precision';
 type RightTab = 'properties' | 'review' | 'history';
 
 const LOAD_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'load', label: 'Load', title: 'Loading plan', icon: <Package size={21} /> };
 const WAREHOUSE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'warehouse', label: 'Racks', title: 'Warehouse', icon: <Warehouse size={21} /> };
+const LINE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'line', label: 'Line', title: 'Production line', icon: <Factory size={21} /> };
 const LEFT_PANELS: ReadonlyArray<{ id: LeftPanel; label: string; title: string; icon: ReactNode }> = [
   { id: 'library', label: 'Library', title: 'Object library', icon: <SquaresFour size={21} /> },
   { id: 'objects', label: 'Objects', title: 'Objects', icon: <ListBullets size={21} /> },
@@ -155,7 +158,7 @@ function Editor({ initial }: { initial: Project }) {
   const cargo = startPack === 'container';
   // A container is easiest to read in 3D next to its floor plan.
   const [view, setView] = useState<ViewMode>(cargo ? 'split' : 'plan');
-  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : startPack === 'warehouse' ? 'warehouse' : 'library');
+  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : startPack === 'warehouse' ? 'warehouse' : startPack === 'factory' ? 'line' : 'library');
   const [colorBy, setColorBy] = useState<ColorBy>('type');
   const [cutaway, setCutaway] = useState(true);
   const [playStep, setPlayStep] = useState<number | null>(null);
@@ -402,7 +405,9 @@ function Editor({ initial }: { initial: Project }) {
   const paneDispatch = useCallback((a: Action) => (preview ? undefined : dispatch(a)), [preview]);
   const isCargo = activity.pack === 'container';
   const isWarehouse = activity.pack === 'warehouse';
-  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
+  const isFactory = activity.pack === 'factory';
+  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : isFactory ? [LINE_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
+  const overlay = useMemo(() => (isFactory ? lineOverlay(shownProject) : undefined), [isFactory, shownProject]);
   // The truck's route to a selected rack bay, drawn on the plan; its length is the drive.
   const bayId = isWarehouse && single && rackOf(project.catalog[single.definitionId]) ? single.id : undefined;
   const route = useMemo(() => (bayId && checked.items[bayId] ? routeToBay(checked, bayId) : undefined), [bayId, checked]);
@@ -596,6 +601,7 @@ function Editor({ initial }: { initial: Project }) {
             </div>
             {left === 'load' && isCargo && <LoadPanel project={project} dispatch={dispatch} />}
             {left === 'warehouse' && isWarehouse && <WarehousePanel project={project} dispatch={dispatch} />}
+            {left === 'line' && isFactory && <LinePanel project={project} onSelect={(id) => dispatch({ type: 'select', ids: [id] })} />}
             {left === 'library' && <LibraryPanel project={project} pack={activity.pack} onAdd={(d) => addItem(d)} dispatch={dispatch} onEdit={setEditingType} />}
             {left === 'objects' && <ObjectsPanel project={project} issues={issues} selectedIds={session.selectedIds} dispatch={dispatch} />}
             {left === 'space' && <RoomPanel project={project} dispatch={dispatch} />}
@@ -632,6 +638,8 @@ function Editor({ initial }: { initial: Project }) {
                 itemFills={planFills}
                 itemLabels={planLabels}
                 route={preview ? undefined : route}
+                arrows={overlay?.arrows}
+                outlines={overlay?.outlines}
               />
             </section>
           )}

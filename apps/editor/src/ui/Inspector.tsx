@@ -1,5 +1,5 @@
 import { apply, boundsOf, toSquareMetres, toUnit, type Command, type Id, type Issue, type Metrics, type Project } from '@space-planner/core';
-import { packOf, PACKS, rackOf, SHAPES, shapeOf, type RuleResult } from '@space-planner/starter';
+import { packOf, PACKS, rackOf, SHAPES, shapeOf, stationOf, type RuleResult } from '@space-planner/starter';
 import {
   AlignBottom,
   AlignCenterHorizontal,
@@ -62,6 +62,7 @@ import {
 import { CommitField, NumberField } from './Fields.js';
 import { CargoGroup, containerFacts } from './Container.js';
 import { RackGroup, warehouseFacts } from './Warehouse.js';
+import { factoryFacts, FlowGroup } from './Factory.js';
 import { toTicks } from './units.js';
 
 /** Everything the review counts, shared by the inspector tab, the status bar and the summary box. */
@@ -138,7 +139,7 @@ export function PropertiesPanel({
 }) {
   const items = selectedIds.map((id) => project.items[id]).filter((i) => i !== undefined);
   if (items.length === 0) return <ProjectSummary project={project} metrics={metrics} activity={activity} summary={summary} onOpenReview={onOpenReview} />;
-  if (items.length === 1) return <OneItem project={project} id={items[0]!.id} controls={controls} issues={issues} dispatch={dispatch} onEditType={onEditType} onShow3D={onShow3D} onFocusIssue={onFocusIssue} cargo={activity.pack === 'container'} warehouse={activity.pack === 'warehouse'} bayTravel={bayTravel} />;
+  if (items.length === 1) return <OneItem project={project} id={items[0]!.id} controls={controls} issues={issues} dispatch={dispatch} onEditType={onEditType} onShow3D={onShow3D} onFocusIssue={onFocusIssue} cargo={activity.pack === 'container'} warehouse={activity.pack === 'warehouse'} factory={activity.pack === 'factory'} bayTravel={bayTravel} />;
   return <ManyItems project={project} ids={items.map((i) => i.id)} controls={controls} dispatch={dispatch} />;
 }
 
@@ -149,7 +150,7 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
   const types = new Set(Object.values(project.items).map((i) => i.definitionId)).size;
   const columns = project.space.obstacles.filter((o) => o.kind === 'column').length;
   const areaPerSeat = metrics.seats > 0 ? toSquareMetres(metrics.floorArea) / metrics.seats : undefined;
-  const facts: Array<[string, ReactNode]> = activity.pack === 'container' ? containerFacts(project) : activity.pack === 'warehouse' ? warehouseFacts(project) : [
+  const facts: Array<[string, ReactNode]> = activity.pack === 'container' ? containerFacts(project) : activity.pack === 'warehouse' ? warehouseFacts(project) : activity.pack === 'factory' ? factoryFacts(project) : [
     ['Room', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
     ['Ceiling', project.space.ceilingHeight === undefined ? 'Not set' : `${formatMetres(project.space.ceilingHeight)} m`],
     ['Floor area', formatArea(metrics.floorArea)],
@@ -220,10 +221,12 @@ function OneItem({
   onFocusIssue,
   cargo,
   warehouse,
+  factory,
   bayTravel,
 }: {
   cargo: boolean;
   warehouse: boolean;
+  factory: boolean;
   bayTravel: number | undefined;
   project: Project;
   id: Id;
@@ -321,6 +324,7 @@ function OneItem({
       </Group>
       {cargo && <CargoGroup project={project} item={item} dispatch={dispatch} />}
       {warehouse && rackOf(definition) && <RackGroup project={project} item={item} travel={bayTravel} />}
+      {factory && stationOf(definition) && <FlowGroup project={project} item={item} dispatch={dispatch} />}
       <Group title="Dimensions" hint="Set by the item type.">
         <div className="grid-3">
           <CommitField label="W" ariaLabel="Width" unit="cm" value={cm(definition.size.w)} readOnly />

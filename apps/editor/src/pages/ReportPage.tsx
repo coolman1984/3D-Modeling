@@ -1,5 +1,5 @@
 import { checkProject, type Project } from '@space-planner/core';
-import { containerMetrics, containerType, SHAPES, shapeOf, stepOf, stopOf, truckOf, warehouseMetrics } from '@space-planner/starter';
+import { containerMetrics, containerType, factoryMetrics, lineSimulator, SHAPES, shapeOf, stepOf, stopOf, truckOf, warehouseMetrics } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -98,6 +98,8 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const load = cargo ? containerMetrics(project) : null;
   const box = cargo ? containerType(String(project.space.meta?.containerType ?? '')) : undefined;
   const store = report.activity.pack === 'warehouse' ? warehouseMetrics(project) : null;
+  const line = report.activity.pack === 'factory' ? factoryMetrics(project, report.activity.style) : null;
+  const shift = line ? lineSimulator.run(project, { hours: 8 }) : null;
   const sequence = cargo
     ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
     : [];
@@ -134,7 +136,12 @@ export function ReportPage({ projectId }: { projectId: string }) {
           <div className="cover-kicker">{kicker}</div>
           <h1>{report.name}</h1>
           <p className="cover-lede">
-            {store ? (
+            {line ? (
+              <>
+                A production layout of {plural(line.stations.machine, 'machine')} and {plural(line.flows, 'material flow')} in a {roomSize} hall, checked for maintenance space, complete flows, room to move material along every flow and crossing flows.{' '}
+                {shift?.ok ? `Simulated from the entered cycle times, one 8-hour shift makes ${formatCount(shift.produced)} parts.` : 'Throughput is not stated: some cycle times or flows are missing.'}
+              </>
+            ) : store ? (
               <>
                 A warehouse layout of {plural(store.bays, 'rack bay')} with {plural(store.locations, 'pallet location')} in a {roomSize} building, checked for aisle width, lift height, ceiling clearance and truck access from the docks for a {truckOf(project).label.toLowerCase()}.
               </>
@@ -191,7 +198,16 @@ export function ReportPage({ projectId }: { projectId: string }) {
               </div>
             </div>
             <div className="cover-metrics">
-              {(store
+              {(line
+                ? [
+                    [formatCount(line.stations.machine), 'Machines'],
+                    [formatCount(line.flows), 'Flows'],
+                    [formatLength(line.straightLength), 'Flow length'],
+                    [<span data-testid="report-crossings">{formatCount(line.crossings)}</span>, 'Crossings'],
+                    [<span data-testid="report-rate">{shift?.ok ? (Math.round(shift.perHour * 10) / 10).toFixed(1) : '—'}</span>, 'Parts per hour'],
+                    [shift?.ok ? (shift.bottleneck ?? '—') : '—', 'Bottleneck'],
+                  ]
+                : store
                 ? [
                     [<span data-testid="report-locations">{formatCount(store.locations)}</span>, 'Pallet locations'],
                     [formatCount(store.bays), 'Rack bays'],

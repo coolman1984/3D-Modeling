@@ -101,3 +101,20 @@ the base and its variants with errors, warnings, rules not met or unknown, and t
 matter for the kind of space. `adopt_variant` applies a variant to the base as one revision; use it
 only when the person has chosen.
 
+## Production lines
+
+Production lines are projects made with `create_project` and `activity: "factory"` (default
+40 × 20 m, 6 m). Stations are items whose type has `station` data; parts enter at the input side
+(default back) and leave at the output side (default front; conveyors left → right).
+
+1. `define_item` with `station` (`kind`, `cycle_s`, `capacity`, `maintenance_cm`, `in_side`,
+   `out_side`) defines a station type. Cycle times must come from the person: never invent them.
+2. `place_items` places stations; `connect_flow` sends parts from one station to another
+   (`remove: true` stops it). A station can feed several and be fed by several.
+3. `check_project` reports maintenance space, complete flows from a source to a sink, room to move
+   material along every flow for the chosen handling equipment (style: `cart`, `pallet-truck`,
+   `forklift`) and flow crossings.
+4. `simulate_line` runs the line for some hours from the cycle times: parts, parts per hour, work
+   in progress, busy / blocked / starved per station and the bottleneck. It refuses, naming the
+   stations, when data is missing. Propose improvements (a buffer, a second machine) in a variant.
+

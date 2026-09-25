@@ -49,6 +49,10 @@ interface Props {
   readonly itemLabels?: ReadonlyMap<Id, string> | undefined;
   /** A driving route to draw over the plan (a truck from the dock to a rack bay). */
   readonly route?: readonly Vec2[] | undefined;
+  /** Directed flows to draw as arrows (production lines); crossing flows are marked. */
+  readonly arrows?: ReadonlyArray<{ readonly from: Vec2; readonly to: Vec2; readonly crossing: boolean; readonly key: string }> | undefined;
+  /** Extra dashed outlines under the items (maintenance space). */
+  readonly outlines?: ReadonlyArray<{ readonly key: string; readonly polygon: readonly Vec2[] }> | undefined;
 }
 
 type Gesture =
@@ -83,7 +87,7 @@ const HANDLE_GAP = 26; // pixels between the selection box and the rotation hand
  * click / Shift-click / box select, drag with grid and smart guides (Shift locks the axis,
  * Alt is slow and precise, Ctrl ignores snapping), a rotation handle, and pan and zoom.
  */
-export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route }: Props) {
+export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route, arrows, outlines }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const gesture = useRef<Gesture | null>(null);
@@ -440,6 +444,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             </g>
           );
         })}
+        {outlines?.map((o) => <path key={`m-${o.key}`} d={pathOf(v, o.polygon)} className="maintenance" data-maintenance={o.key} />)}
         {items.map((item) => {
           const definition = project.catalog[item.definitionId];
           if (!definition) return null;
@@ -474,6 +479,20 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             </g>
           );
         })}
+        {arrows && arrows.length > 0 && (
+          <g className="flows" pointerEvents="none">
+            <defs>
+              <marker id="flow-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" className="flow-head" />
+              </marker>
+            </defs>
+            {arrows.map((a) => {
+              const p = toScreen(v, a.from);
+              const q = toScreen(v, a.to);
+              return <line key={a.key} x1={p.x} y1={p.y} x2={q.x} y2={q.y} className={`flow${a.crossing ? ' crossing' : ''}`} markerEnd="url(#flow-head)" data-flow={a.key} />;
+            })}
+          </g>
+        )}
         {route && route.length > 1 && (
           <g className="route" data-testid="route" pointerEvents="none">
             <polyline points={route.map((p) => toScreen(v, p)).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} />

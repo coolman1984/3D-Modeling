@@ -1255,3 +1255,28 @@ button.rule-row:hover { background: var(--page); }
 .variant-new .input { flex: 1; }
 
 .fact > span:first-child { white-space: nowrap; }
+
+/* ---------- Production line: flows, maintenance space, line panel ---------- */
+.flow { stroke: var(--accent); stroke-width: 2; }
+.flow.crossing { stroke: var(--error); }
+.flow-head { fill: var(--accent); }
+.maintenance { fill: none; stroke: var(--ink-4); stroke-width: 1; stroke-dasharray: 3 3; }
+.item.shape-machine .item-body { fill: var(--fill, #e4e7ec); }
+.item.shape-conveyor .item-body { fill: var(--fill, #eceae4); }
+.station-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 2px 8px; align-items: baseline; width: 100%; padding: 7px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
+.station-row:hover { background: var(--paper); }
+.station-kind { font-size: 11px; letter-spacing: 0.04em; color: var(--ink-3); text-transform: uppercase; }
+.station-kind.machine { color: var(--ink); }
+.station-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.station-next { grid-column: 2 / 4; font-size: 12px; }
+.sim-result { margin-top: 10px; }
+.sim-legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--ink-3); margin: 10px 0 6px; }
+.sim-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.sim-row { display: grid; grid-template-columns: 84px 1fr 44px; gap: 8px; align-items: center; font-size: 12.5px; padding: 4px 0; }
+.sim-bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--line); }
+.busy { background: var(--accent); }
+.blocked { background: #9aa9d6; }
+.starved { background: var(--line-mid); }
+.flow-chip { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 0; }
+.flow-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-value.nowrap { white-space: nowrap; }

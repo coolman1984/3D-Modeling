@@ -19,6 +19,15 @@ export interface Candidate {
 }
 
 /** Anything that proposes candidates: a built-in heuristic now, an external solver later. */
+/**
+ * A simulator: reads a project and options, returns results. Like an optimiser it never changes
+ * the project; its answers depend only on the data people entered (cycle times…), not on guesses.
+ */
+export interface SimulationPort<Options, Result> {
+  readonly id: string;
+  run(project: Project, options: Options): Result;
+}
+
 export interface OptimizationPort<Goal> {
   readonly id: string;
   /** Deterministic for the same project and goal. */
