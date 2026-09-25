@@ -61,7 +61,7 @@ const post = <T>(path: string, body: unknown) => request<T>(path, { method: 'POS
 
 export const api = {
   listProjects: () => request<ProjectSummary[]>('/api/projects'),
-  createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; template?: 'demo'; file?: string }) =>
+  createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo'; file?: string }) =>
     post<Project>('/api/projects', body),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   deleteProject: (id: string) => request<unknown>(`/api/projects/${id}`, { method: 'DELETE' }),
@@ -84,6 +84,8 @@ export interface LiveEvents {
   project?: (e: { projectId: string; revision: number; actor: string; summary: string }) => void;
   projects?: () => void;
   run?: (e: { runId: string; projectId: string; status: AgentRun['status']; line?: string }) => void;
+  /** The connection opened or came back: anything that changed while it was closed was missed. */
+  open?: () => void;
 }
 
 /** Subscribe to the server's live events; returns an unsubscribe function. */
@@ -97,6 +99,7 @@ export function subscribe(handlers: LiveEvents): () => void {
   on('project');
   on('projects');
   on('run');
+  source.addEventListener('open', () => handlers.open?.());
   return () => source.close();
 }
 

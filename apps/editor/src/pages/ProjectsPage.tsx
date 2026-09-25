@@ -1,9 +1,10 @@
 import { boundsOf, serializeProject } from '@space-planner/core';
-import { packOf, type PackId } from '@space-planner/starter';
+import { CONTAINER_TYPES, packOf, type PackId } from '@space-planner/starter';
 import {
   ArrowRight,
   ArrowUpRight,
   Briefcase,
+  Package,
   Check,
   CheckCircle,
   CircleDashed,
@@ -90,7 +91,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
       .catch(() => setMessage('The Atrium server is not running, so projects cannot be loaded.'));
   useEffect(() => {
     refresh();
-    return subscribe({ projects: refresh });
+    return subscribe({ projects: refresh, open: refresh });
   }, []);
   const cards = useProjectCards(projects?.map((p) => p.id) ?? [], (projects ?? []).map((p) => `${p.id}@${p.revision}`).join(','));
 
@@ -199,6 +200,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               { id: 'all', label: 'All', count: count('all') },
               { id: 'hall', label: 'Event hall', count: count('hall') },
               { id: 'office', label: 'Office', count: count('office') },
+              { id: 'container', label: 'Container', count: count('container') },
             ]}
           />
           <span className="spacer" />
@@ -435,12 +437,15 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
   const [depth, setDepth] = useState<number | undefined>(9);
   const [ceiling, setCeiling] = useState<number | undefined>(3);
   const [touched, setTouched] = useState(false);
+  const [containerId, setContainerId] = useState(CONTAINER_TYPES[0]!.id);
+  const isContainer = activity === 'container';
+  const container = CONTAINER_TYPES.find((c) => c.id === containerId)!;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sizeOk = (width ?? 0) > 0 && (depth ?? 0) > 0;
+  const sizeOk = isContainer || ((width ?? 0) > 0 && (depth ?? 0) > 0);
   const valid = sizeOk && (name.trim() !== '' || template.demo === true);
-  const w = width ?? 0;
-  const d = depth ?? 0;
+  const w = isContainer ? container.length / 10_000 : (width ?? 0);
+  const d = isContainer ? container.width / 10_000 : (depth ?? 0);
   const k = w > 0 && d > 0 ? Math.min(300 / w, 130 / d) : 0;
   const choose = (t: Template) => {
     setTemplate(t);
@@ -457,7 +462,9 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
     setBusy(true);
     setError(null);
     try {
-      const project = template.demo
+      const project = isContainer
+        ? await api.createProject({ name: name.trim(), activity: 'container', container_type: containerId })
+        : template.demo
         ? await api.createProject({ name: name.trim() || 'Demo hall 10 × 8 m', template: 'demo' })
         : await api.createProject({ name: name.trim(), width_m: w, depth_m: d, activity, ...(ceiling === undefined ? {} : { ceiling_m: ceiling }) });
       open(project.id);
@@ -498,9 +505,21 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
               [
                 ['hall', 'Event hall', 'Weddings, conferences, galas', <Confetti size={22} />],
                 ['office', 'Office', 'Workstations, meeting rooms', <Briefcase size={22} />],
+                ['container', 'Container', 'Cargo loading plans', <Package size={22} />],
               ] as const
             ).map(([id, label, hint, icon]) => (
-              <button key={id} type="button" className={`activity-card${activity === id ? ' active' : ''}`} aria-pressed={activity === id} data-activity={id} disabled={template.demo} onClick={() => setActivity(id)}>
+              <button
+                key={id}
+                type="button"
+                className={`activity-card${activity === id ? ' active' : ''}`}
+                aria-pressed={activity === id}
+                data-activity={id}
+                disabled={template.demo && id !== 'container'}
+                onClick={() => {
+                  setActivity(id);
+                  if (id === 'container' && template.demo) setTemplate(TEMPLATES[4]!);
+                }}
+              >
                 {icon}
                 <span>
                   <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500 }}>{label}</span>
@@ -510,11 +529,24 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
             ))}
           </div>
         </div>
+        {isContainer ? (
+          <label className="stack" style={{ marginTop: 20 }}>
+            Container type
+            <select className="input" name="container-type" value={containerId} onChange={(e) => setContainerId(e.target.value)}>
+              {CONTAINER_TYPES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
         <div className="grid-3" style={{ marginTop: 20 }}>
           <NumberField variant="stack" name="new-width" label="Width" unit="m" value={width} min={1} max={500} onChange={setWidth} />
           <NumberField variant="stack" name="new-depth" label="Depth" unit="m" value={depth} min={1} max={500} onChange={setDepth} />
           <NumberField variant="stack" name="new-ceiling" label="Ceiling height" unit="m" value={ceiling} min={0.5} max={50} allowEmpty onChange={setCeiling} />
         </div>
+        )}
         {!sizeOk && (
           <p className="error-text" style={{ marginTop: 8, fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
             <XCircle size={14} />
@@ -536,13 +568,35 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
           </span>
         </div>
         <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-          {w && d ? `Floor area ${(w * d).toFixed(0)} m²${ceiling === undefined ? ' · ceiling not set' : ` · ceiling ${ceiling.toFixed(2)} m`}` : 'Enter a width and depth'}
+          {isContainer
+            ? `Inside ${w.toFixed(2)} × ${d.toFixed(2)} × ${(container.height / 10_000).toFixed(2)} m · ${(w * d * (container.height / 10_000)).toFixed(1)} m³ · typical payload ${(container.maxPayload / 1_000_000).toFixed(1)} t`
+            : w && d
+              ? `Floor area ${(w * d).toFixed(0)} m²${ceiling === undefined ? ' · ceiling not set' : ` · ceiling ${ceiling.toFixed(2)} m`}`
+              : 'Enter a width and depth'}
         </div>
         <div className="kicker" style={{ marginTop: 28, letterSpacing: '.12em' }}>
-          Templates
+          {isContainer ? 'Container types' : 'Templates'}
         </div>
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column' }}>
-          {TEMPLATES.map((t) => {
+          {isContainer &&
+            CONTAINER_TYPES.map((c) => {
+              const kk = Math.min(46 / (c.length / 10_000), 32 / (c.width / 10_000));
+              return (
+                <button key={c.id} type="button" className={`template${containerId === c.id ? ' active' : ''}`} aria-pressed={containerId === c.id} data-container={c.id} onClick={() => setContainerId(c.id)}>
+                  <span className="shape">
+                    <span style={{ width: Math.round((c.length / 10_000) * kk), height: Math.max(4, Math.round((c.width / 10_000) * kk)) }} />
+                  </span>
+                  <span style={{ flex: 1 }}>
+                    <span className="name">{c.label}</span>
+                    <span className="desc">
+                      {(c.length / 100).toFixed(0)} × {(c.width / 100).toFixed(0)} × {(c.height / 100).toFixed(0)} cm inside · {(c.maxPayload / 1_000_000).toFixed(1)} t
+                    </span>
+                  </span>
+                  {containerId === c.id && <Check size={18} />}
+                </button>
+              );
+            })}
+          {!isContainer && TEMPLATES.map((t) => {
             const kk = Math.min(46 / t.width, 32 / t.depth);
             return (
               <button key={t.id} type="button" className={`template${template.id === t.id ? ' active' : ''}`} aria-pressed={template.id === t.id} data-template={t.id} onClick={() => choose(t)}>

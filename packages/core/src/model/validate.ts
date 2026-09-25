@@ -131,7 +131,7 @@ class Collector {
 }
 
 const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'catalog', 'items'] as const;
-const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight'] as const;
+const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight', 'meta'] as const;
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
 const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing'] as const;
 const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint', 'mass', 'meta'] as const;
@@ -197,6 +197,7 @@ function checkSpace(c: Collector, value: unknown, path: string): void {
   if (!space) return;
   const boundary = c.polygon(space.boundary, `${path}.boundary`);
   if (space.ceilingHeight !== undefined) c.length(space.ceilingHeight, `${path}.ceilingHeight`, { positive: true });
+  if (space.meta !== undefined) checkMeta(c, space.meta, `${path}.meta`);
 
   c.array(space.obstacles, `${path}.obstacles`)?.forEach((value, i) => {
     const at = `${path}.obstacles.${i}`;

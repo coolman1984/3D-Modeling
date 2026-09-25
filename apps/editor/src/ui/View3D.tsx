@@ -22,6 +22,17 @@ interface Props {
   readonly fitToken: number;
   /** Told which quarter-turn the camera faces (0 = north), so arrow keys can follow the view. */
   readonly onHeading?: (quarter: 0 | 1 | 2 | 3) => void;
+  /** Pack-driven look: colours per item, items hidden (load playback), the near wall cut away. */
+  readonly look?: SceneLook | undefined;
+  /** Start with full-height walls (a container shell) instead of walls cut at 1.10 m. */
+  readonly fullWallsAtStart?: boolean;
+}
+
+export interface SceneLook {
+  readonly itemColors?: ReadonlyMap<Id, number>;
+  readonly hidden?: ReadonlySet<Id>;
+  /** Leave out the south wall (the one nearest the starting camera) to look inside. */
+  readonly cutaway?: boolean;
 }
 
 const TICKS_PER_METRE = 10_000;
@@ -87,7 +98,7 @@ function lights(scene: THREE.Scene, background: number | null = 0xefede8): void 
  * A still picture of the whole room (PNG data URL) for reports, or null when the browser
  * cannot draw 3D. Uses its own renderer, so it works without an open 3D view.
  */
-export function renderSnapshot(project: Project, issues: readonly Issue[], width: number, height: number): string | null {
+export function renderSnapshot(project: Project, issues: readonly Issue[], width: number, height: number, look?: SceneLook, fullWalls = false): string | null {
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -102,7 +113,7 @@ export function renderSnapshot(project: Project, issues: readonly Issue[], width
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const scene = new THREE.Scene();
     lights(scene);
-    const content = buildScene(project, issues, [], false);
+    const content = buildScene(project, issues, [], fullWalls, look);
     scene.add(content);
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 2000);
     frameRoom(scene, camera, boundsOf(project.space.boundary), width / height);
@@ -229,6 +240,18 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number): THREE.Gro
   return g;
 }
 
+/** Give every mesh of a model one colour (colour by stop, weight or loading step). */
+function paint(group: THREE.Object3D, color: number): void {
+  group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.isMesh) {
+      const m = (mesh.material as THREE.MeshStandardMaterial).clone();
+      m.color = new THREE.Color(color);
+      mesh.material = m;
+    }
+  });
+}
+
 function tint(group: THREE.Object3D, color: number, strength: number): void {
   group.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -292,7 +315,7 @@ function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THR
   }
 }
 
-function buildScene(project: Project, issues: readonly Issue[], selectedIds: readonly Id[], fullWalls: boolean): THREE.Group {
+function buildScene(project: Project, issues: readonly Issue[], selectedIds: readonly Id[], fullWalls: boolean, look: SceneLook = {}): THREE.Group {
   const group = new THREE.Group();
   const ceiling = project.space.ceilingHeight === undefined ? 3 : mt(project.space.ceilingHeight);
   const wallHeight = fullWalls ? ceiling : Math.min(1.1, ceiling);
@@ -311,7 +334,13 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
   if (points.length > 0) group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: COLORS.grid, transparent: true, opacity: 0.07 })));
 
   const b = project.space.boundary;
-  for (let i = 0; i < b.length; i++) wallEdge(project, b[i]!, b[(i + 1) % b.length]!, wallHeight, group);
+  const south = boundsOf(b).minY;
+  for (let i = 0; i < b.length; i++) {
+    const a = b[i]!;
+    const c = b[(i + 1) % b.length]!;
+    if (look.cutaway && a.y === south && c.y === south) continue;
+    wallEdge(project, a, c, wallHeight, group);
+  }
 
   for (const door of project.space.doors) {
     const open = ((door.angle + (door.swing === 'left' ? 90_000 : -90_000)) / 1000) * (Math.PI / 180);
@@ -342,7 +371,7 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
     if (issue.severity === 'error' || !severity.has(first)) severity.set(first, issue.severity);
   }
 
-  group.add(buildItems(project, severity, selectedIds));
+  group.add(buildItems(project, severity, selectedIds, look));
   return group;
 }
 
@@ -358,26 +387,27 @@ const STATE_TINT: Readonly<Record<Exclude<ItemState, 'normal'>, [number, number]
  * share one model whose meshes become `InstancedMesh`es, so 500 chairs cost a few draw calls
  * instead of 3 000 meshes. `userData.itemIds[instanceId]` maps a hit back to the item.
  */
-function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warning'>, selectedIds: readonly Id[]): THREE.Group {
+function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warning'>, selectedIds: readonly Id[], look: SceneLook): THREE.Group {
   const group = new THREE.Group();
   group.name = 'items';
   const selected = new Set(selectedIds);
-  const batches = new Map<string, { definition: ItemDefinition; tilt: ItemInstance['tilt']; state: ItemState; items: ItemInstance[] }>();
+  const batches = new Map<string, { definition: ItemDefinition; tilt: ItemInstance['tilt']; state: ItemState; color: number | undefined; items: ItemInstance[] }>();
   const ordered = Object.values(project.items).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const item of ordered) {
     const definition = project.catalog[item.definitionId];
-    if (!definition) continue;
+    if (!definition || look.hidden?.has(item.id)) continue;
     const state: ItemState = selected.has(item.id) ? 'selected' : (severity.get(item.id) ?? 'normal');
-    const key = `${definition.id}|${item.tilt ?? ''}|${state}`;
+    const color = look.itemColors?.get(item.id);
+    const key = `${definition.id}|${item.tilt ?? ''}|${state}|${color ?? ''}`;
     const batch = batches.get(key);
     if (batch) batch.items.push(item);
-    else batches.set(key, { definition, tilt: item.tilt, state, items: [item] });
+    else batches.set(key, { definition, tilt: item.tilt, state, color, items: [item] });
   }
   const itemMatrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   const unit = new THREE.Vector3(1, 1, 1);
-  for (const { definition, tilt, state, items } of batches.values()) {
+  for (const { definition, tilt, state, color, items } of batches.values()) {
     const { w, d, h } = definition.size;
     const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h));
     // A lying item: turn the upright model about its centre, then stand it on the floor again.
@@ -387,6 +417,7 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
       .multiply(tilt === 'x' ? new THREE.Matrix4().makeRotationZ(Math.PI / 2) : tilt === 'y' ? new THREE.Matrix4().makeRotationX(Math.PI / 2) : new THREE.Matrix4())
       .multiply(new THREE.Matrix4().makeTranslation(0, -mt(h) / 2, 0));
     template.updateMatrixWorld(true);
+    if (color !== undefined) paint(template, color);
     if (state !== 'normal') tint(template, ...STATE_TINT[state]);
     const ids = items.map((i) => i.id);
     template.traverse((o) => {
@@ -416,7 +447,7 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
  * drag an item to slide it over the floor, Shift+drag to raise or lower it, Alt for precision;
  * click / Shift-click selects. Every drag is one saved change.
  */
-export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken, onHeading }: Props) {
+export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken, onHeading, look, fullWallsAtStart = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const three = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -425,7 +456,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     controls: OrbitControls;
     content: THREE.Group | null;
   } | null>(null);
-  const [fullWalls, setFullWalls] = useState(false);
+  const [fullWalls, setFullWalls] = useState(fullWallsAtStart);
   const [topView, setTopView] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The event handlers are set up once; they read the latest props through this ref.
@@ -609,11 +640,11 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       t.scene.remove(t.content);
       disposeTree(t.content);
     }
-    t.content = buildScene(project, issues, selectedIds, fullWalls);
+    t.content = buildScene(project, issues, selectedIds, fullWalls, look);
     t.scene.add(t.content);
-    hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length));
+    hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length - (look?.hidden?.size ?? 0)));
     hostRef.current?.setAttribute('data-selected', selectedIds.join(' '));
-  }, [project, issues, selectedIds, fullWalls]);
+  }, [project, issues, selectedIds, fullWalls, look]);
 
   // Frame the room when asked, and when the room itself changes size.
   const room = boundsOf(project.space.boundary);

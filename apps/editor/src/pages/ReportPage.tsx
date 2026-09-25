@@ -1,10 +1,11 @@
 import { checkProject, type Project } from '@space-planner/core';
-import { SHAPES, shapeOf } from '@space-planner/starter';
+import { containerMetrics, containerType, SHAPES, shapeOf, stepOf, stopOf } from '@space-planner/starter';
+import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { loadActivity } from '../logic/activity.js';
-import { formatCentimetres, formatCount, formatLength, formatMetres, formatPercent, formatSquareMetres, plural } from '../logic/format.js';
+import { formatCentimetres, formatCount, formatLength, formatMass, formatMetres, formatPercent, formatSquareMetres, plural } from '../logic/format.js';
 import { buildReport } from '../logic/report.js';
 import { RULE_STATUS_WORD, SEVERITY_WORD, SOURCE_KIND_WORD } from '../logic/messages.js';
 import { PlanDrawing } from '../ui/PlanDrawing.js';
@@ -52,7 +53,9 @@ export function ReportPage({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!project) return;
     // Let the page paint first; drawing the 3D picture takes a moment on slow machines.
-    const timer = setTimeout(() => setPicture(renderSnapshot(project, issues, 1200, 640)), 30);
+    const cargo = project.space.meta?.pack === 'container';
+    const look = cargo ? { itemColors: colorsOf(project, 'stop').colors, cutaway: true } : undefined;
+    const timer = setTimeout(() => setPicture(renderSnapshot(project, issues, 1200, 640, look, cargo)), 30);
     return () => clearTimeout(timer);
   }, [project, issues]);
   useEffect(() => {
@@ -91,6 +94,12 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const roomSize = `${formatMetres(report.room.width)} × ${formatMetres(report.room.depth)} m`;
   const kicker = `${report.activity.label} · ${report.activity.styleLabel}`;
   const seatsLine = report.totals.seats > 0 ? `A plan for ${plural(report.totals.seats, 'seat')}` : 'A plan';
+  const cargo = report.activity.pack === 'container';
+  const load = cargo ? containerMetrics(project) : null;
+  const box = cargo ? containerType(String(project.space.meta?.containerType ?? '')) : undefined;
+  const sequence = cargo
+    ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
+    : [];
   return (
     <div className="report" data-testid="report">
       <nav className="report-bar">
@@ -124,7 +133,15 @@ export function ReportPage({ projectId }: { projectId: string }) {
           <div className="cover-kicker">{kicker}</div>
           <h1>{report.name}</h1>
           <p className="cover-lede">
+            {cargo && load ? (
+              <>
+                A loading plan for {plural(load.pieces, 'piece')} in a {box?.label ?? 'custom container'} ({roomSize} inside), checked for fit, support, load on top, orientation, unloading order and balance.
+              </>
+            ) : (
+              <>
             {seatsLine} in a {roomSize} room with {plural(report.room.doors, 'door')} and {plural(report.room.columns, 'column')}, checked item by item for fit, clearance and safe ways out.
+              </>
+            )}
           </p>
           <div className="info-grid">
             {[
@@ -169,14 +186,23 @@ export function ReportPage({ projectId }: { projectId: string }) {
               </div>
             </div>
             <div className="cover-metrics">
-              {[
+              {(cargo && load
+                ? [
+                    [<span data-testid="report-pieces">{formatCount(load.pieces)}</span>, 'Pieces'],
+                    [load.mass === undefined ? '—' : formatMass(load.mass), 'Load mass'],
+                    [formatPercent(load.volumeUse), 'Volume used'],
+                    [load.payloadUse === undefined ? '—' : formatPercent(load.payloadUse), 'Payload used'],
+                    [formatPercent(load.floorUse), 'Floor used'],
+                    [load.balance ? `${Math.round(Math.max(load.balance.along, load.balance.across))}%` : '—', 'Off centre'],
+                  ]
+                : [
                 [<span data-testid="report-seats">{formatCount(report.totals.seats)}</span>, 'Seats'],
                 [formatCount(report.totals.items), 'Items'],
                 [formatSquareMetres(Math.round(report.room.floorArea)), 'Floor area'],
                 [report.totals.areaPerSeat === undefined ? '—' : formatSquareMetres(Math.round(report.totals.areaPerSeat * 100) / 100), 'Area per seat'],
                 [formatCount(report.room.doors), 'Exits'],
                 [formatLength(doorWidth), 'Door width'],
-              ].map(([v, k]) => (
+              ]).map(([v, k]) => (
                 <div key={String(k)}>
                   <div className="v">{v}</div>
                   <div className="k">{k}</div>
@@ -297,6 +323,44 @@ export function ReportPage({ projectId }: { projectId: string }) {
                 </tr>
               </tfoot>
             </table>
+          )}
+          {cargo && sequence.length > 0 && (
+            <>
+              <div className="sheet-h later">
+                <h2>Loading sequence</h2>
+                <span>Front wall to doors · stop 1 is unloaded first</span>
+              </div>
+              <table className="bom-table" data-testid="report-sequence">
+                <thead>
+                  <tr>
+                    <th>Step</th>
+                    <th>Piece</th>
+                    <th>Stop</th>
+                    <th>Centre from front wall × side · underside</th>
+                    <th className="r">Orientation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sequence.map((i) => {
+                    const d = project.catalog[i.definitionId]!;
+                    return (
+                      <tr key={i.id}>
+                        <td className="key">{stepOf(i) ?? '—'}</td>
+                        <td>
+                          {i.id}
+                          <span style={{ color: 'var(--ink-2)', fontSize: '9pt' }}> · {d.name}</span>
+                        </td>
+                        <td>{stopOf(i, d) ?? '—'}</td>
+                        <td className="size">
+                          {formatCentimetres(i.position.x)} × {formatCentimetres(i.position.y)} × {formatCentimetres(i.elevation ?? 0)} cm
+                        </td>
+                        <td className="r">{i.tilt === 'x' ? 'Width up' : i.tilt === 'y' ? 'Depth up' : 'Upright'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           )}
           <span className="fill" />
           <Foot name={report.name} revision={report.revision} page={3} />

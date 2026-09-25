@@ -20,7 +20,18 @@
 - [x] Editor: instanced 3D; review/report show rule sources
 - [x] Check, planted bug, docs, commit
 
-## Now: T6 — container loading MVP (done definition in the plan §7)
+## Done: T6 — container loading MVP (done definition in the plan §7, decision 0010)
+
+- [x] Core: `Space.meta` (container type, payload, doors), `createSpace` keeps it
+- [x] Pack: container types, sample cargo, `newContainer`, cargo data in `meta`, 8 loading rules with sources, container metrics
+- [x] Packer: extreme points, three strategies as `OptimizationPort` candidates, never proposes a failing load (property test)
+- [x] Server: create containers (HTTP + tool), `define_item` mass + cargo, `place_items` tilt/stop/step, `pack_container`, container facts for agents, `set_room` keeps pack data
+- [x] Editor: container in the create dialog, Load panel, cargo inspector, settle onto stack, payload field, colour by, cut-away, playback, numbered steps, report sequence
+- [x] Live updates: re-check the project whenever the live connection (re)opens (race found by the browser tests)
+- [x] Tests: reference cases, property test, server tools, browser journey, planted bug; `pnpm check`
+
+## Next: T7 — warehouse MVP (plan §7)
+
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)
 

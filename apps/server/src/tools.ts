@@ -18,7 +18,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { checkPack, detectPack, newRoom, packOf, PACKS, ROUND_SHAPES, SHAPES, type PackId, type RuleResult } from '@space-planner/starter';
+import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, detectPack, extremePointPacker, isContainer, newContainer, newRoom, packContainer, packOf, PACKS, ROUND_SHAPES, SHAPES, stepOf, stopOf, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -163,18 +163,42 @@ export function describeProject(project: Project): string {
   for (const issue of issues) lines.push(`  ${describeIssue(project, issue)}`);
   const metrics = measureProject(project);
   lines.push(`Metrics: ${metrics.seats} seats, ${metrics.itemCount} items, floor ${toSquareMetres(metrics.floorArea).toFixed(2)} m², occupied ${(metrics.occupancy * 100).toFixed(1)}%`);
+  if (isContainer(project)) lines.push(...describeLoad(project));
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading' };
+
+const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
+
+/** Container facts for agents: the container, cargo rules per type, and the load with stops and steps. */
+function describeLoad(project: Project): string[] {
+  const m = containerMetrics(project);
+  const meta = project.space.meta ?? {};
+  const lines = [
+    `Container: type ${String(meta.containerType)}, doors at the east end (x = length); payload limit ${kgOf(typeof meta.maxPayload === 'number' ? meta.maxPayload : undefined)}.`,
+    `Load: ${m.pieces} pieces, ${(m.volumeUse * 100).toFixed(1)}% of the volume, ${(m.floorUse * 100).toFixed(1)}% of the floor, mass ${kgOf(m.mass)}${m.payloadUse === undefined ? '' : ` (${(m.payloadUse * 100).toFixed(1)}% of payload)`}${m.balance ? `, centre of mass ${m.balance.along.toFixed(1)}% off the middle along, ${m.balance.across.toFixed(1)}% across` : ''}; ${m.unpacked} planned pieces not placed.`,
+    'Cargo types (id | mass | quantity planned | stackable | max load on top | may lie on side | stacking group | stop):',
+  ];
+  for (const d of Object.values(project.catalog)) {
+    const c = cargoOf(d);
+    lines.push(`  ${d.id} | ${kgOf(d.mass)} | ${c.quantity ?? '-'} | ${c.stackable ?? '?'} | ${c.maxLoadOnTop === undefined ? '?' : kgOf(c.maxLoadOnTop)} | ${c.allowTilt ?? '?'} | ${c.stackGroup ?? '-'} | ${c.stop ?? '-'}`);
+  }
+  const pieces = Object.values(project.items).filter((i) => i.tilt || stepOf(i) !== undefined || stopOf(i, project.catalog[i.definitionId]!) !== undefined);
+  if (pieces.length > 0) {
+    lines.push('Pieces with orientation, stop or loading step (id | tilt | stop | step):');
+    for (const i of pieces) lines.push(`  ${i.id} | ${i.tilt ?? 'upright'} | ${stopOf(i, project.catalog[i.definitionId]!) ?? '-'} | ${stepOf(i) ?? '-'}`);
+  }
+  return lines;
+}
 
 /** The activity pack's rules (guidance) as short English lines for agents. */
 function describeRules(project: Project, packId: PackId = detectPack(project), style?: string): string[] {
   const pack = packOf(packId);
   const styleId = pack.styles.some((s) => s.id === style) ? style! : pack.styles[0]!.id;
   const line = (r: RuleResult): string => {
-    if (r.status === 'unknown') return `  ${r.code}: unknown (${r.reason === 'no-doors' ? 'no doors' : r.reason === 'no-desks' ? 'no desks' : 'no seats'})`;
+    if (r.status === 'unknown') return `  ${r.code}: unknown (${(r.reason ?? 'missing data').replace(/-/g, ' ')})`;
     const cmOf = (v: number | undefined) => `${toUnit(v ?? 0, 'cm')} cm`;
     switch (r.code) {
       case 'walkway':
@@ -188,6 +212,18 @@ function describeRules(project: Project, packId: PackId = detectPack(project), s
         return `  exits: ${r.measured} door(s) (needs ${r.required}): ${r.status}`;
       case 'door-width':
         return `  total door width: ${cmOf(r.measured)} (needs ${cmOf(r.required)}): ${r.status}`;
+      case 'payload':
+        return `  payload: ${kgOf(r.measured)} of ${kgOf(r.required)}: ${r.status}`;
+      case 'support':
+        return `  support: weakest raised piece rests ${r.measured}% on pieces below (needs ${r.required}%): ${r.status}${r.entityIds.length ? ` — ${r.entityIds.join(', ')}` : ''}`;
+      case 'load-on-top':
+        return `  load on top: heaviest load ${kgOf(r.measured)}: ${r.status}${r.entityIds.length ? ` — overloaded ${r.entityIds.join(', ')}` : ''}`;
+      case 'balance':
+        return `  balance: centre of mass ${r.measured}% off the middle (limit ${r.required}%): ${r.status}`;
+      case 'unpacked':
+        return `  planned pieces placed: ${r.measured} of ${r.required}: ${r.status}${r.entityIds.length ? ` — short: ${r.entityIds.join(', ')}` : ''}`;
+      default:
+        return `  ${r.code}: ${r.status}${r.entityIds.length ? ` — ${r.entityIds.join(', ')}` : ''}`;
     }
   };
   return [`${PACK_NAMES[pack.id]} rules (${styleId}):`, ...checkPack(project, pack.id, styleId).map(line)];
@@ -197,6 +233,29 @@ function afterChange(project: Project, what: string): string {
   const issues = checkProject(project);
   const errors = issues.filter((i) => i.severity === 'error').length;
   return `${what} Now at revision ${project.revision}. ${issues.length === 0 ? 'No issues.' : `${issues.length} issue(s), ${errors} error(s):\n${issues.slice(0, 30).map((i) => `  ${describeIssue(project, i)}`).join('\n')}`}`;
+}
+
+/** Cargo fields of define_item → the type's meta, merged over what it had. */
+function cargoMeta(value: unknown, previous: Record<string, string | number | boolean> | undefined): { meta?: Record<string, string | number | boolean> } {
+  const meta: Record<string, string | number | boolean> = { ...(previous ?? {}) };
+  if (typeof value === 'object' && value !== null) {
+    const c = value as Record<string, unknown>;
+    if (typeof c.quantity === 'number') meta.quantity = Math.max(0, Math.round(c.quantity));
+    if (typeof c.stackable === 'boolean') meta.stackable = c.stackable;
+    if (typeof c.max_load_on_top_kg === 'number') meta.maxLoadOnTop = Math.round(c.max_load_on_top_kg * 1000);
+    if (typeof c.allow_tilt === 'boolean') meta.allowTilt = c.allow_tilt;
+    if (typeof c.stack_group === 'string' && c.stack_group) meta.stackGroup = c.stack_group;
+    if (typeof c.stop === 'number') meta.stop = Math.round(c.stop);
+  }
+  return Object.keys(meta).length > 0 ? { meta } : {};
+}
+
+/** stop / step of a placed piece → its meta. */
+function pieceMeta(s: Record<string, unknown>): { meta?: Record<string, number> } {
+  const meta: Record<string, number> = {};
+  if (typeof s.stop === 'number') meta.stop = Math.round(s.stop);
+  if (typeof s.step === 'number') meta.step = Math.round(s.step);
+  return Object.keys(meta).length > 0 ? { meta } : {};
 }
 
 // ---------- tools ----------
@@ -218,7 +277,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a new rectangular room project with one door centred on the south wall, furnished with the catalog of an activity: "hall" (event hall, default) or "office". Returns the new project id.',
+    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Returns the new project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -227,11 +286,16 @@ export const TOOLS: readonly ToolDef[] = [
         depth_m: { type: 'number', description: 'South→north size in metres.' },
         ceiling_m: { type: 'number', description: 'Ceiling height in metres, if known.' },
         activity: { type: 'string', enum: PACKS.map((p) => p.id) },
+        container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'For activity "container".' },
       },
-      required: ['name', 'width_m', 'depth_m'],
+      required: ['name'],
       additionalProperties: false,
     },
     run: (ctx, input) => {
+      if (str(input, 'activity', true) === 'container') {
+        const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}`;
+      }
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
       if (width < 1 || depth < 1 || width > 500 || depth > 500) throw new ToolError('room sides must be between 1 and 500 m');
@@ -327,7 +391,8 @@ export const TOOLS: readonly ToolDef[] = [
       const spec: RoomSpec = { width, depth, doors, columns, ...(ceiling === undefined ? {} : { ceilingHeight: ceiling }) };
       const problems = roomProblems(spec);
       if (problems.length > 0) throw new ToolError(problems.join('; '));
-      const space = roomSpace(spec);
+      // The pack's data about the space (a container's type and payload) stays with the room.
+      const space = { ...roomSpace(spec), ...(project.space.meta ? { meta: project.space.meta } : {}) };
       const structural = validateSpace(space);
       if (structural.length > 0) throw new ToolError(structural.map((p) => `${p.path}: ${p.message}`).join('; '));
       const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || 'Room changed');
@@ -353,6 +418,12 @@ export const TOOLS: readonly ToolDef[] = [
         },
         seats: { type: 'integer', description: 'Seats this item adds to capacity.' },
         footprint: { type: 'string', enum: ['rect', 'round'], description: 'Floor outline; "round" for round tables and pots (an ellipse inside width × depth). Defaults to round for round-table and plant.' },
+        mass_kg: { type: 'number', description: 'Mass of one piece.' },
+        cargo: {
+          type: 'object',
+          description: 'Container cargo data: quantity planned, stackable, max_load_on_top_kg, allow_tilt (may lie on its side), stack_group, stop (1 = unloaded first).',
+          properties: { quantity: { type: 'integer' }, stackable: { type: 'boolean' }, max_load_on_top_kg: { type: 'number' }, allow_tilt: { type: 'boolean' }, stack_group: { type: 'string' }, stop: { type: 'integer' } },
+        },
         summary,
       },
       required: ['project_id', 'id', 'name', 'category', 'width_cm', 'depth_cm', 'height_cm'],
@@ -373,6 +444,8 @@ export const TOOLS: readonly ToolDef[] = [
         clearance: { front: side('front'), back: side('back'), left: side('left'), right: side('right') },
         ...(seats === undefined ? {} : { seats }),
         ...(footprint === 'round' ? { footprint: 'round' as const } : {}),
+        ...(input.mass_kg === undefined ? {} : { mass: Math.round(num(input, 'mass_kg') * 1000) }),
+        ...cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta),
       };
       const existed = Boolean(project.catalog[definition.id]);
       const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'Changed' : 'Added'} item type ${definition.name}`);
@@ -396,6 +469,9 @@ export const TOOLS: readonly ToolDef[] = [
               y_m: { type: 'number' },
               rotation_deg: { type: 'number' },
               height_m: { type: 'number' },
+              tilt: { type: 'string', enum: ['x', 'y'], description: 'Lay it on its side: "x" stands the width up, "y" the depth.' },
+              stop: { type: 'integer', description: 'Unloading stop for this piece (containers).' },
+              step: { type: 'integer', description: 'Loading step (containers).' },
               id: { type: 'string' },
             },
             required: ['definition_id', 'x_m', 'y_m'],
@@ -424,11 +500,43 @@ export const TOOLS: readonly ToolDef[] = [
             rotation: degrees(num(s, 'rotation_deg', true) ?? 0),
             locked: false,
             ...(elevation === 0 ? {} : { elevation }),
+            ...(s.tilt === 'x' || s.tilt === 'y' ? { tilt: s.tilt } : {}),
+            ...pieceMeta(s),
           },
         };
       });
       const updated = commit(ctx, project, commands, str(input, 'summary', true) || `Added ${commands.length} ${commands.length === 1 ? 'item' : 'items'}`);
       return afterChange(updated, `Placed ${commands.length} item(s): ${commands.map((c) => (c.type === 'item.add' ? c.item.id : '')).join(', ')}.`);
+    },
+  },
+  {
+    name: 'pack_container',
+    description:
+      'Propose loading plans for the planned cargo (quantities set on the cargo types) with deterministic extreme-point heuristics: largest first, heaviest first, widest base first. Each candidate lists what it places, what does not fit, volume and payload use and balance. Pieces already placed stay. With apply = true the chosen candidate is applied as one revision.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        strategy: { type: 'string', enum: ['largest-first', 'heaviest-first', 'footprint-first'], description: 'Apply this one; omit to compare all.' },
+        apply: { type: 'boolean' },
+        summary,
+      },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (!isContainer(project)) throw new ToolError('pack_container works on container projects (create one with activity "container")');
+      const strategy = str(input, 'strategy', true) as PackStrategy | undefined;
+      const candidates = strategy ? [packContainer(project, { strategy })] : extremePointPacker.propose(project, {});
+      const text = candidates
+        .map((c, i) => `${i + 1}. ${c.label}: ${c.explanation}${c.leftOver.length ? ` Did not fit: ${[...new Set(c.leftOver)].join(', ')}.` : ''}`)
+        .join('\n');
+      if (input.apply !== true) return `Candidates (nothing changed):\n${text}`;
+      const chosen = candidates[0]!;
+      if (chosen.commands.length === 0) return `Nothing to place.\n${text}`;
+      const updated = commit(ctx, project, [...chosen.commands], str(input, 'summary', true) || `Packed ${chosen.commands.length} pieces (${chosen.label.toLowerCase()})`);
+      return afterChange(updated, `Applied "${chosen.label}".`) + '\n' + describeRules(updated).join('\n');
     },
   },
   {

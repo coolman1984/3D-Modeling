@@ -25,6 +25,8 @@ export interface Space {
   readonly doors: readonly Door[];
   /** Missing means height checks report "unknown", never "pass". */
   readonly ceilingHeight?: Tick;
+  /** Pack-owned data about the space (a container's type and payload limit…); stored only when not empty. */
+  readonly meta?: Meta;
 }
 
 export type ObstacleKind = 'column' | 'blocked-zone';

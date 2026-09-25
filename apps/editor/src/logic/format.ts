@@ -28,6 +28,13 @@ export function formatSquareMetres(value: number): string {
   return `${number(2).format(value)} m²`;
 }
 
+/** Grams as kilograms or tonnes: "12 kg", "1,250 kg", "28.2 t". */
+export function formatMass(grams: number): string {
+  const kgs = grams / 1000;
+  if (Math.abs(kgs) >= 10_000) return `${number(1).format(kgs / 1000)} t`;
+  return `${number(kgs < 10 ? 1 : 0).format(kgs)} kg`;
+}
+
 export function formatPercent(ratio: number): string {
   return new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(ratio);
 }

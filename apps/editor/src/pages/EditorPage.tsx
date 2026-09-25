@@ -35,6 +35,7 @@ import {
   Keyboard,
   LineSegments,
   ListBullets,
+  Package,
   Magnet,
   Ruler,
   SidebarSimple,
@@ -75,12 +76,14 @@ import { ItemTypeDialog, LibraryPanel } from '../ui/ItemTypes.js';
 import { ControlsPanel, GRID_OPTIONS, ObjectsPanel } from '../ui/Panels.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
-import { View3D } from '../ui/View3D.js';
+import { View3D, type SceneLook } from '../ui/View3D.js';
+import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 
 type ViewMode = 'plan' | '3d' | 'split';
-type LeftPanel = 'library' | 'objects' | 'space' | 'precision';
+type LeftPanel = 'load' | 'library' | 'objects' | 'space' | 'precision';
 type RightTab = 'properties' | 'review' | 'history';
 
+const LOAD_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'load', label: 'Load', title: 'Loading plan', icon: <Package size={21} /> };
 const LEFT_PANELS: ReadonlyArray<{ id: LeftPanel; label: string; title: string; icon: ReactNode }> = [
   { id: 'library', label: 'Library', title: 'Object library', icon: <SquaresFour size={21} /> },
   { id: 'objects', label: 'Objects', title: 'Objects', icon: <ListBullets size={21} /> },
@@ -143,8 +146,13 @@ function Editor({ initial }: { initial: Project }) {
     saveControls(next);
   }, []);
   const [toast, setNotice] = useToast();
-  const [view, setView] = useState<ViewMode>('plan');
-  const [left, setLeft] = useState<LeftPanel | null>('library');
+  const cargo = loadActivity(initial).pack === 'container';
+  // A container is easiest to read in 3D next to its floor plan.
+  const [view, setView] = useState<ViewMode>(cargo ? 'split' : 'plan');
+  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : 'library');
+  const [colorBy, setColorBy] = useState<ColorBy>('type');
+  const [cutaway, setCutaway] = useState(true);
+  const [playStep, setPlayStep] = useState<number | null>(null);
   const [right, setRight] = useState<RightTab>('properties');
   const [aiOpen, setAiOpen] = useState(false);
   const [aiRunning, setAiRunning] = useState(false);
@@ -226,6 +234,10 @@ function Editor({ initial }: { initial: Project }) {
         else fetchLatest(message);
       },
       run: (e) => e.projectId === project.id && refreshRuns(),
+      // Changes made before the live connection opened (or while it was down) are fetched now.
+      open: () => {
+        if (latest.current.pending === 0) fetchLatest('Updated with changes made elsewhere');
+      },
     });
   }, [project.id, fetchLatest]);
   useEffect(() => {
@@ -381,7 +393,20 @@ function Editor({ initial }: { initial: Project }) {
   const shownProject = preview ? preview.project : shown;
   const shownIssues = preview ? previewIssues : issues;
   const paneDispatch = useCallback((a: Action) => (preview ? undefined : dispatch(a)), [preview]);
-  const leftPanel = LEFT_PANELS.find((p) => p.id === left);
+  const isCargo = activity.pack === 'container';
+  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
+  const leftPanel = panels.find((p) => p.id === left);
+  const colors = useMemo(() => (isCargo ? colorsOf(shownProject, colorBy) : null), [isCargo, shownProject, colorBy]);
+  const planFills = useMemo(() => (colors ? new Map([...colors.colors].map(([id, c]) => [id, hex(c)])) : undefined), [colors]);
+  // The plan numbers pieces by loading step when colouring by step (top pieces are drawn last).
+  const planLabels = useMemo(
+    () => (isCargo && colorBy === 'step' ? new Map(Object.values(shownProject.items).filter((i) => typeof i.meta?.step === 'number').map((i) => [i.id, String(i.meta!.step)])) : undefined),
+    [isCargo, colorBy, shownProject],
+  );
+  const look = useMemo<SceneLook | undefined>(
+    () => (isCargo && colors ? { itemColors: colors.colors, hidden: hiddenAfter(shownProject, playStep), cutaway } : undefined),
+    [isCargo, colors, shownProject, playStep, cutaway],
+  );
 
   const toggleSnap = () => {
     if (controls.grid > 1) {
@@ -533,7 +558,7 @@ function Editor({ initial }: { initial: Project }) {
 
       <div className="editor-body">
         <aside className={`rail${left ? ' joined' : ''}`} aria-label="Tools">
-          {LEFT_PANELS.map((p) => (
+          {panels.map((p) => (
             <button key={p.id} type="button" className={`rail-btn${left === p.id ? ' active' : ''}`} aria-pressed={left === p.id} title={p.title} onClick={() => setLeft(left === p.id ? null : p.id)}>
               {p.icon}
               {p.label}
@@ -553,6 +578,7 @@ function Editor({ initial }: { initial: Project }) {
                 <SidebarSimple size={16} />
               </button>
             </div>
+            {left === 'load' && isCargo && <LoadPanel project={project} dispatch={dispatch} />}
             {left === 'library' && <LibraryPanel project={project} pack={activity.pack} onAdd={(d) => addItem(d)} dispatch={dispatch} onEdit={setEditingType} />}
             {left === 'objects' && <ObjectsPanel project={project} issues={issues} selectedIds={session.selectedIds} dispatch={dispatch} />}
             {left === 'space' && <RoomPanel project={project} dispatch={dispatch} />}
@@ -585,6 +611,9 @@ function Editor({ initial }: { initial: Project }) {
                 }}
                 onFit={fit}
                 onZoom={onZoom}
+                openEnd={isCargo ? 'east' : undefined}
+                itemFills={planFills}
+                itemLabels={planLabels}
               />
             </section>
           )}
@@ -599,7 +628,12 @@ function Editor({ initial }: { initial: Project }) {
                 dispatch={paneDispatch}
                 fitToken={fitToken}
                 onHeading={(q) => (heading.current = q)}
+                look={look}
+                fullWallsAtStart={isCargo}
               />
+              {isCargo && colors && (
+                <ContainerViewTools project={shownProject} colorBy={colorBy} onColorBy={setColorBy} cutaway={cutaway} onCutaway={setCutaway} step={playStep} onStep={setPlayStep} legend={colors.legend} />
+              )}
             </section>
           )}
           {preview && (
@@ -747,7 +781,7 @@ function Editor({ initial }: { initial: Project }) {
         </button>
       </footer>
 
-      {editingType && <ItemTypeDialog key={editingType} project={project} editing={editingType} onClose={() => setEditingType(null)} dispatch={dispatch} />}
+      {editingType && <ItemTypeDialog key={editingType} pack={activity.pack} project={project} editing={editingType} onClose={() => setEditingType(null)} dispatch={dispatch} />}
     </div>
   );
 }

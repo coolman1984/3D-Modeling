@@ -543,7 +543,7 @@ select.input { padding: 0 6px; }
 .item { cursor: grab; }
 .item:active { cursor: grabbing; }
 .item.locked { cursor: pointer; }
-.item-body { fill: var(--tile); stroke: var(--ink); stroke-width: 1.3; }
+.item-body { fill: var(--fill, var(--tile)); stroke: var(--ink); stroke-width: 1.3; }
 .item-front { stroke: var(--ink); stroke-width: 2.5; }
 .item.warning .item-body { stroke: var(--warning); stroke-width: 1.8; }
 .item.error .item-body { stroke: var(--error); stroke-width: 1.8; fill: #fbf1ef; }
@@ -949,7 +949,7 @@ button.rule-row:hover { background: var(--page); }
 .create-form .intro { margin: 12px 0 30px; color: var(--ink-4); line-height: 1.5; font-size: 14px; }
 .create-form .input { height: 44px; font-size: 16px; padding: 0 14px; }
 .create-form .fld .input { padding: 0 30px 0 14px; }
-.activity-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 7px; }
+.activity-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 7px; }
 .activity-card { height: 60px; border: 1px solid #dcd8cf; background: transparent; border-radius: 4px; padding: 0 14px; display: flex; align-items: center; gap: 12px; text-align: left; color: var(--ink); }
 .activity-card:hover { border-color: var(--ink); }
 .activity-card svg { color: var(--ink-4); flex: none; }
@@ -1168,3 +1168,46 @@ button.rule-row:hover { background: var(--page); }
 .insp-group .grid-3 .fld .input { padding: 0 26px 0 22px; }
 .insp-group .grid-3 .fld-k { left: 8px; }
 .insp-group .grid-3 .fld-u { right: 7px; }
+
+/* ---------- container loading ---------- */
+.load-head .serif { font-size: 22px; line-height: 1.15; }
+.load-head .muted { margin-top: 4px; font-size: 12px; }
+.load-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 10px; }
+.stat-value { font-family: var(--serif); font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat-bar { height: 3px; background: var(--line); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.stat-bar span { display: block; height: 100%; }
+.stat-label { font-size: 11px; color: var(--ink-3); margin-top: 5px; }
+.cargo-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.cargo-art { width: 40px; height: 34px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--tile); border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(26, 25, 23, 0.05); }
+.cargo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.cargo-name { font-size: 12.5px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cargo-qty { width: 64px; flex: none; }
+.cargo-qty .fld .input { height: 30px; padding: 0 8px 0 22px; }
+.candidate { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); display: grid; gap: 8px; }
+.candidate-head { display: flex; align-items: baseline; gap: 8px; }
+.candidate-head .serif { flex: 1; font-size: 18px; }
+.candidate-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-2); }
+.candidate-stats strong { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.container-tools {
+  position: absolute;
+  left: 16px;
+  bottom: 62px;
+  z-index: 3;
+  width: 290px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(248, 247, 244, 0.94);
+  border: 1px solid rgba(26, 25, 23, 0.06);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(26, 25, 23, 0.05), 0 6px 20px rgba(26, 25, 23, 0.05);
+  font-size: 12px;
+}
+.segmented.compact button { height: 24px; padding: 0 8px; font-size: 12px; }
+.check-inline { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.sequence { display: flex; align-items: center; gap: 8px; }
+.sequence input[type='range'] { flex: 1; accent-color: var(--accent); }
+.sequence .num { width: 92px; text-align: right; color: var(--ink-2); }
+.legend-row { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--ink-2); font-size: 11.5px; }
+.legend-row > span { display: inline-flex; align-items: center; gap: 5px; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; box-shadow: inset 0 0 0 1px rgba(26, 25, 23, 0.1); }

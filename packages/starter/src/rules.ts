@@ -21,7 +21,21 @@ import {
 const cm = (v: number) => fromUnit(v, 'cm');
 
 /** Rule codes of every pack; each pack uses the ones that apply to it. */
-export type RuleCode = 'walkway' | 'area-per-guest' | 'area-per-person' | 'workstations' | 'exits' | 'door-width';
+export type RuleCode =
+  | 'walkway'
+  | 'area-per-guest'
+  | 'area-per-person'
+  | 'workstations'
+  | 'exits'
+  | 'door-width'
+  | 'payload'
+  | 'support'
+  | 'load-on-top'
+  | 'orientation'
+  | 'stacking-group'
+  | 'unloading-order'
+  | 'balance'
+  | 'unpacked';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -53,6 +67,14 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'area-per-guest': { kind: 'common-guidance', title: 'Event planning guidance: floor area per guest by event style', ruleSet: 'starter.hall.v1' },
   'area-per-person': { kind: 'common-guidance', title: 'Office planning guidance: floor area per person by office style', ruleSet: 'starter.office.v1' },
   workstations: { kind: 'engineering', title: 'A seat within reach in front of every desk', ruleSet: 'starter.office.v1' },
+  payload: { kind: 'common-guidance', title: 'Typical payload of the chosen container type; check the actual unit, the carrier and road limits', ruleSet: 'starter.container.v1' },
+  support: { kind: 'common-guidance', title: 'Cargo loading guidance: at least 70% of a raised piece’s base rests on the pieces below', ruleSet: 'starter.container.v1' },
+  'load-on-top': { kind: 'engineering', title: 'Weight resting on each piece stays within the load its type allows on top', ruleSet: 'starter.container.v1' },
+  orientation: { kind: 'engineering', title: 'Pieces marked “this way up” stay upright', ruleSet: 'starter.container.v1' },
+  'stacking-group': { kind: 'company-policy', title: 'Only pieces of the same stacking group are stacked on each other', ruleSet: 'starter.container.v1' },
+  'unloading-order': { kind: 'engineering', title: 'Pieces for an earlier stop are not blocked by pieces for a later stop between them and the doors', ruleSet: 'starter.container.v1' },
+  balance: { kind: 'common-guidance', title: 'Cargo loading guidance: centre of mass within 10% of the middle along the length and across the width', ruleSet: 'starter.container.v1' },
+  unpacked: { kind: 'engineering', title: 'Every planned piece is placed', ruleSet: 'starter.container.v1' },
 };
 
 export interface RuleResult {
@@ -61,11 +83,11 @@ export interface RuleResult {
   /** What was measured and what the rule asks for, in the rule's own unit (see `unit`). */
   readonly measured?: number;
   readonly required?: number;
-  readonly unit: 'ticks' | 'square-metres' | 'doors' | 'seats' | 'desks';
+  readonly unit: 'ticks' | 'square-metres' | 'doors' | 'seats' | 'desks' | 'grams' | 'percent' | 'items';
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }

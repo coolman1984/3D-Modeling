@@ -132,3 +132,15 @@ describe('saves', () => {
     );
   });
 });
+
+describe('space meta', () => {
+  it('is kept by space.set, validated, and undone', () => {
+    const p = box20([]);
+    const space = { ...p.space, meta: { pack: 'container', maxPayload: 28_000_000 } };
+    const set = apply(p, { type: 'space.set', space });
+    expect(set.ok && set.project.space.meta).toEqual({ pack: 'container', maxPayload: 28_000_000 });
+    if (!set.ok) return;
+    expect(apply(set.project, set.inverse).ok && 'meta' in p.space).toBe(false);
+    expect(apply(p, { type: 'space.set', space: { ...p.space, meta: {} } }).ok).toBe(false);
+  });
+});
