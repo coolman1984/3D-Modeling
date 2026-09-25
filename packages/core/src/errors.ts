@@ -1,5 +1,5 @@
 /** Machine-readable reason codes for every error the core can raise. */
-export type CoreErrorCode = 'not-a-number' | 'not-an-integer' | 'out-of-range';
+export type CoreErrorCode = 'not-a-number' | 'not-an-integer' | 'out-of-range' | 'invalid-project';
 
 /** The only error type thrown by the core. `code` is stable; `message` is for developers. */
 export class CoreError extends Error {
