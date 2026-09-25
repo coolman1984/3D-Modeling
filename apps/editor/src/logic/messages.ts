@@ -134,6 +134,13 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'unloading-order': 'Unloading order (last in, first out)',
   balance: 'Centre of mass near the middle',
   unpacked: 'Every planned piece placed',
+  'rack-capacity': 'Rack storage capacity',
+  'rack-access': 'Forklift reaches every rack row',
+  'aisle-width': 'Rack aisle clear width',
+  'dock-access': 'Docks connect to storage',
+  'restricted-zone': 'Racks avoid restricted zones',
+  'rack-boundary': 'Racks fit inside the warehouse',
+  'dock-approach': 'Dock approach areas',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -187,6 +194,19 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${rule.measured}% off the middle`, required: `${rule.required ?? 10}% or less` };
     case 'unpacked':
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} placed`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} planned` };
+    case 'rack-capacity':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} positions`, required: 'Valid rack dimensions' };
+    case 'rack-access':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} rack rows` };
+    case 'aisle-width':
+      return { measured: rule.measured === undefined ? dash : formatLength(rule.measured), required: rule.required === undefined ? dash : `${formatLength(rule.required)} or wider` };
+    case 'dock-access':
+    case 'dock-approach':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} connected`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} docks` };
+    case 'restricted-zone':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} conflicts`, required: 'None' };
+    case 'rack-boundary':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} inside`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} rack rows` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -216,6 +236,12 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'Some pieces lie on their side, but their type does not say whether that is allowed.';
       case 'no-stacking-data':
         return 'Some pieces carry weight, but their type has no load limit.';
+      case 'no-racks':
+        return 'Add rack rows to calculate capacity and access.';
+      case 'no-zones':
+        return 'Add the operational zones or link the dock to its approach zone before this check can run.';
+      case 'rack-data':
+        return 'A rack row needs valid bay, level and dimension data.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -263,5 +289,19 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return `The centre of mass is ${rule.measured}% off the middle of the container; keep it within ${rule.required}%.`;
     case 'unpacked':
       return rule.status === 'pass' ? `All ${count(rule.required ?? 0)} planned pieces are placed.` : `${count((rule.required ?? 0) - (rule.measured ?? 0))} planned pieces are not placed yet (${rule.entityIds.join(', ')}).`;
+    case 'rack-capacity':
+      return `${count(rule.measured ?? 0)} addressable pallet positions in the rack rows.`;
+    case 'rack-access':
+      return rule.status === 'pass' ? 'A planning forklift can reach every rack row from a dock.' : `Forklift route blocked for: ${list(rule.entityIds)}.`;
+    case 'aisle-width':
+      return rule.status === 'pass' ? `The narrowest measured rack aisle is ${formatLength(rule.measured ?? 0)} wide.` : `Rack aisle between ${list(rule.entityIds)} is only ${formatLength(rule.measured ?? 0)}; the planning forklift needs ${formatLength(rule.required ?? 0)}.`;
+    case 'dock-access':
+      return rule.status === 'pass' ? 'Every dock has a planning forklift route to storage.' : `No storage route from: ${rule.entityIds.join(', ')}.`;
+    case 'dock-approach':
+      return rule.status === 'pass' ? 'Each dock opens into its named operational zone.' : `Dock approach is outside its named zone: ${rule.entityIds.join(', ')}.`;
+    case 'restricted-zone':
+      return rule.status === 'pass' ? 'No rack crosses a pedestrian or no-go zone.' : `Move racks out of restricted zones: ${list(rule.entityIds)}.`;
+    case 'rack-boundary':
+      return rule.status === 'pass' ? 'Every rack row fits inside the warehouse.' : `Rack rows outside the warehouse: ${list(rule.entityIds)}.`;
   }
 }

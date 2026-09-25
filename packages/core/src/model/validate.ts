@@ -131,9 +131,9 @@ class Collector {
 }
 
 const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'catalog', 'items'] as const;
-const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight', 'meta'] as const;
+const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'zones', 'ceilingHeight', 'meta'] as const;
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
-const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing'] as const;
+const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing', 'meta'] as const;
 const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint', 'mass', 'meta'] as const;
 const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked', 'elevation', 'tilt', 'meta'] as const;
 const POINT_FIELDS = ['x', 'y'] as const;
@@ -198,6 +198,15 @@ function checkSpace(c: Collector, value: unknown, path: string): void {
   const boundary = c.polygon(space.boundary, `${path}.boundary`);
   if (space.ceilingHeight !== undefined) c.length(space.ceilingHeight, `${path}.ceilingHeight`, { positive: true });
   if (space.meta !== undefined) checkMeta(c, space.meta, `${path}.meta`);
+  if (space.zones !== undefined) c.array(space.zones, `${path}.zones`)?.forEach((value, i) => {
+    const at = `${path}.zones.${i}`;
+    const zone = c.object(value, at, ['id', 'kind', 'polygon', 'meta']);
+    if (!zone) return;
+    c.id(zone.id, `${at}.id`);
+    c.string(zone.kind, `${at}.kind`, { nonEmpty: true });
+    c.polygon(zone.polygon, `${at}.polygon`);
+    if (zone.meta !== undefined) checkMeta(c, zone.meta, `${at}.meta`);
+  });
 
   c.array(space.obstacles, `${path}.obstacles`)?.forEach((value, i) => {
     const at = `${path}.obstacles.${i}`;
@@ -218,6 +227,7 @@ function checkSpace(c: Collector, value: unknown, path: string): void {
     const hinge = c.point(door.hinge, `${at}.hinge`);
     c.length(door.width, `${at}.width`, { positive: true });
     c.angle(door.angle, `${at}.angle`);
+    if (door.meta !== undefined) checkMeta(c, door.meta, `${at}.meta`);
     if (door.swing !== 'left' && door.swing !== 'right') {
       c.add('wrong-type', `${at}.swing`, 'expected "left" or "right"');
     }

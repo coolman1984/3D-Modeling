@@ -1,5 +1,6 @@
 import {
   checkProject,
+  containsPolygon,
   fromUnit,
   measureProject,
   normalizeAngle,
@@ -8,6 +9,7 @@ import {
   roomSpace,
   serializeProject,
   toSquareMetres,
+  toCounterClockwise,
   toUnit,
   validateSpace,
   type Command,
@@ -18,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, detectPack, extremePointPacker, isContainer, newContainer, newRoom, packContainer, packOf, PACKS, ROUND_SHAPES, SHAPES, stepOf, stopOf, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, detectPack, extremePointPacker, isContainer, newContainer, newRoom, newWarehouse, packContainer, packOf, PACKS, rackDefinition, referenceWarehouse, ROUND_SHAPES, SHAPES, stepOf, stopOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -112,6 +114,7 @@ function takenIds(project: Project): Set<string> {
     ...Object.keys(project.catalog),
     ...project.space.doors.map((d) => d.id),
     ...project.space.obstacles.map((o) => o.id),
+    ...(project.space.zones ?? []).map((z) => z.id),
   ]);
 }
 
@@ -164,11 +167,15 @@ export function describeProject(project: Project): string {
   const metrics = measureProject(project);
   lines.push(`Metrics: ${metrics.seats} seats, ${metrics.itemCount} items, floor ${toSquareMetres(metrics.floorArea).toFixed(2)} m², occupied ${(metrics.occupancy * 100).toFixed(1)}%`);
   if (isContainer(project)) lines.push(...describeLoad(project));
+  if (detectPack(project) === 'warehouse') {
+    const w = warehouseMetrics(project);
+    lines.push(`Warehouse: ${w.rackRows} rack rows, ${w.bays} bays, ${w.positions} pallet positions (${w.usablePositions} usable), ${w.docks} docks, ${w.floorArea.toFixed(1)} m² gross floor.`);
+  }
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse' };
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -277,7 +284,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Returns the new project id.',
+    description: 'Create a hall, office, container or warehouse project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Returns the project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -287,6 +294,7 @@ export const TOOLS: readonly ToolDef[] = [
         ceiling_m: { type: 'number', description: 'Ceiling height in metres, if known.' },
         activity: { type: 'string', enum: PACKS.map((p) => p.id) },
         container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'For activity "container".' },
+        reference: { type: 'boolean', description: 'For activity warehouse: create the reference 30 × 20 m layout.' },
       },
       required: ['name'],
       additionalProperties: false,
@@ -296,11 +304,91 @@ export const TOOLS: readonly ToolDef[] = [
         const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
+      if (str(input, 'activity', true) === 'warehouse') {
+        const project = input.reference === true
+          ? referenceWarehouse(str(input, 'name'))
+          : newWarehouse(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 8);
+        const created = ctx.store.createProject(project, ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}\nWarehouse capacity: ${warehouseMetrics(created).positions} pallet positions.`;
+      }
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
       if (width < 1 || depth < 1 || width > 500 || depth > 500) throw new ToolError('room sides must be between 1 and 500 m');
       const project = ctx.store.createProject(newRoom(str(input, 'name'), width, depth, num(input, 'ceiling_m', true), packOf(str(input, 'activity', true)).id), ctx.actor);
       return `Created ${project.id}.\n\n${describeProject(project)}`;
+    },
+  },
+  {
+    name: 'add_warehouse_rack',
+    description: 'Add one parametric rack row to a warehouse. Give its centre X/Y in metres and optionally bays, levels and positions per bay per level. It creates one revision with a compact rack definition.',
+    inputSchema: { type: 'object', properties: {
+      project_id: projectId, x_m: { type: 'number' }, y_m: { type: 'number' },
+      bays: { type: 'integer' }, levels: { type: 'integer' }, positions_per_level: { type: 'integer' },
+    }, required: ['project_id', 'x_m', 'y_m'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      const taken = takenIds(project);
+      const id = nextId('rack', taken);
+      const definition = rackDefinition(nextId('rack-type', taken), {
+        bays: num(input, 'bays', true) ?? 6, bayWidth: centimetres(270), depth: centimetres(110),
+        height: centimetres(650), levels: num(input, 'levels', true) ?? 4,
+        positionsPerLevel: num(input, 'positions_per_level', true) ?? 2, uprightWidth: centimetres(10),
+      });
+      const updated = commit(ctx, project, [
+        { type: 'catalog.define', definition },
+        { type: 'item.add', item: { id, definitionId: definition.id, position: { x: metres(num(input, 'x_m')), y: metres(num(input, 'y_m')) }, rotation: 0, locked: false } },
+      ], `Added rack row ${id}`);
+      return `Added ${id}. Total storage: ${warehouseMetrics(updated).positions} pallet positions. Revision ${updated.revision}.`;
+    },
+  },
+  {
+    name: 'add_warehouse_zone',
+    description: 'Add a named polygonal operational zone to a warehouse. Vertices are metre coordinates in plan order; a valid polygon must stay within the warehouse. One recorded revision.',
+    inputSchema: { type: 'object', properties: {
+      project_id: projectId, kind: { type: 'string', enum: WAREHOUSE_ZONE_KINDS },
+      vertices: { type: 'array', items: { type: 'object', properties: { x_m: { type: 'number' }, y_m: { type: 'number' } }, required: ['x_m', 'y_m'] } },
+    }, required: ['project_id', 'kind', 'vertices'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      const kind = str(input, 'kind');
+      if (!WAREHOUSE_ZONE_KINDS.some((k) => k === kind)) throw new ToolError('Unknown warehouse zone kind.');
+      const vertices = list(input, 'vertices');
+      if (vertices.length < 3 || vertices.length > 32) throw new ToolError('A zone needs 3 to 32 vertices.');
+      const polygon = toCounterClockwise(vertices.map((p) => ({ x: metres(num(p, 'x_m')), y: metres(num(p, 'y_m')) })));
+      if (!containsPolygon(project.space.boundary, polygon)) throw new ToolError('Zone must fit inside the warehouse boundary.');
+      const id = nextId(kind, takenIds(project));
+      const updated = commit(ctx, project, [{ type: 'space.set', space: { ...project.space, zones: [...(project.space.zones ?? []), { id, kind, polygon }] } }], `Added ${kind} zone ${id}`);
+      return `Added ${kind} zone ${id}, revision ${updated.revision}.`;
+    },
+  },
+  {
+    name: 'warehouse_metrics',
+    description: 'Read spatial capacity, rack footprint, dock count and usable pallet positions of a warehouse.',
+    inputSchema: { type: 'object', properties: { project_id: projectId }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      return JSON.stringify(warehouseMetrics(project));
+    },
+  },
+  {
+    name: 'find_warehouse_route',
+    description: 'Find a forklift route from a named dock to a rack row, with reachability and approximate travel distance. Supply optional body width and side clearance in centimetres.',
+    inputSchema: { type: 'object', properties: {
+      project_id: projectId, dock_id: { type: 'string' }, rack_id: { type: 'string' },
+      body_width_cm: { type: 'number' }, side_clearance_cm: { type: 'number' },
+    }, required: ['project_id', 'dock_id', 'rack_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      const body = num(input, 'body_width_cm', true);
+      const side = num(input, 'side_clearance_cm', true) ?? 0;
+      if (body !== undefined && (body <= 0 || side < 0)) throw new ToolError('Mover width must be positive and clearance cannot be negative.');
+      const profile = body === undefined ? DEFAULT_FORKLIFT : { name: 'Custom mover', effectiveWidth: centimetres(body + 2 * side) };
+      const route = warehouseRoute(project, str(input, 'dock_id'), str(input, 'rack_id'), profile);
+      return route.reachable ? `${(route.distance / 10_000).toFixed(2)} m, reachable; ${route.points.length} grid waypoints (20 cm resolution).` : `Unreachable: ${route.reason}.`;
     },
   },
   {
@@ -392,7 +480,8 @@ export const TOOLS: readonly ToolDef[] = [
       const problems = roomProblems(spec);
       if (problems.length > 0) throw new ToolError(problems.join('; '));
       // The pack's data about the space (a container's type and payload) stays with the room.
-      const space = { ...roomSpace(spec), ...(project.space.meta ? { meta: project.space.meta } : {}) };
+      const nextRoom = roomSpace(spec);
+      const space = { ...nextRoom, doors: nextRoom.doors.map((d) => ({ ...d, ...(project.space.doors.find((old) => old.id === d.id)?.meta ? { meta: project.space.doors.find((old) => old.id === d.id)!.meta } : {}) })), ...(project.space.meta ? { meta: project.space.meta } : {}), ...(project.space.zones ? { zones: project.space.zones } : {}) };
       const structural = validateSpace(space);
       if (structural.length > 0) throw new ToolError(structural.map((p) => `${p.path}: ${p.message}`).join('; '));
       const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || 'Room changed');

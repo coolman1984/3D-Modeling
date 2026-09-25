@@ -7,7 +7,9 @@ import { validateProject, type Problem } from '../model/validate.js';
  * Each step takes raw JSON of version N and returns raw JSON of version N + 1.
  * Empty while only version 1 exists; add a step here whenever SCHEMA_VERSION goes up.
  */
-export const MIGRATIONS: Readonly<Record<number, (raw: Record<string, unknown>) => Record<string, unknown>>> = {};
+export const MIGRATIONS: Readonly<Record<number, (raw: Record<string, unknown>) => Record<string, unknown>>> = {
+  1: (raw) => ({ ...raw, schemaVersion: 2 }),
+};
 
 /**
  * Canonical text form of a project: object keys sorted, two-space indent, trailing newline.

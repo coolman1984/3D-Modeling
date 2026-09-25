@@ -36,6 +36,11 @@ const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
     'Add a meeting table for 8 near the window side and a phone booth by the entrance.',
     'Line the south wall with storage and keep the doors clear.',
   ],
+  warehouse: [
+    'Inspect the rack positions and check whether the forklift can reach each row.',
+    'Review the dock to rack travel path and keep every main aisle clear.',
+    'Compare usable pallet positions after blocking damaged storage locations.',
+  ],
 };
 
 interface Step {

@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
-import { demoHall, newContainer, newRoom, packOf } from '@space-planner/starter';
+import { demoHall, newContainer, newRoom, newWarehouse, packOf, referenceWarehouse } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
 import type { Store } from './store.js';
@@ -118,6 +118,7 @@ export function createApp(options: AppOptions): App {
     const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 200) : 'New project';
     let project;
     if (body.template === 'demo') project = { ...demoHall(), name };
+    else if (body.template === 'warehouse-reference') project = referenceWarehouse(name);
     else if (typeof body.file === 'string') {
       const opened = deserializeProject(body.file);
       if (!opened.ok) throw new HttpError(422, `This file is not a valid plan: ${opened.problems[0]?.path ?? ''}`);
@@ -128,6 +129,10 @@ export function createApp(options: AppOptions): App {
       if (activity === 'container') {
         const type = typeof body.container_type === 'string' ? body.container_type : '20gp';
         send(res, 201, store.createProject(newContainer(name, type), 'human'));
+        return;
+      }
+      if (activity === 'warehouse') {
+        send(res, 201, store.createProject(newWarehouse(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling ?? 8), 'human'));
         return;
       }
       project = newRoom(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling, activity);

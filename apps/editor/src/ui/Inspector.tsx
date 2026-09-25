@@ -1,5 +1,5 @@
-import { apply, boundsOf, toSquareMetres, toUnit, type Command, type Id, type Issue, type Metrics, type Project } from '@space-planner/core';
-import { packOf, PACKS, SHAPES, shapeOf, type RuleResult } from '@space-planner/starter';
+import { apply, boundsOf, fromUnit, toSquareMetres, toUnit, type Command, type Id, type Issue, type Metrics, type Project } from '@space-planner/core';
+import { packOf, PACKS, rackDefinition, rackSpecOf, SHAPES, shapeOf, warehouseMetrics, type RackSpec, type RuleResult } from '@space-planner/starter';
 import {
   AlignBottom,
   AlignCenterHorizontal,
@@ -29,6 +29,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { activityOf, type Activity } from '../logic/activity.js';
 import { copyOffset, type ControlSettings } from '../logic/controls.js';
+import { nextId } from '../logic/ids.js';
 import { formatArea, formatCentimetres, formatCount, formatDegrees, formatLength, formatMetres, formatPercent, formatSquareMetres, plural } from '../logic/format.js';
 import {
   describeIssue,
@@ -57,6 +58,7 @@ import {
   setElevationCommands,
   setRotationCommands,
   toBatch,
+  takenIds,
   type AlignEdge,
 } from '../logic/transform.js';
 import { CommitField, NumberField } from './Fields.js';
@@ -145,7 +147,17 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
   const types = new Set(Object.values(project.items).map((i) => i.definitionId)).size;
   const columns = project.space.obstacles.filter((o) => o.kind === 'column').length;
   const areaPerSeat = metrics.seats > 0 ? toSquareMetres(metrics.floorArea) / metrics.seats : undefined;
-  const facts: Array<[string, ReactNode]> = activity.pack === 'container' ? containerFacts(project) : [
+  const facts: Array<[string, ReactNode]> = activity.pack === 'container' ? containerFacts(project) : activity.pack === 'warehouse' ? (() => {
+    const w = warehouseMetrics(project);
+    return [
+      ['Warehouse', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
+      ['Rack rows · bays', `${w.rackRows} · ${w.bays}`],
+      ['Pallet positions', <span data-testid="warehouse-inspector-capacity">{formatCount(w.positions)}</span>],
+      ['Usable positions', formatCount(w.usablePositions)],
+      ['Rack footprint', `${w.rackArea.toFixed(1)} m² of ${w.floorArea.toFixed(1)} m²`],
+      ['Docks', formatCount(w.docks)],
+    ] as Array<[string, ReactNode]>;
+  })() : [
     ['Room', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
     ['Ceiling', project.space.ceilingHeight === undefined ? 'Not set' : `${formatMetres(project.space.ceilingHeight)} m`],
     ['Floor area', formatArea(metrics.floorArea)],
@@ -312,6 +324,7 @@ function OneItem({
         </div>
       </Group>
       {cargo && <CargoGroup project={project} item={item} dispatch={dispatch} />}
+      {rackSpecOf(definition) && <RackGroup project={project} item={item} dispatch={dispatch} />}
       <Group title="Dimensions" hint="Set by the item type.">
         <div className="grid-3">
           <CommitField label="W" ariaLabel="Width" unit="cm" value={cm(definition.size.w)} readOnly />
@@ -335,6 +348,36 @@ function OneItem({
       </div>
     </div>
   );
+}
+
+function RackGroup({ project, item, dispatch }: { project: Project; item: Project['items'][string]; dispatch: (a: Action) => void }) {
+  const spec = rackSpecOf(project.catalog[item.definitionId]);
+  if (!spec) return null;
+  const capacity = Math.min(spec.bays * spec.levels * spec.positionsPerLevel, spec.maxPositions ?? Infinity);
+  const change = (key: keyof Pick<RackSpec, 'bays' | 'levels' | 'positionsPerLevel' | 'bayWidth' | 'depth' | 'height'>, value: number) => {
+    const next = { ...spec, [key]: key === 'bayWidth' || key === 'depth' || key === 'height' ? fromUnit(value, 'cm') : value };
+    try {
+      const id = nextId(`rack-${item.id}`, takenIds(project));
+      const definition = rackDefinition(id, next);
+      const command = toBatch([
+        { type: 'catalog.define', definition },
+        { type: 'item.remove', id: item.id },
+        { type: 'item.add', item: { ...item, definitionId: id } },
+      ]);
+      if (command) dispatch({ type: 'command', command, select: [item.id] });
+    } catch { /* Invalid rack inputs do not create revisions. */ }
+  };
+  return <Group title="Rack capacity" hint="Each edited row gets its own rack type. The saved plan holds one row, not each structural piece.">
+    <div className="facts"><div className="fact"><span>Rack row</span><span>{item.id}</span></div><div className="fact"><span>Total positions</span><span>{capacity}</span></div></div>
+    <div className="grid-2">
+      <CommitField label="Bays" ariaLabel="Rack bays" unit="" value={spec.bays} digits={0} onCommit={(n) => change('bays', n)} readOnly={item.locked} />
+      <CommitField label="Levels" ariaLabel="Rack levels" unit="" value={spec.levels} digits={0} onCommit={(n) => change('levels', n)} readOnly={item.locked} />
+      <CommitField label="Positions" ariaLabel="Pallets per level per bay" unit="" value={spec.positionsPerLevel} digits={0} onCommit={(n) => change('positionsPerLevel', n)} readOnly={item.locked} />
+      <CommitField label="Bay width" ariaLabel="Rack bay width" unit="cm" value={toUnit(spec.bayWidth, 'cm')} onCommit={(n) => change('bayWidth', n)} readOnly={item.locked} />
+      <CommitField label="Depth" ariaLabel="Rack depth" unit="cm" value={toUnit(spec.depth, 'cm')} onCommit={(n) => change('depth', n)} readOnly={item.locked} />
+      <CommitField label="Height" ariaLabel="Rack height" unit="cm" value={toUnit(spec.height, 'cm')} onCommit={(n) => change('height', n)} readOnly={item.locked} />
+    </div>
+  </Group>;
 }
 
 function ManyItems({ project, ids, controls, dispatch }: { project: Project; ids: readonly Id[]; controls: ControlSettings; dispatch: (a: Action) => void }) {

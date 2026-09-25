@@ -30,7 +30,23 @@
 - [x] Live updates: re-check the project whenever the live connection (re)opens (race found by the browser tests)
 - [x] Tests: reference cases, property test, server tools, browser journey, planted bug; `pnpm check`
 
-## Next: T7 — warehouse MVP (plan §7)
+## In progress: T7 — warehouse MVP (plan §7)
+
+**Finish line:** A person can create, edit, check, route, inspect in 2D/3D and report a realistic warehouse in Atrium; agents share the command path; browser journeys and full `pnpm check` pass before calling T7 done. T8 begins only afterward.
+
+- [x] 30 × 20 × 8 m reference warehouse with two dock roles, five 6-bay/4-level/2-position rack rows (240 positions), a column and operational zones.
+- [x] Shared derived floor raster and Euclidean distance transform moved out of the hall; deterministic eight-direction shortest paths without diagonal corner cutting, mover width and reconstructed path.
+- [x] Parametric rack definitions, unique addressable locations and blocked/usable capacity; rack inspector can edit a row through one revision.
+- [x] Geometry-only named polygon zones in schema 2, migration from schema 1; zone edits preserve history, render in 2D/3D/report and can be made by an agent.
+- [x] Warehouse selection and reference/empty templates, storage panel, visible dock-to-rack route in 2D and 3D, rack/zone controls, capacity and report data.
+- [x] Checks for aisle gap, rack reachability, dock route, dock approach, restricted-zone conflict and rack boundary, with rule provenance; unknown for missing data.
+- [x] Agent tools to create, add rack/zone, read metrics and find a route; project check uses the warehouse pack.
+- [x] Hand-calculated 240-position reference, blocked location and route tests; 110-rack/5,280-position scale case; diagonal-corner planted bug caught and restored.
+- [ ] Browser journey and full `pnpm check`: browser binary is missing in this workspace; Playwright download returned a truncated archive. Journey test is written but not verified.
+- [ ] Usability and visual review in a real browser, including report layout, rack editing and 3D at 5,000+ repeated elements.
+- [ ] Extend pallet occupancy visualization and dock/zone editing where needed; audit 100-rack interactions and 3D performance before declaring MVP complete.
+- [ ] Recheck all prior hall/office/container browser journeys and save compatibility end to end; review and fix any regressions.
+- [ ] Finish T7 decision evidence and mark T7 done only after the unchecked gates pass. Then plan T8 using one source → machine A → buffer → machine B → inspection → finished goods line.
 
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)

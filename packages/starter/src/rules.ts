@@ -12,6 +12,7 @@ import {
   type Tick,
   type Vec2,
 } from '@space-planner/core';
+import { distanceToBlocked, paintPolygon } from '@space-planner/industry';
 
 /**
  * Rules shared by every activity pack: walkways to the doors, exits and door width, floor per
@@ -35,7 +36,14 @@ export type RuleCode =
   | 'stacking-group'
   | 'unloading-order'
   | 'balance'
-  | 'unpacked';
+  | 'unpacked'
+  | 'rack-capacity'
+  | 'rack-access'
+  | 'aisle-width'
+  | 'dock-access'
+  | 'restricted-zone'
+  | 'rack-boundary'
+  | 'dock-approach';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -75,6 +83,13 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'unloading-order': { kind: 'engineering', title: 'Pieces for an earlier stop are not blocked by pieces for a later stop between them and the doors', ruleSet: 'starter.container.v1' },
   balance: { kind: 'common-guidance', title: 'Cargo loading guidance: centre of mass within 10% of the middle along the length and across the width', ruleSet: 'starter.container.v1' },
   unpacked: { kind: 'engineering', title: 'Every planned piece is placed', ruleSet: 'starter.container.v1' },
+  'rack-capacity': { kind: 'engineering', title: 'Rack geometry and its bay, level and pallet-position counts match', ruleSet: 'starter.warehouse.v1' },
+  'rack-access': { kind: 'engineering', title: 'A planning forklift can travel from a dock to a service face of each rack on the derived floor grid', ruleSet: 'starter.warehouse.v1' },
+  'aisle-width': { kind: 'common-guidance', title: 'Gap between facing rack rows compared with the chosen forklift travel width; turning space needs a separate site check', ruleSet: 'starter.warehouse.v1' },
+  'dock-access': { kind: 'engineering', title: 'Every dock has a route to at least one rack row for the planning forklift', ruleSet: 'starter.warehouse.v1' },
+  'restricted-zone': { kind: 'company-policy', title: 'Storage racks must not intersect pedestrian or no-go polygons', ruleSet: 'starter.warehouse.v1' },
+  'rack-boundary': { kind: 'engineering', title: 'Rack rows must fit within the warehouse boundary', ruleSet: 'starter.warehouse.v1' },
+  'dock-approach': { kind: 'engineering', title: 'Dock approach points must lie in their named receiving or shipping operational zones', ruleSet: 'starter.warehouse.v1' },
 };
 
 export interface RuleResult {
@@ -87,7 +102,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }
@@ -176,27 +191,7 @@ export function seatsWithoutWayOut(project: Project, width: Tick, seatIds: reado
 
   // Rasterise by scanlines: for each row of cell centres, find where the outline crosses it and
   // mark the cells whose centres lie between crossings (even-odd rule).
-  const paint = (polygon: readonly Vec2[], grid: Uint8Array, value: 0 | 1) => {
-    const b = boundsOf(polygon);
-    const j0 = Math.max(0, Math.floor((b.minY - room.minY) / cell));
-    const j1 = Math.min(ny - 1, Math.ceil((b.maxY - room.minY) / cell) + 1);
-    const xs: number[] = [];
-    for (let j = j0; j <= j1; j++) {
-      const y = room.minY + (j - 0.5) * cell;
-      xs.length = 0;
-      for (let k = 0; k < polygon.length; k++) {
-        const p = polygon[k]!;
-        const q = polygon[(k + 1) % polygon.length]!;
-        if ((p.y <= y && y < q.y) || (q.y <= y && y < p.y)) xs.push(p.x + ((y - p.y) * (q.x - p.x)) / (q.y - p.y));
-      }
-      xs.sort((u, v) => u - v);
-      for (let k = 0; k + 1 < xs.length; k += 2) {
-        const i0 = Math.max(0, Math.ceil((xs[k]! - room.minX) / cell + 0.5));
-        const i1 = Math.min(nx - 1, Math.floor((xs[k + 1]! - room.minX) / cell + 0.5));
-        for (let i = i0; i <= i1; i++) grid[j * nx + i] = value;
-      }
-    }
-  };
+  const paint = (polygon: readonly Vec2[], grid: Uint8Array, value: 0 | 1) => paintPolygon(polygon, grid, nx, ny, cell, room.minX, room.minY, value);
   const blocked = new Uint8Array(nx * ny).fill(1);
   paint(project.space.boundary, blocked, 0);
   const fill = (polygon: readonly Vec2[]) => paint(polygon, blocked, 1);
@@ -283,50 +278,4 @@ export function distanceToOutline(polygon: readonly Vec2[], p: Vec2): number {
   return best;
 }
 
-/**
- * Exact Euclidean distance (in cells) from every cell centre to the nearest blocked cell centre,
- * by two passes of the 1-D lower-envelope transform (Felzenszwalb and Huttenlocher).
- */
-export function distanceToBlocked(blocked: Uint8Array, nx: number, ny: number): Float64Array {
-  const INF = 1e20;
-  const grid = new Float64Array(nx * ny);
-  for (let k = 0; k < grid.length; k++) grid[k] = blocked[k] ? 0 : INF;
-  const size = Math.max(nx, ny);
-  const f = new Float64Array(size);
-  const d = new Float64Array(size);
-  const v = new Int32Array(size);
-  const z = new Float64Array(size + 1);
-  const pass = (n: number) => {
-    let k = 0;
-    v[0] = 0;
-    z[0] = -INF;
-    z[1] = INF;
-    for (let q = 1; q < n; q++) {
-      let s = (f[q]! + q * q - (f[v[k]!]! + v[k]! * v[k]!)) / (2 * q - 2 * v[k]!);
-      while (s <= z[k]!) {
-        k--;
-        s = (f[q]! + q * q - (f[v[k]!]! + v[k]! * v[k]!)) / (2 * q - 2 * v[k]!);
-      }
-      k++;
-      v[k] = q;
-      z[k] = s;
-      z[k + 1] = INF;
-    }
-    k = 0;
-    for (let q = 0; q < n; q++) {
-      while (z[k + 1]! < q) k++;
-      d[q] = (q - v[k]!) ** 2 + f[v[k]!]!;
-    }
-  };
-  for (let i = 0; i < nx; i++) {
-    for (let j = 0; j < ny; j++) f[j] = grid[j * nx + i]!;
-    pass(ny);
-    for (let j = 0; j < ny; j++) grid[j * nx + i] = d[j]!;
-  }
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) f[i] = grid[j * nx + i]!;
-    pass(nx);
-    for (let i = 0; i < nx; i++) grid[j * nx + i] = Math.sqrt(d[i]!);
-  }
-  return grid;
-}
+export { distanceToBlocked } from '@space-planner/industry';

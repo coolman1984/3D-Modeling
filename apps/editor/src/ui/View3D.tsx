@@ -1,5 +1,5 @@
 import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
-import { shapeOf, type ShapeKey } from '@space-planner/starter';
+import { rackSpecOf, shapeOf, type RackSpec, type ShapeKey } from '@space-planner/starter';
 import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Scissors, Square } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
@@ -33,6 +33,7 @@ export interface SceneLook {
   readonly hidden?: ReadonlySet<Id>;
   /** Leave out the south wall (the one nearest the starting camera) to look inside. */
   readonly cutaway?: boolean;
+  readonly routePoints?: readonly Vec2[];
 }
 
 const TICKS_PER_METRE = 10_000;
@@ -156,7 +157,7 @@ function cylinder(r: number, h: number, color: number, x = 0, y = h / 2, z = 0, 
  * A simple model for each shape, in the item's local frame: width along X, depth along Z,
  * front facing -Z (plan north at rotation 0), standing on Y = 0.
  */
-function buildModel(shape: ShapeKey, w: number, d: number, h: number): THREE.Group {
+function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: RackSpec): THREE.Group {
   const g = new THREE.Group();
   const leg = Math.min(0.05, w / 8, d / 8);
   const legs = (height: number, color: number, inset = 0.04) => {
@@ -209,6 +210,25 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number): THREE.Gro
       for (const sx of [-1, 1]) g.add(box(0.03, h, d, COLORS.wood, sx * (w / 2 - 0.015)));
       g.add(box(w, h, 0.02, COLORS.wood, 0, h / 2, d / 2 - 0.01));
       for (let i = 0; i < 5; i++) g.add(box(w - 0.06, 0.025, d - 0.02, COLORS.wood, 0, 0.05 + (i * (h - 0.08)) / 4));
+      break;
+    }
+    case 'rack': {
+      if (!rack) { g.add(box(w, h, d, COLORS.metal)); break; }
+      const upright = mt(rack.uprightWidth);
+      const bay = mt(rack.bayWidth);
+      for (let b = 0; b <= rack.bays; b++) {
+        const x = -w / 2 + upright / 2 + b * (bay + upright);
+        for (const z of [-d / 2 + upright / 2, d / 2 - upright / 2]) g.add(box(upright, h, upright, COLORS.metal, x, h / 2, z));
+      }
+      for (let level = 1; level <= rack.levels; level++) {
+        const y = (level / (rack.levels + 0.25)) * h;
+        for (const z of [-d / 2 + upright / 2, d / 2 - upright / 2]) g.add(box(w - upright, 0.08, 0.07, COLORS.metal, 0, y, z));
+        // Narrow dividers mark each pallet bay without storing each position as a separate item.
+        for (let b = 0; b < rack.bays; b++) {
+          const x = -w / 2 + upright + b * (bay + upright) + bay / 2;
+          g.add(box(Math.max(0.01, bay / rack.positionsPerLevel - 0.03), 0.018, 0.04, COLORS.wood, x, y + 0.055));
+        }
+      }
       break;
     }
     case 'plant': {
@@ -267,7 +287,7 @@ function tint(group: THREE.Object3D, color: number, strength: number): void {
 function disposeTree(object: THREE.Object3D): void {
   object.traverse((o) => {
     const mesh = o as THREE.Mesh;
-    if (mesh.isMesh || (o as THREE.LineSegments).isLineSegments) {
+    if (mesh.isMesh || (o as THREE.Line).isLine) {
       mesh.geometry.dispose();
       (o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).dispose();
       (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => m.dispose());
@@ -326,6 +346,16 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
   floor.receiveShadow = true;
   group.add(floor);
 
+  for (const zone of project.space.zones ?? []) {
+    const kind = zone.kind;
+    const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind.includes('aisle') ? 0x7bb198 : 0x829fc3;
+    const region = new THREE.Shape(zone.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
+    const overlay = new THREE.Mesh(new THREE.ShapeGeometry(region), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.12 : 0.23, side: THREE.DoubleSide, depthWrite: false }));
+    overlay.rotation.x = -Math.PI / 2;
+    overlay.position.y = 0.009;
+    group.add(overlay);
+  }
+
   // A light one-metre grid on the floor, as on the plan.
   const box3 = boundsOf(project.space.boundary);
   const points: THREE.Vector3[] = [];
@@ -372,6 +402,19 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
   }
 
   group.add(buildItems(project, severity, selectedIds, look));
+  if (look.routePoints?.length) {
+    const points = look.routePoints.map((p) => at(p, 0.07));
+    const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x2b54d0, depthTest: false }));
+    route.name = 'warehouse-route';
+    route.renderOrder = 20;
+    group.add(route);
+    for (const [index, point] of [points[0]!, points[points.length - 1]!].entries()) {
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 6), new THREE.MeshBasicMaterial({ color: index === 0 ? 0xffffff : 0x2b54d0, depthTest: false }));
+      marker.position.copy(point);
+      marker.renderOrder = 21;
+      group.add(marker);
+    }
+  }
   return group;
 }
 
@@ -409,7 +452,7 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
   const unit = new THREE.Vector3(1, 1, 1);
   for (const { definition, tilt, state, color, items } of batches.values()) {
     const { w, d, h } = definition.size;
-    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h));
+    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), rackSpecOf(definition));
     // A lying item: turn the upright model about its centre, then stand it on the floor again.
     const placedHeight = tilt === 'x' ? mt(w) : tilt === 'y' ? mt(d) : mt(h);
     const lay = new THREE.Matrix4()

@@ -14,7 +14,8 @@ Layout:
 | Path | What |
 |---|---|
 | `packages/core` | Pure TypeScript: units, geometry, model, commands, checks, metrics, save format |
-| `packages/starter` | Activity packs (hall, office: catalogs, styles, rules in `PACKS`), shared rules, 3D shape keys, room templates (activity knowledge lives here, not in core) |
+| `packages/starter` | Activity packs (hall, office, container, warehouse), rules, item families and templates (activity knowledge lives here, not in core) |
+| `packages/industry` | Derived floor raster and deterministic mover-width-aware routing; no saved grids |
 | `apps/server` | Local server: SQLite store (projects, revisions, settings, agent runs), HTTP API, live events, agent tools, MCP bridge, agent runner |
 | `apps/editor` | React editor: projects page, 2D plan, 3D view, room and item-type editors, history, agent panel, settings |
 | `scripts/start.mjs` + `start.*` | One-click launcher |
@@ -47,6 +48,7 @@ pnpm --filter @space-planner/core test -- test/checks.test.ts   # one file
   not "wedding chairs" or "pallet racks". Those belong to future activity packs.
 - **Saves are forever.** Never merge a change that makes an existing save file fail to open.
   Bump `SCHEMA_VERSION` and add a step to `MIGRATIONS` instead.
+  Schema 2 adds optional named polygon zones and optional door metadata; schema 1 plans migrate on open.
 - **Deterministic output.** Same input, same result, same order (no locale-aware sorting).
 - **Derived data is never stored.** The spatial index is rebuilt from the project and must give the
   same issues as the all-pairs check (`checkProject(p, { spatialIndex: false })`).

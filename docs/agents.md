@@ -9,7 +9,11 @@ the planner tools.
 | Tool | What it does |
 |---|---|
 | `list_projects` | All projects with id, name, revision, item count |
-| `create_project` | New rectangular room as a hall or an office (`activity`), with that activity's catalog |
+| `create_project` | New hall, office, container or warehouse (`activity`); `warehouse` with `reference: true` creates the 30 × 20 m sample |
+| `add_warehouse_rack` | One parametric rack row through one revision; centre in metres, bays, levels and positions |
+| `add_warehouse_zone` | Named polygon (3–32 metre-coordinate vertices) through one revision |
+| `warehouse_metrics` | Storage positions, usable positions, rack/zone areas and docks |
+| `find_warehouse_route` | Dock to rack, mover body width and side clearance, reachability and sampled distance |
 | `get_project` | Room, doors, columns, item types, every item, issues, metrics |
 | `set_room` | Size, ceiling, doors on walls, columns |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
@@ -73,3 +77,13 @@ x from the front wall to the doors at the east end; the roof is the ceiling.
 4. `get_project` / `check_project` report payload, support (70% of the base), load on top,
    orientation, stacking groups, unloading order (last in, first out), balance and unplaced pieces,
    each with the source of its threshold.
+
+## Warehouse planning (T7 in progress)
+
+Use `create_project` with `activity: "warehouse", reference: true` for a measured example. Use
+`get_project` for rack and dock ids; `warehouse_metrics` for structural capacity; and
+`find_warehouse_route` to inspect forklift reachability. One rack row is one item, while bay /
+level / position addresses such as `R01-B03-L02-P01` are derived. `add_warehouse_zone` can
+create an arbitrary simple polygon with a warehouse-owned kind (`receiving`, `staging`, `no-go`,
+`pedestrian`, `main-aisle`, etc.). `check_project` reports rule provenance. Distances use a
+20 cm grid without vehicle-turning simulation; they are planning estimates, not site approval.

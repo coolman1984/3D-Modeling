@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Briefcase,
   Package,
+  Warehouse,
   Check,
   CheckCircle,
   CircleDashed,
@@ -201,6 +202,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               { id: 'hall', label: 'Event hall', count: count('hall') },
               { id: 'office', label: 'Office', count: count('office') },
               { id: 'container', label: 'Container', count: count('container') },
+              { id: 'warehouse', label: 'Warehouse', count: count('warehouse') },
             ]}
           />
           <span className="spacer" />
@@ -425,12 +427,14 @@ const TEMPLATES: readonly Template[] = [
   { id: 'office', name: 'Open office', desc: '32 × 18 m · 3.0 m ceiling · one door', width: 32, depth: 18, ceiling: 3, pack: 'office' },
   { id: 'meeting', name: 'Meeting room', desc: '7.2 × 5.4 m · 2.8 m ceiling · one door', width: 7.2, depth: 5.4, ceiling: 2.8, pack: 'office' },
   { id: 'demo', name: 'Demo hall', desc: '10 × 8 m · a door and a column to try things', width: 10, depth: 8, ceiling: 3, pack: 'hall', demo: true },
+  { id: 'warehouse', name: 'Reference warehouse', desc: '30 × 20 m · 5 rack rows · 240 pallet positions', width: 30, depth: 20, ceiling: 8, pack: 'warehouse' },
+  { id: 'warehouse-empty', name: 'Empty warehouse', desc: '30 × 20 m · add your own rack rows and zones', width: 30, depth: 20, ceiling: 8, pack: 'warehouse' },
   { id: 'blank', name: 'Blank', desc: 'Any size · add everything yourself', width: 12, depth: 9, ceiling: 3, pack: 'hall' },
 ];
 
 /** "Start with the room": name, activity, size and a live preview; opens the editor when done. */
 function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: string) => void }) {
-  const [template, setTemplate] = useState<Template>(TEMPLATES[4]!);
+  const [template, setTemplate] = useState<Template>(TEMPLATES.find((t) => t.id === 'blank')!);
   const [name, setName] = useState('');
   const [activity, setActivity] = useState<PackId>('hall');
   const [width, setWidth] = useState<number | undefined>(12);
@@ -464,6 +468,8 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
     try {
       const project = isContainer
         ? await api.createProject({ name: name.trim(), activity: 'container', container_type: containerId })
+        : template.id === 'warehouse' && activity === 'warehouse' && width === 30 && depth === 20 && ceiling === 8
+        ? await api.createProject({ name: name.trim() || 'Reference warehouse', template: 'warehouse-reference' })
         : template.demo
         ? await api.createProject({ name: name.trim() || 'Demo hall 10 × 8 m', template: 'demo' })
         : await api.createProject({ name: name.trim(), width_m: w, depth_m: d, activity, ...(ceiling === undefined ? {} : { ceiling_m: ceiling }) });
@@ -506,6 +512,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 ['hall', 'Event hall', 'Weddings, conferences, galas', <Confetti size={22} />],
                 ['office', 'Office', 'Workstations, meeting rooms', <Briefcase size={22} />],
                 ['container', 'Container', 'Cargo loading plans', <Package size={22} />],
+                ['warehouse', 'Warehouse', 'Racks, capacity and forklift routes', <Warehouse size={22} />],
               ] as const
             ).map(([id, label, hint, icon]) => (
               <button
@@ -516,8 +523,9 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 data-activity={id}
                 disabled={template.demo && id !== 'container'}
                 onClick={() => {
-                  setActivity(id);
-                  if (id === 'container' && template.demo) setTemplate(TEMPLATES[4]!);
+                  if (id === 'warehouse') choose(TEMPLATES.find((t) => t.id === 'warehouse')!);
+                  else setActivity(id);
+                  if (id === 'container' && template.demo) setTemplate(TEMPLATES.find((t) => t.id === 'blank')!);
                 }}
               >
                 {icon}

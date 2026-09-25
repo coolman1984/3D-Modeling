@@ -161,6 +161,14 @@ Parametric racks (bays × levels × positions), rows, aisles, docks, staging / p
 (locations, pallet capacity, floor and cube utilisation), aisle-width rules with provenance,
 instanced racks and pallets, report, agent tools. Introduces `packages/industry` (routing).
 
+**Implementation checkpoint (in progress):** the warehouse pack, reference warehouse, parametric rows,
+named zones, dock roles, 2D/3D route display, source-labelled rules, report and high-level agent tools
+are implemented. Movement uses deterministic grid Dijkstra, not A*: for a single pair and these
+planning grids it is simple to inspect, while still finding the shortest permitted sampled route.
+The grid is derived at 20 cm cells; it does not model turning radii, swept envelopes or site code
+compliance. Structural storage capacity is distinct from actual stock occupancy. T7 is not done
+until the browser journey and the visual/performance gates in `TASKS.md` pass.
+
 ### T8 — Production line MVP
 Machines with operating / maintenance clearance, operator side, input / output points, stations,
 buffers, conveyors, sources, sinks, flow relations drawn as directed paths, flow length and

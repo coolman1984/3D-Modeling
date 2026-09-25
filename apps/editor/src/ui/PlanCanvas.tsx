@@ -47,6 +47,8 @@ interface Props {
   readonly itemFills?: ReadonlyMap<Id, string> | undefined;
   /** Labels that replace the type name (loading step numbers). */
   readonly itemLabels?: ReadonlyMap<Id, string> | undefined;
+  /** Temporary movement route drawn over the plan; never saved. */
+  readonly route?: readonly Vec2[] | undefined;
 }
 
 type Gesture =
@@ -81,7 +83,7 @@ const HANDLE_GAP = 26; // pixels between the selection box and the rotation hand
  * click / Shift-click / box select, drag with grid and smart guides (Shift locks the axis,
  * Alt is slow and precise, Ctrl ignores snapping), a rotation handle, and pan and zoom.
  */
-export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels }: Props) {
+export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const gesture = useRef<Gesture | null>(null);
@@ -383,6 +385,15 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
           })()}
         <path d={minorGrid} className="grid-minor" />
         <path d={majorGrid} className="grid" />
+        {(project.space.zones ?? []).map((zone) => {
+          const b = boundsOf(zone.polygon);
+          const p = toScreen(v, { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 });
+          const restricted = zone.kind === 'no-go' || zone.kind === 'pedestrian';
+          return <g key={zone.id} data-zone={zone.id} pointerEvents="none" className="warehouse-zone">
+            <path d={pathOf(v, zone.polygon)} fill={restricted ? '#d7a79d' : zone.kind.includes('aisle') ? '#c9dfd4' : '#b9c9e2'} fillOpacity={zone.kind === 'storage' ? 0.13 : 0.21} stroke={restricted ? '#a85f54' : '#55789f'} strokeWidth={1} strokeDasharray="5 4" />
+            {Math.min(b.maxX - b.minX, b.maxY - b.minY) * v.scale > 14 && <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="var(--ink-2)" fontSize={10}>{zone.kind.replace(/-/g, ' ')}</text>}
+          </g>;
+        })}
         {rulerX.map((m) => {
           const at = toScreen(v, { x: roomBounds.minX + m * METRE, y: roomBounds.maxY });
           return (
@@ -460,6 +471,12 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             </g>
           );
         })}
+        {route && route.length > 0 && (
+          <g data-testid="warehouse-route" pointerEvents="none">
+            <polyline points={route.map((p) => { const s = toScreen(v, p); return `${s.x},${s.y}`; }).join(' ')} fill="none" stroke="var(--accent)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+            {[route[0]!, route[route.length - 1]!].map((p, i) => { const s = toScreen(v, p); return <circle key={i} cx={s.x} cy={s.y} r={5} fill={i ? 'var(--accent)' : 'white'} stroke="var(--accent)" strokeWidth={2} />; })}
+          </g>
+        )}
         {issues.map((issue, i) =>
           issue.evidence && issue.severity !== 'info' ? <path key={`e-${i}`} d={pathOf(v, issue.evidence)} className={`evidence ${issue.severity}`} /> : null,
         )}

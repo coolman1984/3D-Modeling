@@ -210,8 +210,9 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
           onClick={() => {
             if (!spec) return;
             // Pack data about the space (a container's type and payload) stays with the room.
-            const space = roomSpace(spec);
-            dispatch({ type: 'command', command: { type: 'space.set', space: project.space.meta ? { ...space, meta: project.space.meta } : space } });
+            const room = roomSpace(spec);
+            const space = { ...room, doors: room.doors.map((d) => ({ ...d, ...(project.space.doors.find((old) => old.id === d.id)?.meta ? { meta: project.space.doors.find((old) => old.id === d.id)!.meta } : {}) })) };
+            dispatch({ type: 'command', command: { type: 'space.set', space: { ...space, ...(project.space.meta ? { meta: project.space.meta } : {}), ...(project.space.zones ? { zones: project.space.zones } : {}) } } });
             setDirty(false);
           }}
         >
