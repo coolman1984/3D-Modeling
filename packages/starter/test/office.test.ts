@@ -64,7 +64,7 @@ describe('office pack', () => {
   });
 
   it('packs are one list; an unknown style falls back to the pack’s first style', () => {
-    expect(PACKS.map((p) => p.id)).toEqual(['hall', 'office', 'container', 'warehouse']);
+    expect(PACKS.map((p) => p.id)).toEqual(['hall', 'office', 'container', 'warehouse', 'production']);
     expect(packOf('nope').id).toBe('hall');
     const p = desk(office(), 1, 4, 3, 0.3);
     expect(checkPack(p, 'office', 'banquet')).toEqual(checkOffice(p, 'open-plan').map((r) => ({ ...r, source: RULE_SOURCES[r.code] })));

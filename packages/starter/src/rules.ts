@@ -43,7 +43,9 @@ export type RuleCode =
   | 'dock-access'
   | 'restricted-zone'
   | 'rack-boundary'
-  | 'dock-approach';
+  | 'dock-approach'
+  | 'machine-boundary'
+  | 'flow-reachability';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -90,6 +92,8 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'restricted-zone': { kind: 'company-policy', title: 'Storage racks must not intersect pedestrian or no-go polygons', ruleSet: 'starter.warehouse.v1' },
   'rack-boundary': { kind: 'engineering', title: 'Rack rows must fit within the warehouse boundary', ruleSet: 'starter.warehouse.v1' },
   'dock-approach': { kind: 'engineering', title: 'Dock approach points must lie in their named receiving or shipping operational zones', ruleSet: 'starter.warehouse.v1' },
+  'machine-boundary': { kind: 'engineering', title: 'Stations must fit within the production floor boundary', ruleSet: 'starter.production.v1' },
+  'flow-reachability': { kind: 'engineering', title: 'A material handler can travel from each station to the next in the line, on the derived floor grid', ruleSet: 'starter.production.v1' },
 };
 
 export interface RuleResult {
@@ -102,7 +106,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }

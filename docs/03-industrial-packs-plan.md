@@ -176,7 +176,35 @@ distinct from actual stock occupancy.
 Machines with operating / maintenance clearance, operator side, input / output points, stations,
 buffers, conveyors, sources, sinks, flow relations drawn as directed paths, flow length and
 crossings; spatial feasibility separate from operation. `SimulationPort` with a small deterministic
-TypeScript discrete-event simulator (throughput, WIP, blocking, starvation) as an optional tool.
+TypeScript discrete-event simulator (throughput, WIP, blocking, starvation) as an optional tool —
+later work, after spatial flow is correct; this stage stops at spatial feasibility.
+
+**Model (smallest correct one, reusing T5–T7 rather than inventing new geometry):**
+A station (source, machine, buffer, inspection or sink) is a plain item whose `category` is
+`'box'`, exactly like container cargo — no new 3D geometry required for the MVP. Its "operating
+clearance" and "maintenance clearance" are the item's own existing `clearance.front` and
+`clearance.back`: the core already checks clearance overlaps for every item, so this needs no new
+rule at all, just a domain meaning for two fields that already exist. Flow order is
+`item.meta.step` (the same field a container piece's loading order already uses, via the existing
+`stepOf`, not a new one). The point material enters and leaves a station is derived from its rotation (same "+Y is front"
+convention every item already has): input is behind the item, output in front of it. The route
+between two consecutive stations is one `packages/industry` `findRoute` call between those two
+points — a production line is a short sequence, not an all-pairs problem, so the decision 0011
+lesson (one search per source, not one per pair) is a design constraint from the start here, not a
+fix applied after measuring a regression. Flow length is the sum of the consecutive segment
+distances; crossings (if any straight I/O segment crosses another) are a metric to report, not a
+pass/fail rule, since a planner may accept a crossing a code check cannot judge. Rules: a station
+fits inside the room boundary, and each consecutive pair is reachable for a material-handler
+movement profile — both with rule provenance, `unknown` when a line has no stations or is a single
+station. Buffers are ordinary stations with a `meta.capacity`, reported in metrics, not modelled as
+a queueing system in this stage.
+
+**Implementation checkpoint (done — see decision 0012):** the production pack, reference line,
+flow order/route/length, both rules, the editor panel and inspector group, agent tools, report
+section, hand-calculated and scale tests, and the browser journey are implemented and pass
+together with `pnpm check`. The first version of the flow-point gap left the material handler's
+own half-width out of the margin, so every route in the reference line came back blocked; the
+hand-calculated test caught it on the first run, before it reached the browser.
 
 ### T9 — Vehicle depot / garage MVP
 Vehicle profiles (length, width, height, wheelbase, overhangs, minimum turning radius, reverse

@@ -1,5 +1,5 @@
 import { apply, boundsOf, fromUnit, toSquareMetres, toUnit, type Command, type Id, type Issue, type Metrics, type Project } from '@space-planner/core';
-import { packOf, PACKS, rackDefinition, rackSpecOf, SHAPES, shapeOf, warehouseMetrics, type RackSpec, type RuleResult } from '@space-planner/starter';
+import { packOf, PACKS, productionMetrics, rackDefinition, rackSpecOf, SHAPES, shapeOf, stationKindOf, stepOf, warehouseMetrics, type RackSpec, type RuleResult } from '@space-planner/starter';
 import {
   AlignBottom,
   AlignCenterHorizontal,
@@ -136,7 +136,7 @@ export function PropertiesPanel({
 }) {
   const items = selectedIds.map((id) => project.items[id]).filter((i) => i !== undefined);
   if (items.length === 0) return <ProjectSummary project={project} metrics={metrics} activity={activity} summary={summary} onOpenReview={onOpenReview} />;
-  if (items.length === 1) return <OneItem project={project} id={items[0]!.id} controls={controls} issues={issues} dispatch={dispatch} onEditType={onEditType} onShow3D={onShow3D} onFocusIssue={onFocusIssue} cargo={activity.pack === 'container'} />;
+  if (items.length === 1) return <OneItem project={project} id={items[0]!.id} controls={controls} issues={issues} dispatch={dispatch} onEditType={onEditType} onShow3D={onShow3D} onFocusIssue={onFocusIssue} cargo={activity.pack === 'container'} production={activity.pack === 'production'} />;
   return <ManyItems project={project} ids={items.map((i) => i.id)} controls={controls} dispatch={dispatch} />;
 }
 
@@ -227,8 +227,10 @@ function OneItem({
   onShow3D,
   onFocusIssue,
   cargo,
+  production,
 }: {
   cargo: boolean;
+  production: boolean;
   project: Project;
   id: Id;
   controls: ControlSettings;
@@ -325,6 +327,7 @@ function OneItem({
       </Group>
       {cargo && <CargoGroup project={project} item={item} dispatch={dispatch} />}
       {rackSpecOf(definition) && <RackGroup project={project} item={item} dispatch={dispatch} />}
+      {production && stationKindOf(definition) && <FlowGroup project={project} item={item} dispatch={dispatch} />}
       <Group title="Dimensions" hint="Set by the item type.">
         <div className="grid-3">
           <CommitField label="W" ariaLabel="Width" unit="cm" value={cm(definition.size.w)} readOnly />
@@ -377,6 +380,27 @@ function RackGroup({ project, item, dispatch }: { project: Project; item: Projec
       <span className="span-all"><CommitField label="Depth" wideKey ariaLabel="Rack depth" unit="cm" value={toUnit(spec.depth, 'cm')} onCommit={(n) => change('depth', n)} readOnly={item.locked} /></span>
       <span className="span-all"><CommitField label="Height" wideKey ariaLabel="Rack height" unit="cm" value={toUnit(spec.height, 'cm')} onCommit={(n) => change('height', n)} readOnly={item.locked} /></span>
     </div>
+  </Group>;
+}
+
+function FlowGroup({ project, item, dispatch }: { project: Project; item: Project['items'][string]; dispatch: (a: Action) => void }) {
+  const definition = project.catalog[item.definitionId];
+  const kind = stationKindOf(definition);
+  if (!kind) return null;
+  const step = stepOf(item);
+  const capacity = definition?.meta?.capacity;
+  const metrics = productionMetrics(project);
+  const changeStep = (n: number) => dispatch({ type: 'command', command: { type: 'item.meta', id: item.id, meta: { ...item.meta, step: Math.round(n) } }, select: [item.id] });
+  return <Group title="Production flow" hint="Order decides the line; a station without an order is not part of the flow.">
+    <div className="facts">
+      <div className="fact"><span>Station kind</span><span style={{ textTransform: 'capitalize' }}>{kind}</span></div>
+      {capacity !== undefined && <div className="fact"><span>Capacity</span><span>{capacity}</span></div>}
+      <div className="fact"><span>Line flow length</span><span>{(metrics.flowLength / 10_000).toFixed(1)} m</span></div>
+    </div>
+    <div className="grid-2" style={{ marginTop: 10 }}>
+      <span className="span-all"><CommitField label="Order" wideKey ariaLabel="Flow order" unit="" value={step ?? 0} digits={0} onCommit={changeStep} readOnly={item.locked} /></span>
+    </div>
+    {step === undefined && <p className="hint">Set a flow order to place this station in the line (1 = first).</p>}
   </Group>;
 }
 

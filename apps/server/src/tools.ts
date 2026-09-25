@@ -20,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, detectPack, extremePointPacker, isContainer, newContainer, newRoom, newWarehouse, packContainer, packOf, PACKS, rackDefinition, referenceWarehouse, ROUND_SHAPES, SHAPES, stepOf, stopOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRoom, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceWarehouse, ROUND_SHAPES, SHAPES, stepOf, stopOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -175,7 +175,7 @@ export function describeProject(project: Project): string {
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line' };
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -284,7 +284,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a hall, office, container or warehouse project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Returns the project id.',
+    description: 'Create a hall, office, container, warehouse or production-line project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Returns the project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -294,7 +294,7 @@ export const TOOLS: readonly ToolDef[] = [
         ceiling_m: { type: 'number', description: 'Ceiling height in metres, if known.' },
         activity: { type: 'string', enum: PACKS.map((p) => p.id) },
         container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'For activity "container".' },
-        reference: { type: 'boolean', description: 'For activity warehouse: create the reference 30 × 20 m layout.' },
+        reference: { type: 'boolean', description: 'For activity warehouse: the reference 30 × 20 m layout. For activity production: the reference 30 × 8 m line.' },
       },
       required: ['name'],
       additionalProperties: false,
@@ -310,6 +310,13 @@ export const TOOLS: readonly ToolDef[] = [
           : newWarehouse(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 8);
         const created = ctx.store.createProject(project, ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}\nWarehouse capacity: ${warehouseMetrics(created).positions} pallet positions.`;
+      }
+      if (str(input, 'activity', true) === 'production') {
+        const project = input.reference === true
+          ? referenceProductionLine(str(input, 'name'))
+          : newProductionLine(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
+        const created = ctx.store.createProject(project, ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}\nProduction line: ${productionMetrics(created).stations} stations, ${(productionMetrics(created).flowLength / 10_000).toFixed(1)} m flow length.`;
       }
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
@@ -371,6 +378,16 @@ export const TOOLS: readonly ToolDef[] = [
       const project = load(ctx, input);
       if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
       return JSON.stringify(warehouseMetrics(project));
+    },
+  },
+  {
+    name: 'production_metrics',
+    description: 'Read station count, machine/buffer counts and buffer capacity, and the flow line length and reachability of a production line.',
+    inputSchema: { type: 'object', properties: { project_id: projectId }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'production') throw new ToolError('This project is not a production line.');
+      return JSON.stringify(productionMetrics(project));
     },
   },
   {

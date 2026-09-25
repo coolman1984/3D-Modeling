@@ -61,7 +61,7 @@ const post = <T>(path: string, body: unknown) => request<T>(path, { method: 'POS
 
 export const api = {
   listProjects: () => request<ProjectSummary[]>('/api/projects'),
-  createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference'; file?: string }) =>
+  createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference' | 'production-reference'; file?: string }) =>
     post<Project>('/api/projects', body),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   deleteProject: (id: string) => request<unknown>(`/api/projects/${id}`, { method: 'DELETE' }),

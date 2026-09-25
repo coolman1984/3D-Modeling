@@ -141,6 +141,8 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'restricted-zone': 'Racks avoid restricted zones',
   'rack-boundary': 'Racks fit inside the warehouse',
   'dock-approach': 'Dock approach areas',
+  'machine-boundary': 'Stations fit inside the floor',
+  'flow-reachability': 'Material handler reaches every station',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -207,6 +209,10 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} conflicts`, required: 'None' };
     case 'rack-boundary':
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} inside`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} rack rows` };
+    case 'machine-boundary':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} inside`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} stations` };
+    case 'flow-reachability':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} segments` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -242,6 +248,10 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'Add the operational zones or link the dock to its approach zone before this check can run.';
       case 'rack-data':
         return 'A rack row needs valid bay, level and dimension data.';
+      case 'no-stations':
+        return 'Add stations to the production line to check it.';
+      case 'one-station':
+        return 'Add a second station to check the material flow between them.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -303,5 +313,9 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass' ? 'No rack crosses a pedestrian or no-go zone.' : `Move racks out of restricted zones: ${list(rule.entityIds)}.`;
     case 'rack-boundary':
       return rule.status === 'pass' ? 'Every rack row fits inside the warehouse.' : `Rack rows outside the warehouse: ${list(rule.entityIds)}.`;
+    case 'machine-boundary':
+      return rule.status === 'pass' ? 'Every station fits inside the production floor.' : `Stations outside the floor: ${list(rule.entityIds)}.`;
+    case 'flow-reachability':
+      return rule.status === 'pass' ? 'The material handler can travel from each station to the next.' : `No route between: ${list(rule.entityIds)}.`;
   }
 }

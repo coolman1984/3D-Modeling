@@ -41,6 +41,11 @@ const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
     'Review the dock to rack travel path and keep every main aisle clear.',
     'Compare usable pallet positions after blocking damaged storage locations.',
   ],
+  production: [
+    'Check whether a material handler can reach every station in order.',
+    'Move the buffer so it sits evenly between the two machines.',
+    'Read the flow length and station counts for this line.',
+  ],
 };
 
 interface Step {
