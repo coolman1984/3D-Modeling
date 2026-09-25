@@ -13,7 +13,7 @@ import {
   type Project,
   type Vec2,
 } from '@space-planner/core';
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { CornersOut, Minus, Plus } from '@phosphor-icons/react';
 import type { ControlSettings } from '../logic/controls.js';
 import { formatCentimetres, formatCount, formatDegrees, formatLength, formatMetres } from '../logic/format.js';
@@ -41,6 +41,12 @@ interface Props {
   readonly onFit?: () => void;
   /** Zoom relative to the fitted room (1 = fitted) and the drawing scale (100 for 1:100). */
   readonly onZoom?: (zoom: number, scaleRatio: number) => void;
+  /** A wall that is really a pair of doors along its whole width (a container's east end). */
+  readonly openEnd?: 'east' | undefined;
+  /** Fill colours per item (a container coloured by stop, weight or step). */
+  readonly itemFills?: ReadonlyMap<Id, string> | undefined;
+  /** Labels that replace the type name (loading step numbers). */
+  readonly itemLabels?: ReadonlyMap<Id, string> | undefined;
 }
 
 type Gesture =
@@ -75,7 +81,7 @@ const HANDLE_GAP = 26; // pixels between the selection box and the rotation hand
  * click / Shift-click / box select, drag with grid and smart guides (Shift locks the axis,
  * Alt is slow and precise, Ctrl ignores snapping), a rotation handle, and pan and zoom.
  */
-export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom }: Props) {
+export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const gesture = useRef<Gesture | null>(null);
@@ -361,6 +367,20 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
         </defs>
         <path d={pathOf(v, project.space.boundary)} className="wall" style={{ strokeWidth: wall * 2 }} />
         <path d={pathOf(v, project.space.boundary)} className="floor" />
+        {openEnd === 'east' &&
+          (() => {
+            const a = toScreen(v, { x: roomBounds.maxX, y: roomBounds.minY });
+            const b = toScreen(v, { x: roomBounds.maxX, y: roomBounds.maxY });
+            return (
+              <g className="open-end" pointerEvents="none">
+                <line x1={a.x + wall} y1={a.y} x2={b.x + wall} y2={b.y} style={{ stroke: 'var(--paper)', strokeWidth: wall * 2 + 2 }} />
+                <line x1={a.x + wall / 2} y1={a.y} x2={b.x + wall / 2} y2={b.y} className="door-arc" />
+                <text x={a.x + wall + 8} y={(a.y + b.y) / 2} className="ruler" dominantBaseline="middle" transform={`rotate(90 ${a.x + wall + 8} ${(a.y + b.y) / 2})`} textAnchor="middle">
+                  DOORS
+                </text>
+              </g>
+            );
+          })()}
         <path d={minorGrid} className="grid-minor" />
         <path d={majorGrid} className="grid" />
         {rulerX.map((m) => {
@@ -425,14 +445,16 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
           const across = upright ? definition.size.w : definition.size.d;
           const tall = upright ? definition.size.d : definition.size.w;
           const straight = item.rotation % 90_000 === 0;
-          const showLabel = straight && across * v.scale > 6.2 * definition.name.length + 10 && tall * v.scale > 16;
+          const label = itemLabels?.get(item.id) ?? definition.name;
+          const showLabel = (straight || itemLabels !== undefined) && across * v.scale > 6.2 * label.length + 10 && tall * v.scale > 16;
+          const fill = itemFills?.get(item.id);
           return (
-            <g key={item.id} data-item-id={item.id} className={classes.join(' ').replace(/\s+/g, ' ').trim()} onPointerDown={(e) => onItemDown(e, item.id)}>
+            <g key={item.id} data-item-id={item.id} className={classes.join(' ').replace(/\s+/g, ' ').trim()} onPointerDown={(e) => onItemDown(e, item.id)} style={fill ? ({ '--fill': fill } as CSSProperties) : undefined}>
               <path d={pathOf(v, body)} className="item-body" />
               <line x1={front[0]!.x} y1={front[0]!.y} x2={front[1]!.x} y2={front[1]!.y} className="item-front" />
               {showLabel && (
                 <text x={centre.x} y={centre.y} className="item-label">
-                  {definition.name}
+                  {label}
                 </text>
               )}
             </g>

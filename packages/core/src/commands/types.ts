@@ -1,5 +1,5 @@
 import type { Vec2 } from '../geometry/vec2.js';
-import type { Id, ItemDefinition, ItemInstance, Space } from '../model/types.js';
+import type { Id, ItemDefinition, ItemInstance, Meta, Space, Tilt } from '../model/types.js';
 import type { Problem } from '../model/validate.js';
 import type { MilliDeg } from '../units/angle.js';
 import type { Tick } from '../units/length.js';
@@ -13,6 +13,10 @@ export type Command =
   | { readonly type: 'item.elevate'; readonly id: Id; readonly to: Tick }
   | { readonly type: 'item.remove'; readonly id: Id }
   | { readonly type: 'item.lock'; readonly id: Id; readonly locked: boolean }
+  /** Lay an item on its side (`to` = the local axis that points up) or stand it upright (null). */
+  | { readonly type: 'item.tilt'; readonly id: Id; readonly to: Tilt | null }
+  /** Replace an item's pack data; null removes it. Allowed on locked items: it does not move them. */
+  | { readonly type: 'item.meta'; readonly id: Id; readonly meta: Meta | null }
   | { readonly type: 'catalog.define'; readonly definition: ItemDefinition }
   | { readonly type: 'catalog.remove'; readonly id: Id }
   | { readonly type: 'space.set'; readonly space: Space }

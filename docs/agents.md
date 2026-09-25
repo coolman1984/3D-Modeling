@@ -56,3 +56,20 @@ for 120 guests with round tables of 10, a stage by the north wall and a buffet o
 
 The same tools are available at `POST http://127.0.0.1:4600/api/tools/<name>` with
 `{"input": {...}, "actor": "agent:my-script"}`. The app listens on the loopback address only.
+
+## Container loading
+
+Containers are projects made with `create_project` and `activity: "container"` plus a
+`container_type` (`20gp`, `40gp`, `40hc`, `45hc`, `20rf`, `40rh`, `trailer`). The length runs along
+x from the front wall to the doors at the east end; the roof is the ceiling.
+
+1. `define_item` with `mass_kg` and `cargo` (`quantity`, `stackable`, `max_load_on_top_kg`,
+   `allow_tilt`, `stack_group`, `stop`) plans the load. Stop 1 is unloaded first.
+2. `pack_container` compares three deterministic plans (largest, heaviest, widest base first) and
+   changes nothing; `pack_container` with `apply: true` (and optionally `strategy`) applies one as a
+   single revision. Algorithms calculate; the agent chooses and explains.
+3. `place_items` accepts `tilt` (`"x"` / `"y"`: which side stands up), `stop` and `step` for manual
+   placement; `move_items` with `height_m` stacks a piece.
+4. `get_project` / `check_project` report payload, support (70% of the base), load on top,
+   orientation, stacking groups, unloading order (last in, first out), balance and unplaced pieces,
+   each with the source of its threshold.

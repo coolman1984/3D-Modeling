@@ -1,5 +1,5 @@
 import type { Project } from '../model/types.js';
-import { validateDefinition, validateItem, validateSpace } from '../model/validate.js';
+import { validateDefinition, validateItem, validateMeta, validateSpace } from '../model/validate.js';
 import { normalizeAngle } from '../units/angle.js';
 import { MAX_COORDINATE } from '../units/length.js';
 import type { Command, Rejection } from './types.js';
@@ -93,6 +93,29 @@ function applyInner(project: Project, command: Command): Outcome {
         inverse = { type: 'item.rotate', id: item.id, to: item.rotation };
       }
       return { ok: true, project: { ...project, items: { ...project.items, [item.id]: updated } }, inverse };
+    }
+
+    case 'item.tilt': {
+      const item = project.items[command.id];
+      if (!item) return reject('not-found', `no item "${command.id}"`);
+      if (item.locked) return reject('locked', `item "${item.id}" is locked`);
+      const to: unknown = command.to;
+      if (to !== null && to !== 'x' && to !== 'y') return reject('invalid-payload', 'tilt must be "x", "y" or null');
+      const { tilt: _old, ...rest } = item;
+      const updated = to === null ? rest : { ...rest, tilt: to as 'x' | 'y' };
+      return { ok: true, project: { ...project, items: { ...project.items, [item.id]: updated } }, inverse: { type: 'item.tilt', id: item.id, to: item.tilt ?? null } };
+    }
+
+    case 'item.meta': {
+      const item = project.items[command.id];
+      if (!item) return reject('not-found', `no item "${command.id}"`);
+      if (command.meta !== null) {
+        const problems = validateMeta(command.meta);
+        if (problems.length > 0) return reject('invalid-payload', 'meta is not valid', { problems });
+      }
+      const { meta: _old, ...rest } = item;
+      const updated = command.meta === null ? rest : { ...rest, meta: { ...command.meta } };
+      return { ok: true, project: { ...project, items: { ...project.items, [item.id]: updated } }, inverse: { type: 'item.meta', id: item.id, meta: item.meta ?? null } };
     }
 
     case 'item.remove': {

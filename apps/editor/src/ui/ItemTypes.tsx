@@ -6,7 +6,7 @@ import { formatCentimetres, formatCount } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import { takenIds } from '../logic/transform.js';
 import type { Action } from '../logic/session.js';
-import { Dialog, LineTabs, NumberField } from './Fields.js';
+import { Dialog, LineTabs, NumberField, SwitchRow } from './Fields.js';
 
 const cm = (v: number) => fromUnit(v, 'cm');
 
@@ -183,10 +183,22 @@ interface Draft {
   right: number;
   seats: number;
   round: boolean;
+  /** Mass of one piece in kg; undefined = unknown. */
+  massKg: number | undefined;
+  /** Cargo data (containers); undefined = not stated. */
+  quantity: number | undefined;
+  stackable: boolean | undefined;
+  maxLoadKg: number | undefined;
+  allowTilt: boolean | undefined;
+  stackGroup: string;
+  stop: number | undefined;
 }
+
+const CARGO_KEYS = ['quantity', 'stackable', 'maxLoadOnTop', 'allowTilt', 'stackGroup', 'stop'] as const;
 
 function draftOf(definition: ItemDefinition): Draft {
   const c = (t: number) => toUnit(t, 'cm');
+  const m = definition.meta ?? {};
   return {
     id: definition.id,
     name: definition.name,
@@ -200,10 +212,29 @@ function draftOf(definition: ItemDefinition): Draft {
     right: c(definition.clearance.right),
     seats: definition.seats ?? 0,
     round: definition.footprint === 'round',
+    massKg: definition.mass === undefined ? undefined : definition.mass / 1000,
+    quantity: typeof m.quantity === 'number' ? m.quantity : undefined,
+    stackable: typeof m.stackable === 'boolean' ? m.stackable : undefined,
+    maxLoadKg: typeof m.maxLoadOnTop === 'number' ? m.maxLoadOnTop / 1000 : undefined,
+    allowTilt: typeof m.allowTilt === 'boolean' ? m.allowTilt : undefined,
+    stackGroup: typeof m.stackGroup === 'string' ? m.stackGroup : '',
+    stop: typeof m.stop === 'number' ? m.stop : undefined,
   };
 }
 
-const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false };
+const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false, massKg: undefined, quantity: undefined, stackable: undefined, maxLoadKg: undefined, allowTilt: undefined, stackGroup: '', stop: undefined };
+
+/** The type's meta with the cargo fields from the dialog; other packs' keys are kept as they were. */
+function metaOf(previous: ItemDefinition['meta'], d: Draft): { meta?: Record<string, string | number | boolean> } {
+  const meta: Record<string, string | number | boolean> = Object.fromEntries(Object.entries(previous ?? {}).filter(([k]) => !(CARGO_KEYS as readonly string[]).includes(k)));
+  if (d.quantity !== undefined && d.quantity > 0) meta.quantity = Math.round(d.quantity);
+  if (d.stackable !== undefined) meta.stackable = d.stackable;
+  if (d.maxLoadKg !== undefined) meta.maxLoadOnTop = Math.round(d.maxLoadKg * 1000);
+  if (d.allowTilt !== undefined) meta.allowTilt = d.allowTilt;
+  if (d.stackGroup.trim()) meta.stackGroup = d.stackGroup.trim();
+  if (d.stop !== undefined) meta.stop = Math.round(d.stop);
+  return Object.keys(meta).length > 0 ? { meta } : {};
+}
 
 /** Create or edit an item type with its real size and the free space it needs. */
 export function ItemTypeDialog({
@@ -211,7 +242,9 @@ export function ItemTypeDialog({
   editing,
   onClose,
   dispatch,
+  pack,
 }: {
+  pack: PackId;
   project: Project;
   editing: Id | 'new';
   onClose: () => void;
@@ -237,6 +270,8 @@ export function ItemTypeDialog({
           clearance: { front: cm(draft.front), back: cm(draft.back), left: cm(draft.left), right: cm(draft.right) },
           ...(draft.seats > 0 ? { seats: Math.round(draft.seats) } : {}),
           ...(draft.round ? { footprint: 'round' as const } : {}),
+          ...(draft.massKg !== undefined && draft.massKg > 0 ? { mass: Math.round(draft.massKg * 1000) } : {}),
+          ...metaOf(existing?.meta, draft),
         },
       },
     });
@@ -300,6 +335,24 @@ export function ItemTypeDialog({
               <NumberField name="type-seats" label="#" ariaLabel="Seats" unit="seats" value={draft.seats} min={0} max={10_000} onChange={set('seats')} />
             </div>
           </div>
+          <div className="grid-4">
+            <NumberField name="type-mass" label="kg" ariaLabel="Mass in kilograms" unit="" placeholder="mass" value={draft.massKg} min={0} max={1_000_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, massKg: v }))} />
+          </div>
+          {pack === 'container' && (
+            <div aria-label="Cargo">
+              <div className="kicker" style={{ marginBottom: 8 }}>
+                Cargo
+              </div>
+              <div className="grid-4">
+                <NumberField name="type-quantity" label="#" ariaLabel="Quantity to load" unit="pcs" value={draft.quantity} min={0} max={10_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, quantity: v }))} />
+                <NumberField name="type-max-load" label="Top" ariaLabel="Maximum load on top in kilograms" wideKey unit="kg" value={draft.maxLoadKg} min={0} max={1_000_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, maxLoadKg: v }))} />
+                <NumberField name="type-stop" label="Stop" ariaLabel="Unloading stop" wideKey unit="" value={draft.stop} min={1} max={999} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, stop: v }))} />
+                <input className="input" name="type-stack-group" aria-label="Stacking group" placeholder="Group" value={draft.stackGroup} onChange={(e) => setDraft((d) => ({ ...d, stackGroup: e.target.value }))} />
+              </div>
+              <SwitchRow name="type-stackable" label="Other pieces may rest on it" on={draft.stackable !== false} onChange={(on) => setDraft((d) => ({ ...d, stackable: on }))} />
+              <SwitchRow name="type-allow-tilt" label="May lie on its side" hint="Off means “this way up”" on={draft.allowTilt === true} onChange={(on) => setDraft((d) => ({ ...d, allowTilt: on }))} />
+            </div>
+          )}
           <div>
             <div className="kicker" style={{ marginBottom: 8 }}>
               Clearance · free space needed to use it

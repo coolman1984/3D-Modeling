@@ -1,6 +1,6 @@
 import { measureProject, type Id, type Issue, type IssueCode, type Project, type RejectCode } from '@space-planner/core';
 import type { RuleCode, RuleResult } from '@space-planner/starter';
-import { formatCount, formatLength, formatSquareMetres } from './format.js';
+import { formatCount, formatLength, formatMass, formatSquareMetres } from './format.js';
 
 export const ISSUE_TITLES: Readonly<Record<IssueCode, string>> = {
   'out-of-bounds': 'Outside the room',
@@ -126,7 +126,23 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   workstations: 'Every desk has a chair',
   exits: 'Number of exits',
   'door-width': 'Total door width',
+  payload: 'Payload',
+  support: 'Every raised piece is supported',
+  'load-on-top': 'Load on top of each piece',
+  orientation: '“This way up” respected',
+  'stacking-group': 'Stacking groups kept apart',
+  'unloading-order': 'Unloading order (last in, first out)',
+  balance: 'Centre of mass near the middle',
+  unpacked: 'Every planned piece placed',
 };
+
+/** How much weight a rule's numbers carry, in words. */
+export const SOURCE_KIND_WORD = {
+  engineering: 'Engineering check',
+  'company-policy': 'Company policy',
+  'common-guidance': 'Common guidance',
+  'verified-regulation': 'Verified regulation',
+} as const;
 
 export const RULE_STATUS_WORD = { pass: 'Passes', fail: 'Fails', unknown: 'Unknown' } as const;
 
@@ -161,14 +177,48 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
         measured: rule.measured === undefined ? dash : formatLength(rule.measured),
         required: rule.required === undefined ? dash : formatLength(rule.required),
       };
+    case 'payload':
+      return { measured: rule.measured === undefined ? dash : formatMass(rule.measured), required: rule.required === undefined ? dash : `${formatMass(rule.required)} or less` };
+    case 'support':
+      return { measured: rule.measured === undefined ? dash : `${rule.measured}% at the weakest`, required: `${rule.required ?? 70}% of the base` };
+    case 'load-on-top':
+      return { measured: rule.measured === undefined ? dash : `${formatMass(rule.measured)} heaviest`, required: 'Within each type’s limit' };
+    case 'balance':
+      return { measured: rule.measured === undefined ? dash : `${rule.measured}% off the middle`, required: `${rule.required ?? 10}% or less` };
+    case 'unpacked':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} placed`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} planned` };
+    case 'orientation':
+    case 'stacking-group':
+    case 'unloading-order':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} ${rule.measured === 1 ? 'piece' : 'pieces'} wrong`, required: 'None' };
   }
 }
 
 /** One sentence per rule, with the measured and required numbers. */
 export function describeRule(project: Project, rule: RuleResult): string {
   if (rule.status === 'unknown') {
-    if (rule.reason === 'no-doors') return 'There is no door yet, so there is no way out to measure.';
-    return rule.reason === 'no-desks' ? 'There are no desks in the plan yet.' : 'There are no seats in the plan yet.';
+    switch (rule.reason) {
+      case 'no-doors':
+        return 'There is no door yet, so there is no way out to measure.';
+      case 'no-desks':
+        return 'There are no desks in the plan yet.';
+      case 'no-cargo':
+        return 'No cargo is loaded yet.';
+      case 'no-mass':
+        return 'Some cargo types have no mass, so weights cannot be checked.';
+      case 'no-payload':
+        return 'The container has no payload limit set.';
+      case 'no-stops':
+        return 'No unloading stops are set on the cargo.';
+      case 'no-quantities':
+        return 'No quantities are planned on the cargo types.';
+      case 'no-orientation-data':
+        return 'Some pieces lie on their side, but their type does not say whether that is allowed.';
+      case 'no-stacking-data':
+        return 'Some pieces carry weight, but their type has no load limit.';
+      default:
+        return 'There are no seats in the plan yet.';
+    }
   }
   const guests = measureProject(project).seats;
   const count = formatCount;
@@ -195,5 +245,23 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return `${count(guests)} people need at least ${count(rule.required ?? 0)} ${rule.required === 1 ? 'door' : 'doors'}; there ${rule.measured === 1 ? 'is' : 'are'} ${count(rule.measured ?? 0)}.`;
     case 'door-width':
       return `${count(guests)} people need doors at least ${formatLength(rule.required ?? 0)} wide in total; there is ${formatLength(rule.measured ?? 0)}.`;
+    case 'payload':
+      return rule.status === 'pass'
+        ? `The load weighs ${formatMass(rule.measured ?? 0)}, within the ${formatMass(rule.required ?? 0)} payload.`
+        : `The load weighs ${formatMass(rule.measured ?? 0)}, ${formatMass((rule.measured ?? 0) - (rule.required ?? 0))} over the ${formatMass(rule.required ?? 0)} payload.`;
+    case 'support':
+      return rule.status === 'pass' ? 'Every raised piece rests on the pieces below it.' : `Not supported well enough: ${list(rule.entityIds)}. Move them onto full stacks or down to the floor.`;
+    case 'load-on-top':
+      return rule.status === 'pass' ? 'No piece carries more than its type allows.' : `Too much weight on: ${list(rule.entityIds)}. Move heavy pieces down or off them.`;
+    case 'orientation':
+      return rule.status === 'pass' ? 'Pieces that must stay upright are upright.' : `Must stay upright but lie on their side: ${list(rule.entityIds)}.`;
+    case 'stacking-group':
+      return rule.status === 'pass' ? 'Stacks only mix pieces of the same group.' : `Stacked on a piece of another group: ${list(rule.entityIds)}.`;
+    case 'unloading-order':
+      return rule.status === 'pass' ? 'Each stop can be unloaded without moving cargo for a later stop.' : `Blocked by cargo for a later stop: ${list(rule.entityIds)}. Load them after, nearer the doors or on top.`;
+    case 'balance':
+      return `The centre of mass is ${rule.measured}% off the middle of the container; keep it within ${rule.required}%.`;
+    case 'unpacked':
+      return rule.status === 'pass' ? `All ${count(rule.required ?? 0)} planned pieces are placed.` : `${count((rule.required ?? 0) - (rule.measured ?? 0))} planned pieces are not placed yet (${rule.entityIds.join(', ')}).`;
   }
 }

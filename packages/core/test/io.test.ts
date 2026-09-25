@@ -119,3 +119,17 @@ describe('opening bad files', () => {
     expect(!result.ok && result.problems.map((p) => p.path)).toEqual(['items.c2.position.y']);
   });
 });
+
+describe('saves written by earlier versions', () => {
+  it('a hall saved before T5 (schema 1, no mass, tilt or meta) opens and saves byte for byte', async () => {
+    const { readFileSync } = await import('node:fs');
+    const text = readFileSync(new URL('./saves/v1-hall-2026-09.json', import.meta.url), 'utf8');
+    const opened = deserializeProject(text);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    expect(opened.migratedFrom).toBeUndefined();
+    expect(serializeProject(opened.project)).toBe(text);
+    expect(checkProject(opened.project)).toEqual([]);
+    expect(measureProject(opened.project)).toMatchObject({ itemCount: 5, seats: 4, massUnknown: 5 });
+  });
+});

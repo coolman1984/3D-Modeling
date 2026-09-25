@@ -99,6 +99,38 @@ describe('store', () => {
 });
 
 describe('agent tools', () => {
+  it('lets an agent create a container, plan cargo, compare packing candidates and apply one as one revision', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'Order 7', activity: 'container', container_type: '20gp' });
+    expect(created.isError).toBe(false);
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    expect(created.text).toContain('Container: type 20gp, doors at the east end');
+    expect(runTool(ctx, 'define_item', { project_id: id, id: 'euro-pallet', name: 'Euro pallet', category: 'box', width_cm: 120, depth_cm: 80, height_cm: 150, mass_kg: 400, cargo: { quantity: 10 } }).isError).toBe(false);
+    // The cargo data the type already had (stackable, load on top, this way up) is kept.
+    expect(store.getProject(id)!.catalog['euro-pallet']!.meta).toMatchObject({ quantity: 10, stackable: true, allowTilt: false });
+    const compared = runTool(ctx, 'pack_container', { project_id: id });
+    expect(compared.text).toContain('Candidates (nothing changed)');
+    expect(compared.text).toContain('placed 10 of 10 pieces');
+    expect(Object.keys(store.getProject(id)!.items)).toHaveLength(0);
+    const applied = runTool(ctx, 'pack_container', { project_id: id, strategy: 'heaviest-first', apply: true });
+    expect(applied.isError).toBe(false);
+    expect(Object.keys(store.getProject(id)!.items)).toHaveLength(10);
+    expect(store.history(id)[0]).toMatchObject({ actor: 'agent:test', summary: 'Packed 10 pieces (heaviest first)' });
+    expect(applied.text).toContain('payload: 4000 kg of 28200 kg: pass');
+    expect(applied.text).toContain('planned pieces placed: 10 of 10: pass');
+    // A piece laid on its side, with a stop, through place_items.
+    expect(runTool(ctx, 'place_items', { project_id: id, items: [{ definition_id: 'carton-large', x_m: 5.5, y_m: 2, tilt: 'x', stop: 2 }] }).isError).toBe(false);
+    expect(store.getProject(id)!.items['carton-large-1']).toMatchObject({ tilt: 'x', meta: { stop: 2 } });
+    expect(runTool(ctx, 'pack_container', { project_id: (store.createProject(demoHall(), 'human')).id }).isError).toBe(true);
+  });
+
+  it('keeps a container\'s data when the room is changed through set_room', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const id = /Created (p-[\w]+)/.exec(runTool(ctx, 'create_project', { name: 'C', activity: 'container', container_type: '40hc' }).text)![1]!;
+    runTool(ctx, 'set_room', { project_id: id, width_m: 12, depth_m: 2.35 });
+    expect(store.getProject(id)!.space.meta).toMatchObject({ pack: 'container', containerType: '40hc' });
+  });
+
   it('lets an agent set the room, define an item and place items, with clear feedback', () => {
     const ctx = { store, actor: 'agent:test' };
     const project = store.createProject(demoHall(), 'human');

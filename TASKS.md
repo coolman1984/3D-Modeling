@@ -1,5 +1,38 @@
 # TASKS
 
+## Done: T5 — shared industrial foundation (plan: `docs/03-industrial-packs-plan.md`)
+
+**Done means:**
+1. Derived grid spatial index in the core; checks use it; results identical to all-pairs (property
+   test); benchmark at 1k / 5k / 20k items with before/after numbers recorded in decision 0009.
+2. Optional `ItemDefinition.mass` (g), `ItemInstance.tilt`, `meta` on types and items; validation,
+   `item.tilt` / `item.meta` commands, checks and metrics (total mass, centre of mass) aware of them;
+   old saves open byte-identical (fixture test).
+3. Rule sources with provenance on every starter rule; shown in the review and report.
+4. 3D view renders repeated items with instancing; picking, selection and issue tint still work.
+5. `OptimizationPort` type in the starter; server and editor unchanged in behaviour otherwise.
+6. `pnpm check` passes; planted bug caught; docs and README updated.
+
+- [x] Plan: `docs/03-industrial-packs-plan.md`, master plan note, core plan note, decision 0008
+- [x] Core: spatial index + checks + property test + benchmark
+- [x] Core: mass, tilt, meta (types, validate, commands, derive, checks, metrics, io fixture)
+- [x] Starter: rule provenance; OptimizationPort
+- [x] Editor: instanced 3D; review/report show rule sources
+- [x] Check, planted bug, docs, commit
+
+## Done: T6 — container loading MVP (done definition in the plan §7, decision 0010)
+
+- [x] Core: `Space.meta` (container type, payload, doors), `createSpace` keeps it
+- [x] Pack: container types, sample cargo, `newContainer`, cargo data in `meta`, 8 loading rules with sources, container metrics
+- [x] Packer: extreme points, three strategies as `OptimizationPort` candidates, never proposes a failing load (property test)
+- [x] Server: create containers (HTTP + tool), `define_item` mass + cargo, `place_items` tilt/stop/step, `pack_container`, container facts for agents, `set_room` keeps pack data
+- [x] Editor: container in the create dialog, Load panel, cargo inspector, settle onto stack, payload field, colour by, cut-away, playback, numbered steps, report sequence
+- [x] Live updates: re-check the project whenever the live connection (re)opens (race found by the browser tests)
+- [x] Tests: reference cases, property test, server tools, browser journey, planted bug; `pnpm check`
+
+## Next: T7 — warehouse MVP (plan §7)
+
+
 ## Done: R1 — Atrium redesign of the existing app (English UI)
 
 **Done means:**

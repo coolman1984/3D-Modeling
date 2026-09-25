@@ -6,8 +6,8 @@ Guidance for AI coding agents working in this repository.
 
 A spatial planning platform: users lay out a measured space (hall, office, warehouse),
 place items with real dimensions, and learn whether things fit and work before spending money.
-Read `docs/02-core-plan.md` first (what we are building now), then `docs/01-master-plan.md`
-only for long-term direction. Recorded decisions live in `docs/decisions/`.
+Read `docs/03-industrial-packs-plan.md` first (current roadmap: T5–T11), `docs/02-core-plan.md`
+for the core, and `docs/01-master-plan.md` only for long-term direction. Recorded decisions live in `docs/decisions/`.
 
 Layout:
 
@@ -48,6 +48,13 @@ pnpm --filter @space-planner/core test -- test/checks.test.ts   # one file
 - **Saves are forever.** Never merge a change that makes an existing save file fail to open.
   Bump `SCHEMA_VERSION` and add a step to `MIGRATIONS` instead.
 - **Deterministic output.** Same input, same result, same order (no locale-aware sorting).
+- **Derived data is never stored.** The spatial index is rebuilt from the project and must give the
+  same issues as the all-pairs check (`checkProject(p, { spatialIndex: false })`).
+- **Pack data lives in `meta`.** The core validates its shape only; packs give it meaning. New
+  universal fields are optional and stored only when set, so old saves stay byte-identical
+  (`packages/core/test/saves/`).
+- **Rules name their source.** Every pack threshold has a `RuleSource`; nothing is presented as a
+  verified regulation unless a person verified it.
 
 ## When to keep going and when to stop
 

@@ -209,7 +209,9 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
           disabled={!dirty || problems.length > 0 || !spec}
           onClick={() => {
             if (!spec) return;
-            dispatch({ type: 'command', command: { type: 'space.set', space: roomSpace(spec) } });
+            // Pack data about the space (a container's type and payload) stays with the room.
+            const space = roomSpace(spec);
+            dispatch({ type: 'command', command: { type: 'space.set', space: project.space.meta ? { ...space, meta: project.space.meta } : space } });
             setDirty(false);
           }}
         >

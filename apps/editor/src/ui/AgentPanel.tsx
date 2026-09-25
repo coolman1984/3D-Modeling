@@ -26,6 +26,11 @@ const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
     'Put the stage in the middle of the north wall and the buffet along the east wall.',
     'Make room for a 5 × 5 m dance floor in front of the stage.',
   ],
+  container: [
+    'Load all planned cargo, heaviest at the bottom, and keep the centre of mass near the middle.',
+    'Pack the pallets for stop 2 near the doors so stop 1 can be unloaded first.',
+    'Compare the three packing strategies and apply the one that fits the most.',
+  ],
   office: [
     'Lay out 16 desks with chairs in rows, with a 90 cm walkway to every door.',
     'Add a meeting table for 8 near the window side and a phone booth by the entrance.',

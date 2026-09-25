@@ -1,0 +1,151 @@
+{
+  "catalog": {
+    "def-chair": {
+      "category": "seat",
+      "clearance": {
+        "back": 4000,
+        "front": 0,
+        "left": 0,
+        "right": 0
+      },
+      "id": "def-chair",
+      "name": "Chair",
+      "seats": 1,
+      "size": {
+        "d": 4500,
+        "h": 9000,
+        "w": 4500
+      }
+    },
+    "def-table": {
+      "category": "table",
+      "clearance": {
+        "back": 0,
+        "front": 0,
+        "left": 6000,
+        "right": 6000
+      },
+      "id": "def-table",
+      "name": "Banquet table 180 × 80",
+      "size": {
+        "d": 8000,
+        "h": 7500,
+        "w": 18000
+      }
+    }
+  },
+  "id": "hall-1",
+  "items": {
+    "c1": {
+      "definitionId": "def-chair",
+      "elevation": 50,
+      "id": "c1",
+      "locked": false,
+      "position": {
+        "x": 25000,
+        "y": 67000
+      },
+      "rotation": 180000
+    },
+    "c2": {
+      "definitionId": "def-chair",
+      "id": "c2",
+      "locked": false,
+      "position": {
+        "x": 35000,
+        "y": 67000
+      },
+      "rotation": 180000
+    },
+    "c3": {
+      "definitionId": "def-chair",
+      "id": "c3",
+      "locked": false,
+      "position": {
+        "x": 25000,
+        "y": 53000
+      },
+      "rotation": 0
+    },
+    "c4": {
+      "definitionId": "def-chair",
+      "id": "c4",
+      "locked": false,
+      "position": {
+        "x": 35000,
+        "y": 53000
+      },
+      "rotation": 0
+    },
+    "t1": {
+      "definitionId": "def-table",
+      "id": "t1",
+      "locked": false,
+      "position": {
+        "x": 30000,
+        "y": 60000
+      },
+      "rotation": 0
+    }
+  },
+  "name": "Reference hall",
+  "revision": 0,
+  "schemaVersion": 1,
+  "space": {
+    "boundary": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 100000,
+        "y": 0
+      },
+      {
+        "x": 100000,
+        "y": 80000
+      },
+      {
+        "x": 0,
+        "y": 80000
+      }
+    ],
+    "ceilingHeight": 30000,
+    "doors": [
+      {
+        "angle": 0,
+        "hinge": {
+          "x": 10000,
+          "y": 0
+        },
+        "id": "door-1",
+        "swing": "left",
+        "width": 9000
+      }
+    ],
+    "obstacles": [
+      {
+        "id": "col-1",
+        "kind": "column",
+        "polygon": [
+          {
+            "x": 48000,
+            "y": 38000
+          },
+          {
+            "x": 52000,
+            "y": 38000
+          },
+          {
+            "x": 52000,
+            "y": 42000
+          },
+          {
+            "x": 48000,
+            "y": 42000
+          }
+        ]
+      }
+    ]
+  }
+}
