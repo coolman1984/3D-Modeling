@@ -1164,3 +1164,7 @@ button.rule-row:hover { background: var(--page); }
 .col-row .fld .input { padding: 0 20px 0 18px; }
 .col-row .fld-k { left: 6px; }
 .col-row .fld-u { right: 6px; }
+.rule-row .source { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+.insp-group .grid-3 .fld .input { padding: 0 26px 0 22px; }
+.insp-group .grid-3 .fld-k { left: 8px; }
+.insp-group .grid-3 .fld-u { right: 7px; }

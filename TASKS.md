@@ -1,5 +1,27 @@
 # TASKS
 
+## Done: T5 — shared industrial foundation (plan: `docs/03-industrial-packs-plan.md`)
+
+**Done means:**
+1. Derived grid spatial index in the core; checks use it; results identical to all-pairs (property
+   test); benchmark at 1k / 5k / 20k items with before/after numbers recorded in decision 0009.
+2. Optional `ItemDefinition.mass` (g), `ItemInstance.tilt`, `meta` on types and items; validation,
+   `item.tilt` / `item.meta` commands, checks and metrics (total mass, centre of mass) aware of them;
+   old saves open byte-identical (fixture test).
+3. Rule sources with provenance on every starter rule; shown in the review and report.
+4. 3D view renders repeated items with instancing; picking, selection and issue tint still work.
+5. `OptimizationPort` type in the starter; server and editor unchanged in behaviour otherwise.
+6. `pnpm check` passes; planted bug caught; docs and README updated.
+
+- [x] Plan: `docs/03-industrial-packs-plan.md`, master plan note, core plan note, decision 0008
+- [x] Core: spatial index + checks + property test + benchmark
+- [x] Core: mass, tilt, meta (types, validate, commands, derive, checks, metrics, io fixture)
+- [x] Starter: rule provenance; OptimizationPort
+- [x] Editor: instanced 3D; review/report show rule sources
+- [x] Check, planted bug, docs, commit
+
+## Now: T6 — container loading MVP (done definition in the plan §7)
+
 ## Done: R1 — Atrium redesign of the existing app (English UI)
 
 **Done means:**

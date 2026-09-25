@@ -2,7 +2,7 @@ import { type ItemDefinition, type Project } from '@space-planner/core';
 import { checkHall, HALL_STYLES, type HallStyle } from './hall.js';
 import { STARTER_CATALOG } from './hallCatalog.js';
 import { checkOffice, OFFICE_CATALOG, OFFICE_STYLES, type OfficeStyle } from './office.js';
-import type { RuleResult } from './rules.js';
+import { RULE_SOURCES, type RuleResult } from './rules.js';
 
 export type PackId = 'hall' | 'office';
 
@@ -47,5 +47,5 @@ export function missingPackItems(project: Project, packId: PackId): ItemDefiniti
 export function checkPack(project: Project, packId: PackId, style?: string | null): RuleResult[] {
   const pack = packOf(packId);
   const known = pack.styles.some((s) => s.id === style);
-  return pack.check(project, known ? style! : pack.styles[0]!.id);
+  return pack.check(project, known ? style! : pack.styles[0]!.id).map((r) => ({ ...r, source: RULE_SOURCES[r.code] }));
 }

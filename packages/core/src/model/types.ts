@@ -47,6 +47,16 @@ export interface Door {
   readonly swing: 'left' | 'right';
 }
 
+/**
+ * Data an activity pack keeps on an item type or a placed item (stackable, maximum load on top,
+ * destination, loading step, cycle time…). The core checks only its shape and never reads it.
+ */
+export type MetaValue = string | number | boolean;
+export type Meta = Readonly<Record<string, MetaValue>>;
+
+/** Which local axis points up when an item lies on its side; missing means upright (Z up). */
+export type Tilt = 'x' | 'y';
+
 export interface Size3 {
   /** Along the item's local X (its left-right). */
   readonly w: Tick;
@@ -74,6 +84,10 @@ export interface ItemDefinition {
   readonly seats?: number;
   /** Floor outline: a rectangle (default) or an ellipse inscribed in width × depth (round tables, pots). */
   readonly footprint?: 'rect' | 'round';
+  /** Mass of one piece in grams. Missing means unknown, so weight checks report "unknown". */
+  readonly mass?: number;
+  /** Pack-owned data about the type; stored only when not empty. */
+  readonly meta?: Meta;
 }
 
 /** Where one copy of an item stands. */
@@ -89,4 +103,11 @@ export interface ItemInstance {
    * Missing means on the floor; stored only when above zero so floor items keep their old form.
    */
   readonly elevation?: Tick;
+  /**
+   * The item lies on its side: 'x' puts its local X axis (width) up, 'y' its local Y axis (depth).
+   * Missing means upright. Together with `rotation` this covers every orientation of a box.
+   */
+  readonly tilt?: Tilt;
+  /** Pack-owned data about this copy (destination, loading step…); stored only when not empty. */
+  readonly meta?: Meta;
 }

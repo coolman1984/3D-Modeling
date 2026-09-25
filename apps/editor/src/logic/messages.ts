@@ -128,6 +128,14 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'door-width': 'Total door width',
 };
 
+/** How much weight a rule's numbers carry, in words. */
+export const SOURCE_KIND_WORD = {
+  engineering: 'Engineering check',
+  'company-policy': 'Company policy',
+  'common-guidance': 'Common guidance',
+  'verified-regulation': 'Verified regulation',
+} as const;
+
 export const RULE_STATUS_WORD = { pass: 'Passes', fail: 'Fails', unknown: 'Unknown' } as const;
 
 /** The measured and required values of a rule, in words; "—" when not known. */

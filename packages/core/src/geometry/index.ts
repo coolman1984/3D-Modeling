@@ -5,3 +5,4 @@ export * from './polygon.js';
 export * from './sat.js';
 export * from './shapes.js';
 export * from './clip.js';
+export * from './grid.js';

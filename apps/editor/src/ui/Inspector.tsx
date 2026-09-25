@@ -41,6 +41,7 @@ import {
   RULE_TITLES,
   ruleFigures,
   SEVERITY_WORD,
+  SOURCE_KIND_WORD,
   type IssueGroup,
 } from '../logic/messages.js';
 import type { Action } from '../logic/session.js';
@@ -570,13 +571,18 @@ export function ReviewPanel({
                       {describeRule(project, rule)}
                     </span>
                   )}
+                  {rule.source && (
+                    <span className="source" style={{ display: 'block' }} title={rule.source.title} data-source={rule.source.kind}>
+                      {SOURCE_KIND_WORD[rule.source.kind]} · {rule.source.ruleSet}
+                    </span>
+                  )}
                 </span>
                 <span className="status">{RULE_STATUS_WORD[rule.status]}</span>
               </Tag>
             );
           })}
           <p className="muted" style={{ marginTop: 14, fontSize: 12 }}>
-            Common planning guidance. Missing data is reported as unknown, never as a pass. Not a replacement for civil-defence approval.
+            Each rule names where its numbers come from. None is a verified local regulation yet. Missing data is reported as unknown, never as a pass.
           </p>
         </div>
       )}

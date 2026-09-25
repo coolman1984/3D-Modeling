@@ -69,7 +69,7 @@ export interface ReportData {
   readonly counts: { readonly error: number; readonly warning: number; readonly info: number };
   /** The activity and style the rules were checked for, e.g. "Event hall", "Theatre · rows of chairs". */
   readonly activity: { readonly pack: string; readonly label: string; readonly style: string; readonly styleLabel: string };
-  readonly rules: readonly (ReportIssue & { readonly code: RuleResult['code']; readonly status: RuleResult['status']; readonly measured: string; readonly required: string })[];
+  readonly rules: readonly (ReportIssue & { readonly code: RuleResult['code']; readonly status: RuleResult['status']; readonly measured: string; readonly required: string; readonly source?: RuleResult['source'] })[];
   /** 'ready' only when nothing is wrong or unknown and every hall rule passes. */
   readonly verdict: 'ready' | 'check' | 'problems';
 }
@@ -135,6 +135,7 @@ export function buildReport(project: Project, chosen: Activity = activityOf('hal
       title: RULE_TITLES[rule.code],
       text: describeRule(project, rule),
       ...ruleFigures(project, rule),
+      ...(rule.source ? { source: rule.source } : {}),
     })),
     verdict: counts.error > 0 ? 'problems' : counts.warning > 0 || counts.info > 0 || rules.some((r) => r.status !== 'pass') ? 'check' : 'ready',
   };

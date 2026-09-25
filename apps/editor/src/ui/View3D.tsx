@@ -1,4 +1,4 @@
-import { boundsOf, type Id, type Issue, type ItemDefinition, type Project, type Vec2 } from '@space-planner/core';
+import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
 import { shapeOf, type ShapeKey } from '@space-planner/starter';
 import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Scissors, Square } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
@@ -246,6 +246,7 @@ function disposeTree(object: THREE.Object3D): void {
     const mesh = o as THREE.Mesh;
     if (mesh.isMesh || (o as THREE.LineSegments).isLineSegments) {
       mesh.geometry.dispose();
+      (o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).dispose();
       (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => m.dispose());
     }
   });
@@ -341,19 +342,71 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
     if (issue.severity === 'error' || !severity.has(first)) severity.set(first, issue.severity);
   }
 
-  for (const item of Object.values(project.items)) {
-    const definition: ItemDefinition | undefined = project.catalog[item.definitionId];
+  group.add(buildItems(project, severity, selectedIds));
+  return group;
+}
+
+type ItemState = 'normal' | 'selected' | 'error' | 'warning';
+const STATE_TINT: Readonly<Record<Exclude<ItemState, 'normal'>, [number, number]>> = {
+  selected: [COLORS.selected, 0.45],
+  error: [COLORS.error, 0.55],
+  warning: [COLORS.warning, 0.35],
+};
+
+/**
+ * Every placed item, drawn with instancing: items of the same shape, size, orientation and state
+ * share one model whose meshes become `InstancedMesh`es, so 500 chairs cost a few draw calls
+ * instead of 3 000 meshes. `userData.itemIds[instanceId]` maps a hit back to the item.
+ */
+function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warning'>, selectedIds: readonly Id[]): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'items';
+  const selected = new Set(selectedIds);
+  const batches = new Map<string, { definition: ItemDefinition; tilt: ItemInstance['tilt']; state: ItemState; items: ItemInstance[] }>();
+  const ordered = Object.values(project.items).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const item of ordered) {
+    const definition = project.catalog[item.definitionId];
     if (!definition) continue;
-    const model = buildModel(shapeOf(definition.category), mt(definition.size.w), mt(definition.size.d), mt(definition.size.h));
-    model.position.copy(at(item.position, mt(item.elevation ?? 0)));
-    model.rotation.y = (item.rotation / 1000) * (Math.PI / 180);
-    model.userData.itemId = item.id;
-    model.traverse((o) => (o.userData.itemId = item.id));
-    if (selectedIds.includes(item.id)) tint(model, COLORS.selected, 0.45);
-    else if (severity.get(item.id) === 'error') tint(model, COLORS.error, 0.55);
-    else if (severity.get(item.id) === 'warning') tint(model, COLORS.warning, 0.35);
-    model.name = 'item';
-    group.add(model);
+    const state: ItemState = selected.has(item.id) ? 'selected' : (severity.get(item.id) ?? 'normal');
+    const key = `${definition.id}|${item.tilt ?? ''}|${state}`;
+    const batch = batches.get(key);
+    if (batch) batch.items.push(item);
+    else batches.set(key, { definition, tilt: item.tilt, state, items: [item] });
+  }
+  const itemMatrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const unit = new THREE.Vector3(1, 1, 1);
+  for (const { definition, tilt, state, items } of batches.values()) {
+    const { w, d, h } = definition.size;
+    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h));
+    // A lying item: turn the upright model about its centre, then stand it on the floor again.
+    const placedHeight = tilt === 'x' ? mt(w) : tilt === 'y' ? mt(d) : mt(h);
+    const lay = new THREE.Matrix4()
+      .makeTranslation(0, placedHeight / 2, 0)
+      .multiply(tilt === 'x' ? new THREE.Matrix4().makeRotationZ(Math.PI / 2) : tilt === 'y' ? new THREE.Matrix4().makeRotationX(Math.PI / 2) : new THREE.Matrix4())
+      .multiply(new THREE.Matrix4().makeTranslation(0, -mt(h) / 2, 0));
+    template.updateMatrixWorld(true);
+    if (state !== 'normal') tint(template, ...STATE_TINT[state]);
+    const ids = items.map((i) => i.id);
+    template.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const local = lay.clone().multiply(mesh.matrixWorld);
+      const instanced = new THREE.InstancedMesh(mesh.geometry, mesh.material, items.length);
+      items.forEach((item, k) => {
+        quaternion.setFromAxisAngle(up, (item.rotation / 1000) * (Math.PI / 180));
+        itemMatrix.compose(at(item.position, mt(item.elevation ?? 0)), quaternion, unit).multiply(local);
+        instanced.setMatrixAt(k, itemMatrix);
+      });
+      instanced.instanceMatrix.needsUpdate = true;
+      instanced.computeBoundingSphere();
+      instanced.castShadow = mesh.castShadow;
+      instanced.receiveShadow = mesh.receiveShadow;
+      instanced.userData.itemIds = ids;
+      instanced.name = 'item';
+      group.add(instanced);
+    });
   }
   return group;
 }
@@ -438,8 +491,8 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     };
     const itemAt = (e: PointerEvent): Id | null => {
       const content = three.current?.content;
-      const hit = content ? rayAt(e).intersectObjects(content.children, true).find((h) => h.object.userData.itemId) : undefined;
-      return (hit?.object.userData.itemId as Id | undefined) ?? null;
+      const hit = content ? rayAt(e).intersectObjects(content.children, true).find((h) => h.object.userData.itemIds && h.instanceId !== undefined) : undefined;
+      return hit ? ((hit.object.userData.itemIds as readonly Id[])[hit.instanceId!] ?? null) : null;
     };
     const onPlane = (e: PointerEvent, height: number): THREE.Vector3 | null =>
       rayAt(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -height), new THREE.Vector3());

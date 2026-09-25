@@ -1,6 +1,6 @@
 import { apply, fromUnit, validateProject, type Command, type Project } from '@space-planner/core';
 import { describe, expect, it } from 'vitest';
-import { checkOffice, checkPack, detectPack, missingPackItems, newHall, newRoom, OFFICE_CATALOG, packOf, PACKS, workstationRule } from '../src/index.js';
+import { checkOffice, checkPack, detectPack, missingPackItems, newHall, newRoom, OFFICE_CATALOG, packOf, PACKS, RULE_SOURCES, workstationRule } from '../src/index.js';
 
 const m = (v: number) => fromUnit(v, 'm');
 
@@ -67,7 +67,12 @@ describe('office pack', () => {
     expect(PACKS.map((p) => p.id)).toEqual(['hall', 'office']);
     expect(packOf('nope').id).toBe('hall');
     const p = desk(office(), 1, 4, 3, 0.3);
-    expect(checkPack(p, 'office', 'banquet')).toEqual(checkOffice(p, 'open-plan'));
+    expect(checkPack(p, 'office', 'banquet')).toEqual(checkOffice(p, 'open-plan').map((r) => ({ ...r, source: RULE_SOURCES[r.code] })));
+    // Every rule says where its numbers come from, and none claims to be a verified regulation.
+    for (const r of [...checkPack(p, 'office', 'meeting'), ...checkPack(p, 'hall', 'banquet')]) {
+      expect(r.source?.ruleSet).toMatch(/^starter\./);
+      expect(r.source?.kind).not.toBe('verified-regulation');
+    }
     expect(checkPack(p, 'office', 'meeting')[1]!.required).toBe(2);
     expect(checkPack(p, 'hall', 'theatre')[1]).toMatchObject({ code: 'area-per-guest', required: 0.7 });
   });

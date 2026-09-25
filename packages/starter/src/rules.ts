@@ -24,6 +24,37 @@ const cm = (v: number) => fromUnit(v, 'cm');
 export type RuleCode = 'walkway' | 'area-per-guest' | 'area-per-person' | 'workstations' | 'exits' | 'door-width';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
+/**
+ * Where a rule's threshold comes from. Nothing ships as a verified regulation: that needs a person
+ * to check it against the law of a place. Guidance is labelled as guidance.
+ */
+export interface RuleSource {
+  readonly kind: 'engineering' | 'company-policy' | 'common-guidance' | 'verified-regulation';
+  readonly title: string;
+  readonly jurisdiction?: string;
+  readonly version?: string;
+  /** ISO date the values took effect. */
+  readonly effective?: string;
+  /** Stable id of the rule set, e.g. "starter.hall.v1". */
+  readonly ruleSet: string;
+}
+
+const EGRESS: RuleSource = {
+  kind: 'common-guidance',
+  title: 'Exit count and door width per occupant as found in widely used building codes; not checked against a local code',
+  ruleSet: 'starter.egress.v1',
+};
+
+/** The source of every starter rule, by rule code. */
+export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
+  walkway: { kind: 'common-guidance', title: 'Clear walkway from every seat to a door, width by planning style', ruleSet: 'starter.egress.v1' },
+  exits: EGRESS,
+  'door-width': EGRESS,
+  'area-per-guest': { kind: 'common-guidance', title: 'Event planning guidance: floor area per guest by event style', ruleSet: 'starter.hall.v1' },
+  'area-per-person': { kind: 'common-guidance', title: 'Office planning guidance: floor area per person by office style', ruleSet: 'starter.office.v1' },
+  workstations: { kind: 'engineering', title: 'A seat within reach in front of every desk', ruleSet: 'starter.office.v1' },
+};
+
 export interface RuleResult {
   readonly code: RuleCode;
   readonly status: RuleStatus;
@@ -35,6 +66,8 @@ export interface RuleResult {
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
   readonly reason?: 'no-seats' | 'no-doors' | 'no-desks';
+  /** Where the threshold comes from; filled in by `checkPack`. */
+  readonly source?: RuleSource;
 }
 
 /** Guests per exit door count, as in common building codes: over 49 need two, over 500 three, over 1000 four. */

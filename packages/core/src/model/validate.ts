@@ -16,7 +16,8 @@ export type ProblemCode =
   | 'id-mismatch'
   | 'broken-reference'
   | 'door-off-boundary'
-  | 'unknown-field';
+  | 'unknown-field'
+  | 'invalid-meta';
 
 /** One reason a project is not structurally sound. `path` points at the offending field, e.g. `items.t1.position.x`. */
 export interface Problem {
@@ -133,8 +134,8 @@ const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'cat
 const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight'] as const;
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
 const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing'] as const;
-const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint'] as const;
-const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked', 'elevation'] as const;
+const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint', 'mass', 'meta'] as const;
+const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked', 'elevation', 'tilt', 'meta'] as const;
 const POINT_FIELDS = ['x', 'y'] as const;
 
 /**
@@ -249,6 +250,39 @@ function checkDefinition(c: Collector, value: unknown, path: string, key?: strin
   if (definition.footprint !== undefined && definition.footprint !== 'rect' && definition.footprint !== 'round') {
     c.add('wrong-type', `${path}.footprint`, 'expected "rect" or "round"');
   }
+  if (definition.mass !== undefined) c.integer(definition.mass, `${path}.mass`, 1, MAX_MASS);
+  if (definition.meta !== undefined) checkMeta(c, definition.meta, `${path}.meta`);
+}
+
+/** 1 000 tonnes in grams: far above any item a plan holds. */
+export const MAX_MASS = 1_000_000_000;
+export const META_LIMITS = { keys: 32, keyLength: 64, stringLength: 200 } as const;
+
+function checkMeta(c: Collector, value: unknown, path: string): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    c.add('wrong-type', path, 'expected an object of names and values');
+    return;
+  }
+  const entries = Object.entries(value);
+  if (entries.length === 0) c.add('invalid-meta', path, 'store no meta instead of an empty one');
+  if (entries.length > META_LIMITS.keys) c.add('invalid-meta', path, `at most ${META_LIMITS.keys} entries`);
+  for (const [key, v] of entries) {
+    if (key.length === 0 || key.length > META_LIMITS.keyLength) c.add('invalid-meta', `${path}.${key}`, `names are 1 to ${META_LIMITS.keyLength} characters`);
+    if (typeof v === 'string') {
+      if (v.length > META_LIMITS.stringLength) c.add('invalid-meta', `${path}.${key}`, `text up to ${META_LIMITS.stringLength} characters`);
+    } else if (typeof v === 'number') {
+      if (!Number.isFinite(v)) c.add('invalid-number', `${path}.${key}`, 'expected a finite number');
+    } else if (typeof v !== 'boolean') {
+      c.add('wrong-type', `${path}.${key}`, 'expected text, a number or true/false');
+    }
+  }
+}
+
+/** Problems with a meta map on its own (for commands). */
+export function validateMeta(value: unknown): Problem[] {
+  const c = new Collector();
+  checkMeta(c, value, 'meta');
+  return c.problems;
 }
 
 function checkItem(c: Collector, value: unknown, path: string, key?: string, definitionIds?: Set<string>): void {
@@ -266,6 +300,8 @@ function checkItem(c: Collector, value: unknown, path: string, key?: string, def
   c.angle(item.rotation, `${path}.rotation`);
   if (typeof item.locked !== 'boolean') c.add('wrong-type', `${path}.locked`, 'expected true or false');
   if (item.elevation !== undefined) c.integer(item.elevation, `${path}.elevation`, 1, MAX_COORDINATE); // 0 is stored as absent
+  if (item.tilt !== undefined && item.tilt !== 'x' && item.tilt !== 'y') c.add('wrong-type', `${path}.tilt`, 'expected "x" or "y"');
+  if (item.meta !== undefined) checkMeta(c, item.meta, `${path}.meta`);
 }
 
 /** Throw a CoreError listing every problem unless the value is a sound project. */

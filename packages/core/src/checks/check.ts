@@ -1,9 +1,10 @@
 import { aabbsWithin, boundsOf, type Aabb } from '../geometry/aabb.js';
 import { clipConvex, polygonsOverlap } from '../geometry/clip.js';
 import { containsPolygon, isConvex, type Polygon } from '../geometry/polygon.js';
+import { gridIndex, type SpatialIndex } from '../geometry/grid.js';
 import { convexOverlap } from '../geometry/sat.js';
 import type { Vec2 } from '../geometry/vec2.js';
-import { doorPolygon, itemClearancePolygon, itemPolygon } from '../model/derive.js';
+import { doorPolygon, itemClearancePolygon, itemPolygon, placedSize } from '../model/derive.js';
 import type { Id, ItemDefinition, ItemInstance, Project } from '../model/types.js';
 import type { Tick } from '../units/length.js';
 
@@ -92,11 +93,25 @@ function convexConflict(a: Polygon, b: Polygon): { depth: number; region: Vec2[]
   return overlaps ? { depth, region: clipConvex(a, b) } : undefined;
 }
 
+export interface CheckOptions {
+  /**
+   * Find nearby items through a derived spatial grid (default) or by comparing every pair.
+   * Both give identical issues; the pairwise form exists to verify the grid and to benchmark it.
+   */
+  readonly spatialIndex?: boolean;
+}
+
+/** Every box compared with every other: the reference the grid must match. */
+function allPairs(count: number): SpatialIndex {
+  const all = Array.from({ length: count }, (_, i) => i);
+  return { query: () => all };
+}
+
 /**
  * Find every design issue in a structurally valid project (see `validateProject`).
  * Deterministic: same project, same issues in the same order.
  */
-export function checkProject(project: Project): Issue[] {
+export function checkProject(project: Project, options: CheckOptions = {}): Issue[] {
   const { space } = project;
   const issues: Issue[] = [];
 
@@ -107,10 +122,12 @@ export function checkProject(project: Project): Issue[] {
       const body = itemPolygon(item, definition);
       const zone = itemClearancePolygon(item, definition);
       const bottom = item.elevation ?? 0;
-      const top = bottom + definition.size.h;
+      const top = bottom + placedSize(item, definition).h;
       return { item, definition, body, bodyBox: boundsOf(body), zone, zoneBox: boundsOf(zone), bottom, top };
     });
   const obstacles: Shape[] = space.obstacles.map((o) => ({ id: o.id, polygon: o.polygon, box: boundsOf(o.polygon) }));
+  const bodyBoxes = placed.map((p) => p.bodyBox);
+  const near = options.spatialIndex === false ? allPairs(placed.length) : gridIndex(bodyBoxes);
   const doors: Shape[] = space.doors.map((d) => {
     const polygon = doorPolygon(d);
     return { id: d.id, polygon, box: boundsOf(polygon) };
@@ -118,6 +135,7 @@ export function checkProject(project: Project): Issue[] {
 
   for (const p of placed) {
     const id = p.item.id;
+    const closeBodies = hasAnyClearance(p) ? near.query(p.zoneBox) : [];
 
     if (!containsPolygon(space.boundary, p.body)) issues.push(issue('out-of-bounds', [id], undefined, p.body));
 
@@ -139,12 +157,13 @@ export function checkProject(project: Project): Issue[] {
 
     // Clearance: the zone must stay inside the room and free of other items and obstacles.
     // Two clearance zones meeting is fine (a shared aisle); activity packs may say otherwise.
-    const hasClearance = Object.values(p.definition.clearance).some((side) => side > 0);
+    const hasClearance = hasAnyClearance(p);
     if (hasClearance) {
       if (!containsPolygon(space.boundary, p.zone) && containsPolygon(space.boundary, p.body)) {
         issues.push(issue('clearance', [id], undefined, p.zone)); // against a wall: only the item is named
       }
-      for (const other of placed) {
+      for (const k of closeBodies) {
+        const other = placed[k]!;
         if (other === p || !stacked(p, other) || !aabbsWithin(p.zoneBox, other.bodyBox)) continue;
         if (convexOverlap(p.body, other.body).overlaps) continue; // already reported as overlap
         const conflict = convexConflict(p.zone, other.body);
@@ -160,7 +179,8 @@ export function checkProject(project: Project): Issue[] {
   }
 
   for (let i = 0; i < placed.length; i++) {
-    for (let j = i + 1; j < placed.length; j++) {
+    for (const j of near.query(placed[i]!.bodyBox)) {
+      if (j <= i) continue;
       const a = placed[i]!;
       const b = placed[j]!;
       if (!stacked(a, b) || !aabbsWithin(a.bodyBox, b.bodyBox)) continue;
@@ -184,6 +204,10 @@ export function checkProject(project: Project): Issue[] {
  * Doors, columns and blocked zones are still checked at any height: the core does not know
  * how tall a door opening is, so it stays on the safe side.
  */
+function hasAnyClearance(p: Placed): boolean {
+  return Object.values(p.definition.clearance).some((side) => side > 0);
+}
+
 function stacked(a: Placed, b: Placed): boolean {
   return a.bottom < b.top && b.bottom < a.top;
 }

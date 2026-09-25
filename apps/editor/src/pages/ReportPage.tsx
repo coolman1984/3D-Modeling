@@ -6,7 +6,7 @@ import { api } from '../api.js';
 import { loadActivity } from '../logic/activity.js';
 import { formatCentimetres, formatCount, formatLength, formatMetres, formatPercent, formatSquareMetres, plural } from '../logic/format.js';
 import { buildReport } from '../logic/report.js';
-import { RULE_STATUS_WORD, SEVERITY_WORD } from '../logic/messages.js';
+import { RULE_STATUS_WORD, SEVERITY_WORD, SOURCE_KIND_WORD } from '../logic/messages.js';
 import { PlanDrawing } from '../ui/PlanDrawing.js';
 import { renderSnapshot } from '../ui/View3D.js';
 
@@ -314,6 +314,11 @@ export function ReportPage({ projectId }: { projectId: string }) {
                 <span className="nm">
                   {rule.title}
                   {rule.status !== 'pass' && <span className="note">{rule.text}</span>}
+                  {rule.source && (
+                    <span className="note">
+                      {SOURCE_KIND_WORD[rule.source.kind]}: {rule.source.title}
+                    </span>
+                  )}
                 </span>
                 <span className="sm">
                   <span>Measured</span>
