@@ -18,7 +18,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { newHall, ROUND_SHAPES, SHAPES } from '@space-planner/starter';
+import { checkHall, HALL_STYLES, hallStyle, newHall, ROUND_SHAPES, SHAPES, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -163,7 +163,28 @@ export function describeProject(project: Project): string {
   for (const issue of issues) lines.push(`  ${describeIssue(project, issue)}`);
   const metrics = measureProject(project);
   lines.push(`Metrics: ${metrics.seats} seats, ${metrics.itemCount} items, floor ${toSquareMetres(metrics.floorArea).toFixed(2)} m², occupied ${(metrics.occupancy * 100).toFixed(1)}%`);
+  lines.push(...describeRules(project, 'banquet'));
   return lines.join('\n');
+}
+
+/** Hall rules (guidance from the hall pack) as short English lines for agents. */
+function describeRules(project: Project, style: string): string[] {
+  const spec = hallStyle(style);
+  const line = (r: RuleResult): string => {
+    if (r.status === 'unknown') return `  ${r.code}: unknown (${r.reason === 'no-doors' ? 'no doors' : 'no seats'})`;
+    const cmOf = (v: number | undefined) => `${toUnit(v ?? 0, 'cm')} cm`;
+    switch (r.code) {
+      case 'walkway':
+        return `  walkway ${cmOf(r.required)} from every seat to a door: ${r.status}${r.entityIds.length ? ` — no way out for ${r.entityIds.join(', ')}` : ''}`;
+      case 'area-per-guest':
+        return `  floor per guest: ${r.measured} m² (needs ${r.required}): ${r.status}`;
+      case 'exits':
+        return `  exits: ${r.measured} door(s) (needs ${r.required}): ${r.status}`;
+      case 'door-width':
+        return `  total door width: ${cmOf(r.measured)} (needs ${cmOf(r.required)}): ${r.status}`;
+    }
+  };
+  return [`Hall rules (${spec.id}):`, ...checkHall(project, spec.id).map(line)];
 }
 
 function afterChange(project: Project, what: string): string {
@@ -480,14 +501,20 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'check_project',
-    description: 'List design issues (overlaps, blocked doors, items outside the room, missing clearance, too tall) with how far off each is, plus key metrics.',
-    inputSchema: { type: 'object', properties: { project_id: projectId }, required: ['project_id'], additionalProperties: false },
+    description: `List design issues (overlaps, blocked doors, items outside the room, missing clearance, too tall) with how far off each is, key metrics, and the hall rules (walkway from every seat to a door, floor per guest, exits, door width) for an event style: ${HALL_STYLES.map((s) => s.id).join(', ')} (default banquet).`,
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, hall_style: { type: 'string', enum: HALL_STYLES.map((s) => s.id) } },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
     run: (ctx, input) => {
       const project = load(ctx, input);
       const issues = checkProject(project);
       const metrics = measureProject(project);
       const head = `Revision ${project.revision}: ${metrics.seats} seats, ${metrics.itemCount} items, occupied ${(metrics.occupancy * 100).toFixed(1)}%.`;
-      return issues.length === 0 ? `${head}\nNo issues.` : `${head}\n${issues.map((i) => describeIssue(project, i)).join('\n')}`;
+      const rules = describeRules(project, str(input, 'hall_style', true) || 'banquet').join('\n');
+      return `${head}\n${issues.length === 0 ? 'No issues.' : issues.map((i) => describeIssue(project, i)).join('\n')}\n${rules}`;
     },
   },
   {

@@ -3,7 +3,7 @@ import { shapeOf, type ShapeKey } from '@space-planner/starter';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { ControlSettings } from '../logic/controls.js';
+import { headingQuarter, type ControlSettings } from '../logic/controls.js';
 import type { Action } from '../logic/session.js';
 import { snapMove } from '../logic/snap.js';
 import { elevateCommands, movable, moveCommands } from '../logic/transform.js';
@@ -19,6 +19,8 @@ interface Props {
   readonly dispatch: (action: Action) => void;
   /** Bump to re-frame the whole room. */
   readonly fitToken: number;
+  /** Told which quarter-turn the camera faces (0 = north), so arrow keys can follow the view. */
+  readonly onHeading?: (quarter: 0 | 1 | 2 | 3) => void;
 }
 
 const TICKS_PER_METRE = 10_000;
@@ -206,6 +208,19 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number): THREE.Gro
       g.add(foliage);
       break;
     }
+    case 'dance-floor': {
+      // Checkered tiles of about 60 cm, alternating two woods.
+      const nx = Math.max(1, Math.round(w / 0.6));
+      const nz = Math.max(1, Math.round(d / 0.6));
+      for (let i = 0; i < nx; i++) {
+        for (let k = 0; k < nz; k++) {
+          const tile = box(w / nx, Math.max(0.005, h), d / nz, (i + k) % 2 ? COLORS.wood : COLORS.darkWood, -w / 2 + (i + 0.5) * (w / nx), Math.max(0.005, h) / 2, -d / 2 + (k + 0.5) * (d / nz));
+          tile.castShadow = false;
+          g.add(tile);
+        }
+      }
+      break;
+    }
     default:
       g.add(box(w, h, d, COLORS.box));
   }
@@ -339,7 +354,7 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
  * drag an item to slide it over the floor, Shift+drag to raise or lower it, Alt for precision;
  * click / Shift-click selects. Every drag is one saved change.
  */
-export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken }: Props) {
+export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken, onHeading }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const three = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -351,8 +366,8 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   const [fullWalls, setFullWalls] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The event handlers are set up once; they read the latest props through this ref.
-  const latest = useRef({ saved, selectedIds, settings, dispatch });
-  latest.current = { saved, selectedIds, settings, dispatch };
+  const latest = useRef({ saved, selectedIds, settings, dispatch, onHeading });
+  latest.current = { saved, selectedIds, settings, dispatch, onHeading };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -393,6 +408,16 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       controls.update();
       renderer.render(scene, camera);
     });
+
+    let lastQuarter = -1;
+    const reportHeading = () => {
+      const quarter = headingQuarter(controls.target.x - camera.position.x, -(controls.target.z - camera.position.z));
+      if (quarter !== lastQuarter) {
+        lastQuarter = quarter;
+        latest.current.onHeading?.(quarter);
+      }
+    };
+    controls.addEventListener('change', reportHeading);
 
     const canvas = renderer.domElement;
     const ray = new THREE.Raycaster();
@@ -501,6 +526,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     return () => {
       observer.disconnect();
       renderer.setAnimationLoop(null);
+      controls.removeEventListener('change', reportHeading);
       canvas.removeEventListener('pointerdown', onDown, { capture: true });
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);

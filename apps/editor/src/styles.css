@@ -94,6 +94,7 @@ input { width: 80px; }
 }
 .issues .error button { border-inline-start-color: var(--error); }
 .issues .warning button { border-inline-start-color: var(--warning); }
+.issues .ok button { border-inline-start-color: var(--accent); }
 .issues span { font-size: 12px; color: var(--muted); }
 
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
@@ -286,3 +287,5 @@ a.button.disabled { opacity: 0.45; pointer-events: none; }
   .plan-drawing { background: none; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.wide { width: 100%; margin-bottom: 6px; }
+.report-issues li.ok { border-inline-start-color: var(--accent); }

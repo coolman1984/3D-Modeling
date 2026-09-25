@@ -13,7 +13,7 @@ import {
 } from '@space-planner/core';
 import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { actorName, api, subscribe } from '../api.js';
-import { acceleratedStep, copyOffset, keyIntent, loadControls, saveControls, type ControlSettings } from '../logic/controls.js';
+import { acceleratedStep, copyOffset, keyIntent, loadControls, saveControls, turnNudge, type ControlSettings } from '../logic/controls.js';
 import { nextId } from '../logic/ids.js';
 import { REJECTION_MESSAGES } from '../logic/messages.js';
 import { findFreeSpot } from '../logic/placement.js';
@@ -34,7 +34,9 @@ import { AgentPanel } from '../ui/AgentPanel.js';
 import { Tabs } from '../ui/Fields.js';
 import { HistoryPanel } from '../ui/HistoryPanel.js';
 import { ItemTypesPanel } from '../ui/ItemTypes.js';
-import { ControlsPanel, IssuesPanel, MetricsPanel, SelectionPanel } from '../ui/Panels.js';
+import { ControlsPanel, HallRulesPanel, IssuesPanel, MetricsPanel, SelectionPanel } from '../ui/Panels.js';
+import { checkHall, type HallStyle } from '@space-planner/starter';
+import { loadHallStyle, saveHallStyle } from '../logic/hallStyle.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
 import { View3D } from '../ui/View3D.js';
@@ -104,6 +106,8 @@ function Editor({ initial }: { initial: Project }) {
   const checked = useDeferredValue(shown);
   const issues = useMemo(() => checkProject(checked), [checked]);
   const metrics = useMemo(() => measureProject(checked), [checked]);
+  const [hallStyle, setHallStyle] = useState<HallStyle>(() => loadHallStyle(initial.id));
+  const rules = useMemo(() => checkHall(checked, hallStyle), [checked, hallStyle]);
 
   const load = useCallback((next: Project, message?: string) => {
     dispatch({ type: 'load', project: next });
@@ -132,18 +136,34 @@ function Editor({ initial }: { initial: Project }) {
   // Live changes made by agents or other windows.
   const latest = useRef({ revision: project.revision, pending: session.outbox.length });
   latest.current = { revision: project.revision, pending: session.outbox.length };
+  // A change from elsewhere that arrived while our own edits were still being saved: fetched
+  // once they are saved, so it is never lost.
+  const missed = useRef<{ revision: number; message: string } | null>(null);
+  const fetchLatest = useCallback(
+    (message: string) =>
+      void api.getProject(project.id).then((p) => {
+        if (p.revision > latest.current.revision && latest.current.pending === 0) load(p, message);
+      }),
+    [project.id, load],
+  );
   useEffect(
     () =>
       subscribe({
         project: (e) => {
-          if (e.projectId !== project.id || e.revision <= latest.current.revision || latest.current.pending > 0) return;
-          void api.getProject(project.id).then((p) => {
-            if (p.revision > latest.current.revision) load(p, `${actorName(e.actor)}: ${e.summary}`);
-          });
+          if (e.projectId !== project.id || e.revision <= latest.current.revision) return;
+          const message = `${actorName(e.actor)}: ${e.summary}`;
+          if (latest.current.pending > 0) missed.current = { revision: e.revision, message };
+          else fetchLatest(message);
         },
       }),
-    [project.id, load],
+    [project.id, fetchLatest],
   );
+  useEffect(() => {
+    const waiting = missed.current;
+    if (session.outbox.length > 0 || !waiting) return;
+    missed.current = null;
+    if (waiting.revision > project.revision) fetchLatest(waiting.message);
+  }, [session.outbox.length, project.revision, fetchLatest]);
 
   useEffect(() => {
     if (session.rejection) setNotice(REJECTION_MESSAGES[session.rejection.code]);
@@ -165,6 +185,9 @@ function Editor({ initial }: { initial: Project }) {
 
   // Keyboard: a held arrow (or PageUp/PageDown) shows the move live and saves it as one step
   // when the key is released, so a long press is one line in the history, not fifty.
+  // Arrow keys follow the 3D camera when the 3D view was the last one touched.
+  const heading = useRef<0 | 1 | 2 | 3>(0);
+  const lastPane = useRef<'plan' | '3d'>('plan');
   const nudge = useRef<{ dx: number; dy: number; dz: number; repeats: number } | null>(null);
   const clipboard = useRef<readonly ItemInstance[]>([]);
   useEffect(() => {
@@ -186,9 +209,11 @@ function Editor({ initial }: { initial: Project }) {
         if (session.preview && !nudge.current) return; // a mouse gesture is running
         const n = nudge.current ?? { dx: 0, dy: 0, dz: 0, repeats: 0 };
         const k = acceleratedStep(1, event.repeat ? n.repeats + 1 : 0, controls.keyAcceleration);
+        const in3d = view === '3d' || (view === 'split' && lastPane.current === '3d');
+        const arrow = intent.kind === 'nudge' ? turnNudge(intent.dx, intent.dy, in3d ? heading.current : 0) : { dx: 0, dy: 0 };
         const next =
           intent.kind === 'nudge'
-            ? { ...n, dx: n.dx + intent.dx * k, dy: n.dy + intent.dy * k, repeats: event.repeat ? n.repeats + 1 : 0 }
+            ? { ...n, dx: n.dx + arrow.dx * k, dy: n.dy + arrow.dy * k, repeats: event.repeat ? n.repeats + 1 : 0 }
             : { ...n, dz: n.dz + intent.dz * k, repeats: event.repeat ? n.repeats + 1 : 0 };
         nudge.current = next;
         const move = moveCommands(project, ids, { x: next.dx, y: next.dy });
@@ -257,7 +282,7 @@ function Editor({ initial }: { initial: Project }) {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', endNudge);
     };
-  }, [session.selectedIds, session.preview, project, controls]);
+  }, [session.selectedIds, session.preview, project, controls, view]);
 
   const [renaming, setRenaming] = useState(false);
   const saving = session.outbox.length > 0;
@@ -381,7 +406,7 @@ function Editor({ initial }: { initial: Project }) {
       </aside>
       <main className={`canvas view-${view}`} ref={canvasBox}>
         {view !== '3d' && (
-          <div className="pane">
+          <div className="pane" onPointerDownCapture={() => (lastPane.current = 'plan')}>
             <PlanCanvas
               project={shown}
               saved={project}
@@ -396,8 +421,17 @@ function Editor({ initial }: { initial: Project }) {
           </div>
         )}
         {view !== 'plan' && (
-          <div className="pane">
-            <View3D project={shown} saved={project} issues={issues} selectedIds={session.selectedIds} controls={controls} dispatch={dispatch} fitToken={fitToken} />
+          <div className="pane" onPointerDownCapture={() => (lastPane.current = '3d')}>
+            <View3D
+              project={shown}
+              saved={project}
+              issues={issues}
+              selectedIds={session.selectedIds}
+              controls={controls}
+              dispatch={dispatch}
+              fitToken={fitToken}
+              onHeading={(q) => (heading.current = q)}
+            />
             <p className="hint">اسحب العنصر يتحرك على الأرض · Shift + سحب يرفعه وينزّله · اسحب الفاضي عشان تلف حوالين القاعة · الزرار اليمين للتحريك</p>
           </div>
         )}
@@ -415,6 +449,16 @@ function Editor({ initial }: { initial: Project }) {
         {endTab === 'check' && (
           <>
             <IssuesPanel project={shown} issues={issues} dispatch={dispatch} />
+            <HallRulesPanel
+              project={checked}
+              rules={rules}
+              style={hallStyle}
+              onStyle={(style) => {
+                setHallStyle(style);
+                saveHallStyle(project.id, style);
+              }}
+              dispatch={dispatch}
+            />
             <MetricsPanel metrics={metrics} />
           </>
         )}

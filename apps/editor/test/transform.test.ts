@@ -2,7 +2,7 @@ import { apply, fromUnit, type Command, type Project } from '@space-planner/core
 import { demoHall } from '@space-planner/starter';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { acceleratedStep, DEFAULT_CONTROLS, keyIntent, sanitizeControls } from '../src/logic/controls.js';
+import { acceleratedStep, DEFAULT_CONTROLS, headingQuarter, keyIntent, sanitizeControls, turnNudge } from '../src/logic/controls.js';
 import { reduce, startSession } from '../src/logic/session.js';
 import { snapAngle, snapMove } from '../src/logic/snap.js';
 import {
@@ -211,5 +211,14 @@ describe('precision and speed settings', () => {
     expect(acceleratedStep(10, 14, 1)).toBe(25);
     expect(acceleratedStep(10, 1000, 5)).toBe(200);
     expect(acceleratedStep(10, 100, 0)).toBe(10);
+  });
+
+  it('in 3D, "up" moves away from the viewer whichever way the camera faces', () => {
+    // Facing north (start), west, south, east; up = (0, 1), right = (1, 0) on screen.
+    const facing = [headingQuarter(0, 5), headingQuarter(-3, 0.2), headingQuarter(0.1, -2), headingQuarter(4, 1)];
+    expect(facing).toEqual([0, 1, 2, 3]);
+    expect(facing.map((q) => turnNudge(0, 1, q))).toEqual([{ dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: -0, dy: -1 }, { dx: 1, dy: -0 }]);
+    // Facing west, the right hand points north.
+    expect(turnNudge(1, 0, 1)).toEqual({ dx: -0, dy: 1 });
   });
 });

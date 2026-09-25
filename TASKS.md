@@ -1,5 +1,35 @@
 # TASKS
 
+## Done: T3b — hall pack: catalog, hall rules, rules in the report; camera-relative arrows
+
+**Done means:**
+1. The starter catalog has 20–30 hall items with real sizes and clearances (tables of each common
+   size, chairs, sofas, the bride and groom kosha, stages, dance floor, buffet, bar, DJ booth,
+   screen, lectern, plants…); existing ids keep working; an existing project can bring in the
+   items it is missing in one step.
+2. Hall rules live in the hall pack (`packages/starter`), not in the core, for three event styles
+   (banquet, theatre, classroom):
+   - every seat reaches a door by a walkway at least the style's width (seats cut off are named);
+   - floor area per guest;
+   - number of exits for the number of guests;
+   - total door width for the number of guests.
+   Each rule says pass / fail / unknown with the measured and required numbers, and never
+   "pass" on missing data.
+3. The editor shows the rules next to the issues with a style picker; clicking a failed rule
+   selects the seats involved. The report shows the rules and the chosen style.
+4. Agents see the rule results in `get_project`.
+5. In the 3D view the arrow keys move items relative to where the camera looks.
+6. Reference tests with hand-computed numbers for every rule, a property test, browser journeys;
+   `pnpm check` passes.
+
+- [x] Hall catalog (20–30 items) + dance-floor shape + "bring in hall items" button
+- [x] Hall rules module + tests (starter gets its own tests)
+- [x] Editor rules panel + style choice + select failing seats
+- [x] Report: rules section and style
+- [x] Server: rules in get_project
+- [x] 3D: arrows relative to camera
+- [x] e2e, decision record 0005, README, TASKS, review, commit, push
+
 ## Done: T3a — printable client report + professional move controls (2D and 3D)
 
 **Done means:**
@@ -34,6 +64,16 @@
 - [x] Editor: keyboard map, precision panel, selection panel
 - [x] Report page + print styles + editor link
 - [x] Tests (logic, e2e), decision record 0004, README, review, commit, push
+
+## Found along the way (T3b)
+
+- A change from an agent that arrived while the editor was still saving its own edit was
+  dropped until reload. The editor now fetches it once its own edits are saved.
+- The walkway rule first measured reach from a seat's centre, so a big seat (the 3 × 2 m kosha)
+  could never be reached. It now measures from the seat's outline (test added).
+- A planted bug showed a redundant condition in the seat check; removed.
+- Not confirmed: the thresholds are common guidance, not Egyptian civil-defence figures; the
+  owner may want local numbers. The kosha is drawn in 3D as a plain platform.
 
 ## Found along the way (T3a)
 
@@ -91,8 +131,8 @@
 
 ## Next
 
-- T3b hall pack: 20–30 hall items in the starter catalog, hall rules (aisle widths, area per guest,
-  guests per door), the rules' results in the report; arrows relative to the camera in 3D.
+- T4 office pack: a small office catalog and rules, with no change to the core (proves the base is general).
+- A proper 3D model for the kosha (platform + couple sofa + backdrop).
 
 ## Later
 

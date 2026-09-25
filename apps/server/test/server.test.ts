@@ -132,6 +132,12 @@ describe('agent tools', () => {
     runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: 0 }] });
     expect(store.getProject(project.id)!.items['chair-1']).not.toHaveProperty('elevation');
     expect(runTool(ctx, 'move_items', { project_id: project.id, moves: [{ id: 'chair-1', height_m: -1 }] }).isError).toBe(true);
+    // Hall rules: one guest behind the east door of a 14 × 10 m room, 140 m² for one seat.
+    expect(described).toContain('Hall rules (banquet):');
+    const checked = runTool(ctx, 'check_project', { project_id: project.id, hall_style: 'theatre' }).text;
+    expect(checked).toContain('Hall rules (theatre):');
+    expect(checked).toContain('walkway 100 cm from every seat to a door: pass');
+    expect(checked).toContain('exits: 1 door(s) (needs 1): pass');
     expect(store.history(project.id)[0]?.actor).toBe('agent:test');
   });
 

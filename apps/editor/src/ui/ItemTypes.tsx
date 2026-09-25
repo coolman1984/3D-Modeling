@@ -1,8 +1,9 @@
 import { fromUnit, toUnit, type Id, type ItemDefinition, type Project } from '@space-planner/core';
-import { ROUND_SHAPES, SHAPES, shapeOf, type ShapeKey } from '@space-planner/starter';
+import { missingStarterItems, ROUND_SHAPES, SHAPES, shapeOf, type ShapeKey } from '@space-planner/starter';
 import { useState } from 'react';
 import { formatLength } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
+import { takenIds } from '../logic/transform.js';
 import type { Action } from '../logic/session.js';
 import { NumberField } from './Fields.js';
 
@@ -57,7 +58,12 @@ export function ItemTypesPanel({
   editing: Id | 'new' | null;
   setEditing: (id: Id | 'new' | null) => void;
 }) {
-  const definitions = Object.values(project.catalog);
+  const [filter, setFilter] = useState('');
+  const words = filter.trim().split(/\s+/).filter(Boolean);
+  const definitions = Object.values(project.catalog).filter((d) => words.every((w) => d.name.includes(w)));
+  // Hall items this project does not have yet (older projects, or ones deleted by hand).
+  const taken = takenIds(project);
+  const missing = missingStarterItems(project).filter((d) => !taken.has(d.id));
   const current = editing === 'new' ? EMPTY : editing ? project.catalog[editing] : undefined;
   return (
     <section className="panel" aria-label="الأصناف">
@@ -83,6 +89,16 @@ export function ItemTypesPanel({
           }}
         />
       )}
+      {missing.length > 0 && (
+        <button
+          type="button"
+          className="wide"
+          onClick={() => dispatch({ type: 'command', command: { type: 'batch', commands: missing.map((definition) => ({ type: 'catalog.define', definition })) } })}
+        >
+          هات أصناف القاعات الناقصة ({new Intl.NumberFormat('ar-EG').format(missing.length)})
+        </button>
+      )}
+      <input className="wide" name="catalog-filter" type="search" placeholder="دوّر على صنف…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       <ul className="catalog">
         {definitions.map((d) => (
           <li key={d.id}>

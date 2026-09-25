@@ -31,7 +31,10 @@ describe('client report', () => {
       [1, 'chair', 4, 4],
       [2, 'table-180', 1, 0],
     ]);
-    expect(r.keyOf).toEqual({ 'table-1': 2, 'chair-1': 1, 'chair-2': 1, 'chair-3': 1, 'chair-4': 1 });
+    expect(r.rules.map((x) => `${x.code} ${x.status}`)).toEqual(['walkway pass', 'area-per-guest pass', 'exits pass', 'door-width pass']);
+    expect(r.rules[1]!.text).toBe('نصيب الضيف ١٩٫٩٦ م² من الأرض، والمطلوب ١٫٢ م² على الأقل.');
+    expect(buildReport(p, 'theatre').style.label).toBe('مسرح أو محاضرة (صفوف)');
+        expect(r.keyOf).toEqual({ 'table-1': 2, 'chair-1': 1, 'chair-2': 1, 'chair-3': 1, 'chair-4': 1 });
   });
 
   it('lists problems in plain words and never calls an unknown ceiling "ready"', () => {
@@ -43,5 +46,20 @@ describe('client report', () => {
     expect(buildReport(noCeiling).verdict).toBe('check');
     expect(buildReport(noCeiling).counts).toEqual({ error: 0, warning: 0, info: 1 });
     expect(buildReport(noCeiling).totals.areaPerSeat).toBe(80);
+  });
+
+  it('a failed hall rule turns a clean design into "check", and names the cut-off seats', () => {
+    // A pen of four 180 × 80 tables that touch but do not overlap: two across (x 6.1 → 7.9 m,
+    // at y 5.65 and 4.35), two turned upright just outside their ends (x 5.7 and 8.3 m).
+    // The chair at (7, 5) fits in the 50 cm slot between them and has no way out.
+    let p = place(demoHall(), 'chair-1', 'chair', 7, 5);
+    p = place(p, 'table-180-1', 'table-180', 7, 5.65);
+    p = place(p, 'table-180-2', 'table-180', 7, 4.35);
+    p = place(p, 'table-180-3', 'table-180', 5.7, 5, 90_000);
+    p = place(p, 'table-180-4', 'table-180', 8.3, 5, 90_000);
+    const r = buildReport(p);
+    expect(r.counts.error).toBe(0);
+    expect(r.rules[0]).toMatchObject({ code: 'walkway', status: 'fail', severity: 'warning' });
+    expect(r.rules[0]!.text).toBe('١ مالهمش ممر عرضه ٩٠ سم لباب: كرسي (chair-1). وسّع الممر أو شيل اللي سادده.');
   });
 });

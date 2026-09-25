@@ -2,15 +2,18 @@ import { checkProject, type Project } from '@space-planner/core';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { formatArea, formatCount, formatLength, formatPercent } from '../logic/format.js';
+import { loadHallStyle } from '../logic/hallStyle.js';
 import { buildReport } from '../logic/report.js';
 import { PlanDrawing } from '../ui/PlanDrawing.js';
 import { renderSnapshot } from '../ui/View3D.js';
 
 const VERDICT = {
   ready: { text: 'التصميم سليم: مفيش تداخل ولا باب مسدود ولا عنصر برّه الحدود.', className: 'ok' },
-  check: { text: 'مفيش أخطاء، بس فيه ملاحظات محتاجة مراجعة (تحت).', className: 'warning' },
+  check: { text: 'مفيش أخطاء، بس فيه ملاحظات أو قواعد محتاجة مراجعة (تحت).', className: 'warning' },
   problems: { text: 'فيه أخطاء لازم تتصلّح قبل التنفيذ (تحت).', className: 'error' },
 } as const;
+
+const RULE_WORD = { pass: 'تمام', fail: 'محتاج مراجعة', unknown: 'مش معروف' } as const;
 
 const SEVERITY_WORD = { error: 'خطأ', warning: 'تنبيه', info: 'ملاحظة' } as const;
 
@@ -31,7 +34,7 @@ export function ReportPage({ projectId }: { projectId: string }) {
       .then(setProject)
       .catch(() => setMissing(true));
   }, [projectId]);
-  const report = useMemo(() => (project ? buildReport(project) : null), [project]);
+  const report = useMemo(() => (project ? buildReport(project, loadHallStyle(project.id)) : null), [project]);
   const issues = useMemo(() => (project ? checkProject(project) : []), [project]);
   useEffect(() => {
     if (!project) return;
@@ -199,9 +202,23 @@ export function ReportPage({ projectId }: { projectId: string }) {
           )}
         </section>
 
+        <section className="report-section" aria-label="قواعد القاعة">
+          <h2>قواعد القاعة: {report.style.label}</h2>
+          <ul className="report-issues" data-testid="report-rules">
+            {report.rules.map((rule) => (
+              <li key={rule.code} className={rule.status === 'fail' ? 'warning' : rule.status === 'pass' ? 'ok' : 'info'} data-rule={rule.code} data-status={rule.status}>
+                <strong>
+                  {rule.title}: {RULE_WORD[rule.status]}
+                </strong>{' '}
+                {rule.text}
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <footer className="report-foot">
-          الفحص مبني على المقاسات المكتوبة في التصميم: التداخل، الحدود، فتحات الأبواب، الأعمدة، مساحة الاستخدام حوالين كل عنصر، وارتفاع السقف. مش بديل عن
-          اشتراطات الدفاع المدني أو مراجعة مهندس.
+          الفحص مبني على المقاسات المكتوبة في التصميم: التداخل، الحدود، فتحات الأبواب، الأعمدة، مساحة الاستخدام حوالين كل عنصر، وارتفاع السقف. قواعد القاعة
+          إرشادات تخطيط شائعة (الممرات بدقة ٥ سم). ده كله مش بديل عن اشتراطات الدفاع المدني أو مراجعة مهندس.
         </footer>
       </article>
     </div>

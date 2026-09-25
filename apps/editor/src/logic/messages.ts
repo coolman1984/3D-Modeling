@@ -1,4 +1,5 @@
-import type { Id, Issue, IssueCode, Project, RejectCode } from '@space-planner/core';
+import { measureProject, type Id, type Issue, type IssueCode, type Project, type RejectCode } from '@space-planner/core';
+import type { RuleCode, RuleResult } from '@space-planner/starter';
 import { formatLength } from './format.js';
 
 export const ISSUE_TITLES: Readonly<Record<IssueCode, string>> = {
@@ -58,3 +59,34 @@ export const REJECTION_MESSAGES: Readonly<Record<RejectCode, string>> = {
   'broken-reference': 'النوع ده مش موجود في الكتالوج.',
   'empty-batch': 'مفيش حاجة تتنفذ.',
 };
+
+export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
+  walkway: 'ممر من كل كرسي لباب',
+  'area-per-guest': 'مساحة لكل ضيف',
+  exits: 'عدد المخارج',
+  'door-width': 'عرض الأبواب',
+};
+
+const squareMetres = (v: number) => `${new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 2 }).format(v)} م²`;
+
+/** One sentence per hall rule, with the measured and required numbers. */
+export function describeRule(project: Project, rule: RuleResult): string {
+  if (rule.status === 'unknown') return rule.reason === 'no-doors' ? 'مفيش باب في القاعة، فمفيش طريق للخروج نقيسه.' : 'مفيش كراسي في التصميم لسه.';
+  const guests = measureProject(project).seats;
+  const count = (n: number) => new Intl.NumberFormat('ar-EG').format(n);
+  switch (rule.code) {
+    case 'walkway': {
+      const width = formatLength(rule.required ?? 0);
+      if (rule.status === 'pass') return `كل الكراسي توصل لباب بممر عرضه ${width} على الأقل.`;
+      const names = rule.entityIds.slice(0, 4).map((id) => entityName(project, id)).join('، ');
+      const more = rule.entityIds.length > 4 ? ` و${count(rule.entityIds.length - 4)} غيرهم` : '';
+      return `${count(rule.entityIds.length)} مالهمش ممر عرضه ${width} لباب: ${names}${more}. وسّع الممر أو شيل اللي سادده.`;
+    }
+    case 'area-per-guest':
+      return `نصيب الضيف ${squareMetres(rule.measured ?? 0)} من الأرض، والمطلوب ${squareMetres(rule.required ?? 0)} على الأقل.`;
+    case 'exits':
+      return `${count(guests)} ضيف محتاجين ${count(rule.required ?? 0)} باب على الأقل، والموجود ${count(rule.measured ?? 0)}.`;
+    case 'door-width':
+      return `${count(guests)} ضيف محتاجين أبواب عرضها كلها ${formatLength(rule.required ?? 0)} على الأقل، والموجود ${formatLength(rule.measured ?? 0)}.`;
+  }
+}

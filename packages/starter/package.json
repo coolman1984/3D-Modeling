@@ -9,9 +9,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "echo 'starter: covered by server and editor tests'"
+    "test": "vitest run"
   },
   "dependencies": {
     "@space-planner/core": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "^4.10.2",
+    "vitest": "^5.0.1"
   }
 }

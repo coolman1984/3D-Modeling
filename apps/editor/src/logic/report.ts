@@ -9,7 +9,8 @@ import {
   type Size3,
   type Tick,
 } from '@space-planner/core';
-import { describeIssue, ISSUE_TITLES } from './messages.js';
+import { checkHall, hallStyle, type HallStyle, type RuleResult } from '@space-planner/starter';
+import { describeIssue, describeRule, ISSUE_TITLES, RULE_TITLES } from './messages.js';
 
 /** One line of the client's bill of materials; `key` is the number drawn on the plan. */
 export interface ReportLine {
@@ -57,11 +58,16 @@ export interface ReportData {
   readonly keyOf: Readonly<Record<Id, number>>;
   readonly issues: readonly ReportIssue[];
   readonly counts: { readonly error: number; readonly warning: number; readonly info: number };
-  /** 'ready' only when nothing is wrong and nothing is unknown. */
+  /** The event style the hall rules were checked for. */
+  readonly style: { readonly id: HallStyle; readonly label: string };
+  readonly rules: readonly (ReportIssue & { readonly code: RuleResult['code']; readonly status: RuleResult['status'] })[];
+  /** 'ready' only when nothing is wrong or unknown and every hall rule passes. */
   readonly verdict: 'ready' | 'check' | 'problems';
 }
 
-export function buildReport(project: Project): ReportData {
+export function buildReport(project: Project, styleId: HallStyle = 'banquet'): ReportData {
+  const style = hallStyle(styleId);
+  const rules = checkHall(project, style.id);
   const metrics = measureProject(project);
   const issues = checkProject(project);
   const box = boundsOf(project.space.boundary);
@@ -101,6 +107,14 @@ export function buildReport(project: Project): ReportData {
     keyOf,
     issues: issues.map((issue) => ({ severity: issue.severity, title: ISSUE_TITLES[issue.code], text: describeIssue(project, issue) })),
     counts,
-    verdict: counts.error > 0 ? 'problems' : counts.warning > 0 || counts.info > 0 ? 'check' : 'ready',
+    style: { id: style.id, label: style.label },
+    rules: rules.map((rule) => ({
+      code: rule.code,
+      status: rule.status,
+      severity: rule.status === 'fail' ? 'warning' : 'info',
+      title: RULE_TITLES[rule.code],
+      text: describeRule(project, rule),
+    })),
+    verdict: counts.error > 0 ? 'problems' : counts.warning > 0 || counts.info > 0 || rules.some((r) => r.status !== 'pass') ? 'check' : 'ready',
   };
 }

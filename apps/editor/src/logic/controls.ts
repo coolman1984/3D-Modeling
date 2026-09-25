@@ -167,3 +167,27 @@ export function keyIntent(press: KeyPress, s: ControlSettings): KeyIntent {
 export function copyOffset(s: ControlSettings): { x: number; y: number } {
   return { x: s.bigStep * 5, y: -s.bigStep * 5 };
 }
+
+/**
+ * Which quarter-turn the 3D camera faces, from its viewing direction on the plan:
+ * 0 looking north (the starting view), 1 west, 2 south, 3 east.
+ */
+export function headingQuarter(forwardX: number, forwardY: number): 0 | 1 | 2 | 3 {
+  if (forwardX === 0 && forwardY === 0) return 0;
+  const degrees = (Math.atan2(forwardY, forwardX) * 180) / Math.PI - 90;
+  return ((((Math.round(degrees / 90) % 4) + 4) % 4) as 0 | 1 | 2 | 3);
+}
+
+/** Turn an arrow-key move so "up" means away from the viewer in the 3D view. */
+export function turnNudge(dx: number, dy: number, quarter: 0 | 1 | 2 | 3): { dx: number; dy: number } {
+  switch (quarter) {
+    case 0:
+      return { dx, dy };
+    case 1:
+      return { dx: -dy, dy: dx };
+    case 2:
+      return { dx: -dx, dy: -dy };
+    case 3:
+      return { dx: dy, dy: -dx };
+  }
+}
