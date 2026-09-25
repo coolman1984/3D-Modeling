@@ -27,6 +27,22 @@ export interface Space {
   readonly ceilingHeight?: Tick;
   /** Pack-owned data about the space (a container's type and payload limit…); stored only when not empty. */
   readonly meta?: Meta;
+  /**
+   * Named areas of the floor (a dock, a staging area, a no-go lane). The core only stores and
+   * validates them; packs give each `kind` its meaning. Stored only when there is at least one.
+   */
+  readonly zones?: readonly Zone[];
+}
+
+/** A labelled area of the floor. Nothing is blocked by a zone unless a pack's rule says so. */
+export interface Zone {
+  readonly id: Id;
+  /** A pack-owned tag such as "dock" or "staging": 1 to 64 characters. */
+  readonly kind: string;
+  readonly name?: string;
+  /** Simple polygon, counter-clockwise, integer ticks. */
+  readonly polygon: readonly Vec2[];
+  readonly meta?: Meta;
 }
 
 export type ObstacleKind = 'column' | 'blocked-zone';

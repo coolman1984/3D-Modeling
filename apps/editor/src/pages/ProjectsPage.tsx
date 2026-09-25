@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Briefcase,
   Package,
+  Warehouse,
   Check,
   CheckCircle,
   CircleDashed,
@@ -201,6 +202,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               { id: 'hall', label: 'Event hall', count: count('hall') },
               { id: 'office', label: 'Office', count: count('office') },
               { id: 'container', label: 'Container', count: count('container') },
+              { id: 'warehouse', label: 'Warehouse', count: count('warehouse') },
             ]}
           />
           <span className="spacer" />
@@ -424,13 +426,15 @@ const TEMPLATES: readonly Template[] = [
   { id: 'hall', name: 'Event hall', desc: '24 × 16 m · 4.5 m ceiling · one door', width: 24, depth: 16, ceiling: 4.5, pack: 'hall' },
   { id: 'office', name: 'Open office', desc: '32 × 18 m · 3.0 m ceiling · one door', width: 32, depth: 18, ceiling: 3, pack: 'office' },
   { id: 'meeting', name: 'Meeting room', desc: '7.2 × 5.4 m · 2.8 m ceiling · one door', width: 7.2, depth: 5.4, ceiling: 2.8, pack: 'office' },
+  { id: 'warehouse', name: 'Warehouse', desc: '48 × 30 m · 10 m clear · two docks', width: 48, depth: 30, ceiling: 10, pack: 'warehouse' },
   { id: 'demo', name: 'Demo hall', desc: '10 × 8 m · a door and a column to try things', width: 10, depth: 8, ceiling: 3, pack: 'hall', demo: true },
   { id: 'blank', name: 'Blank', desc: 'Any size · add everything yourself', width: 12, depth: 9, ceiling: 3, pack: 'hall' },
 ];
 
 /** "Start with the room": name, activity, size and a live preview; opens the editor when done. */
 function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: string) => void }) {
-  const [template, setTemplate] = useState<Template>(TEMPLATES[4]!);
+  const blank = TEMPLATES.find((t) => t.id === 'blank')!;
+  const [template, setTemplate] = useState<Template>(blank);
   const [name, setName] = useState('');
   const [activity, setActivity] = useState<PackId>('hall');
   const [width, setWidth] = useState<number | undefined>(12);
@@ -442,7 +446,8 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
   const container = CONTAINER_TYPES.find((c) => c.id === containerId)!;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sizeOk = isContainer || ((width ?? 0) > 0 && (depth ?? 0) > 0);
+  const isWarehouse = activity === 'warehouse';
+  const sizeOk = isContainer || (isWarehouse ? (width ?? 0) >= 10 && (depth ?? 0) >= 10 : (width ?? 0) > 0 && (depth ?? 0) > 0);
   const valid = sizeOk && (name.trim() !== '' || template.demo === true);
   const w = isContainer ? container.length / 10_000 : (width ?? 0);
   const d = isContainer ? container.width / 10_000 : (depth ?? 0);
@@ -506,6 +511,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 ['hall', 'Event hall', 'Weddings, conferences, galas', <Confetti size={22} />],
                 ['office', 'Office', 'Workstations, meeting rooms', <Briefcase size={22} />],
                 ['container', 'Container', 'Cargo loading plans', <Package size={22} />],
+                ['warehouse', 'Warehouse', 'Pallet racks, aisles, docks', <Warehouse size={22} />],
               ] as const
             ).map(([id, label, hint, icon]) => (
               <button
@@ -514,10 +520,13 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 className={`activity-card${activity === id ? ' active' : ''}`}
                 aria-pressed={activity === id}
                 data-activity={id}
-                disabled={template.demo && id !== 'container'}
+                disabled={template.demo && id !== 'container' && id !== 'warehouse'}
                 onClick={() => {
-                  setActivity(id);
-                  if (id === 'container' && template.demo) setTemplate(TEMPLATES[4]!);
+                  if (id === 'warehouse' && activity !== 'warehouse') choose(TEMPLATES.find((t) => t.id === 'warehouse')!);
+                  else {
+                    setActivity(id);
+                    if ((id === 'container' || template.pack === 'warehouse') && (template.demo || template.pack === 'warehouse')) setTemplate(blank);
+                  }
                 }}
               >
                 {icon}
@@ -550,7 +559,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
         {!sizeOk && (
           <p className="error-text" style={{ marginTop: 8, fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
             <XCircle size={14} />
-            Width and depth must be more than 0.
+            {isWarehouse ? 'A warehouse needs sides of at least 10 m.' : 'Width and depth must be more than 0.'}
           </p>
         )}
         {error && (

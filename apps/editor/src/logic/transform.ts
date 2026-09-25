@@ -195,5 +195,6 @@ export function takenIds(project: Project): Set<string> {
     ...Object.keys(project.catalog),
     ...project.space.doors.map((d) => d.id),
     ...project.space.obstacles.map((o) => o.id),
+    ...(project.space.zones ?? []).map((z) => z.id),
   ]);
 }

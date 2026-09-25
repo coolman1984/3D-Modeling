@@ -131,6 +131,45 @@ describe('agent tools', () => {
     expect(store.getProject(id)!.space.meta).toMatchObject({ pack: 'container', containerType: '40hc' });
   });
 
+  it('lets an agent lay out a warehouse: rack rows, zones, truck, route; each change one revision', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'DC', activity: 'warehouse', width_m: 30, depth_m: 20, ceiling_m: 8 });
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    expect(created.text).toContain('Truck: reach');
+    expect(created.text).toContain('dock-1 | dock | Dock 1 | 2..6, 0..4');
+    expect(created.text).toContain('rack-bay | 5 | 3 | 1.5 m | 6 m | 1000 kg');
+    expect(created.text).toContain('rack-access: unknown (no racks)');
+
+    const rows = runTool(ctx, 'add_rack_rows', { project_id: id, x_m: 5, y_m: 10, bays: 4, rows: 3, aisle_m: 3 });
+    expect(rows.isError).toBe(false);
+    expect(rows.text).toContain('Added 12 bays.');
+    expect(rows.text).toContain('aisle width: narrowest 300 cm in front of a rack face (truck needs 290 cm): pass');
+    expect(rows.text).toContain('rack access from the docks: 12 of 12 bays: pass');
+    expect(store.history(id)[0]).toMatchObject({ actor: 'agent:test', summary: 'Added 3 rack rows of 4 bays' });
+
+    const truck = runTool(ctx, 'set_truck', { project_id: id, truck: 'counterbalance' });
+    expect(truck.text).toContain('aisle width: narrowest 300 cm in front of a rack face (truck needs 350 cm): fail');
+    expect(store.getProject(id)!.space.meta).toEqual({ pack: 'warehouse', truck: 'counterbalance' });
+
+    const closed = runTool(ctx, 'edit_zones', { project_id: id, add: [{ kind: 'no-go', x_m: 0, y_m: 12.4, width_m: 5, depth_m: 3 }, { kind: 'no-go', x_m: 16.2, y_m: 12.4, width_m: 13.8, depth_m: 3 }] });
+    expect(closed.text).toContain('no-go-1 (no-go), no-go-2 (no-go)');
+    expect(runTool(ctx, 'check_project', { project_id: id }).text).toContain('rack access from the docks: 4 of 12 bays: fail');
+    expect(runTool(ctx, 'route_to_bay', { project_id: id, bay_id: 'rack-bay-5' }).text).toContain('cannot reach rack-bay-5');
+    expect(runTool(ctx, 'route_to_bay', { project_id: id, bay_id: 'rack-bay-1' }).text).toMatch(/Route to rack-bay-1: [\d.]+ m/);
+    runTool(ctx, 'edit_zones', { project_id: id, remove: ['no-go-1'] });
+    expect(runTool(ctx, 'check_project', { project_id: id }).text).toContain('rack access from the docks: 12 of 12 bays: pass');
+
+    // Zones and the truck survive a room change through set_room.
+    runTool(ctx, 'set_room', { project_id: id, width_m: 32, depth_m: 20 });
+    expect(store.getProject(id)!.space.zones!.map((z) => z.id)).toEqual(['dock-1', 'dock-2', 'staging-1', 'no-go-2']);
+    expect(store.getProject(id)!.space.meta).toEqual({ pack: 'warehouse', truck: 'counterbalance' });
+
+    // A custom rack type: height follows levels × level height.
+    runTool(ctx, 'define_item', { project_id: id, id: 'rack-tall', name: 'Tall bay', category: 'rack', width_cm: 280, depth_cm: 110, height_cm: 1, rack: { levels: 8, positions: 3, level_height_cm: 150, position_load_kg: 900 } });
+    expect(store.getProject(id)!.catalog['rack-tall']).toMatchObject({ size: { h: 120_000 }, meta: { rack: 'pallet', levels: 8, positions: 3, levelHeight: 15_000, positionLoad: 900_000 } });
+    expect(runTool(ctx, 'add_rack_rows', { project_id: id, definition_id: 'chair', x_m: 1, y_m: 1, bays: 1, rows: 1 }).isError).toBe(true);
+  });
+
   it('lets an agent set the room, define an item and place items, with clear feedback', () => {
     const ctx = { store, actor: 'agent:test' };
     const project = store.createProject(demoHall(), 'human');

@@ -134,6 +134,11 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'unloading-order': 'Unloading order (last in, first out)',
   balance: 'Centre of mass near the middle',
   unpacked: 'Every planned piece placed',
+  'aisle-width': 'Aisle wide enough for the truck',
+  'lift-height': 'Top beam within the truck’s lift',
+  'ceiling-clearance': 'Clearance below the ceiling',
+  'rack-access': 'Every rack face reachable from a dock',
+  docks: 'At least one dock',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -187,6 +192,16 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${rule.measured}% off the middle`, required: `${rule.required ?? 10}% or less` };
     case 'unpacked':
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} placed`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} planned` };
+    case 'aisle-width':
+      return { measured: rule.measured === undefined ? dash : `${formatLength(rule.measured)} narrowest`, required: rule.required === undefined ? dash : `${formatLength(rule.required)} or more` };
+    case 'lift-height':
+      return { measured: rule.measured === undefined ? dash : `${formatLength(rule.measured)} top beam`, required: rule.required === undefined ? dash : `${formatLength(rule.required)} or less` };
+    case 'ceiling-clearance':
+      return { measured: rule.measured === undefined ? dash : `${formatLength(rule.measured)} free`, required: rule.required === undefined ? dash : `${formatLength(rule.required)} or more` };
+    case 'rack-access':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} bays` };
+    case 'docks':
+      return { measured: rule.measured === undefined ? dash : formatCount(rule.measured), required: `${formatCount(rule.required ?? 1)} or more` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -216,6 +231,12 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'Some pieces lie on their side, but their type does not say whether that is allowed.';
       case 'no-stacking-data':
         return 'Some pieces carry weight, but their type has no load limit.';
+      case 'no-racks':
+        return 'There are no rack bays in the plan yet.';
+      case 'no-ceiling':
+        return 'The ceiling height is not set, so the clearance above the racks cannot be checked.';
+      case 'no-docks':
+        return 'There is no dock zone or door for trucks to start from.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -261,6 +282,24 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass' ? 'Each stop can be unloaded without moving cargo for a later stop.' : `Blocked by cargo for a later stop: ${list(rule.entityIds)}. Load them after, nearer the doors or on top.`;
     case 'balance':
       return `The centre of mass is ${rule.measured}% off the middle of the container; keep it within ${rule.required}%.`;
+    case 'aisle-width':
+      return rule.status === 'pass'
+        ? `Every rack face has at least ${formatLength(rule.measured ?? 0)} of aisle in front; the truck needs ${formatLength(rule.required ?? 0)}.`
+        : `The aisle in front of ${list(rule.entityIds)} is narrower than the ${formatLength(rule.required ?? 0)} the truck needs (narrowest ${formatLength(rule.measured ?? 0)}). Widen the aisle or pick a narrower-aisle truck.`;
+    case 'lift-height':
+      return rule.status === 'pass'
+        ? `The highest beam is at ${formatLength(rule.measured ?? 0)}; the truck lifts to ${formatLength(rule.required ?? 0)}.`
+        : `Beams up to ${formatLength(rule.measured ?? 0)} are above the truck’s ${formatLength(rule.required ?? 0)} lift: ${list(rule.entityIds)}. Use lower racks or a truck that lifts higher.`;
+    case 'ceiling-clearance':
+      return rule.status === 'pass'
+        ? `At least ${formatLength(rule.measured ?? 0)} stays free between the highest load and the ceiling.`
+        : `Loads reach within ${formatLength(Math.max(0, rule.measured ?? 0))} of the ceiling (keep ${formatLength(rule.required ?? 0)} free for sprinklers): ${list(rule.entityIds)}.`;
+    case 'rack-access':
+      return rule.status === 'pass'
+        ? `The truck can drive from a dock to the front of all ${count(rule.required ?? 0)} rack bays.`
+        : `The truck cannot reach ${count(rule.entityIds.length)} of ${count(rule.required ?? 0)} rack bays from a dock: ${list(rule.entityIds)}. Open an aisle end or move what blocks it.`;
+    case 'docks':
+      return rule.status === 'pass' ? `${count(rule.measured ?? 0)} ${rule.measured === 1 ? 'dock' : 'docks'} to receive and ship goods.` : 'There is no dock zone. Add one where trucks load and unload.';
     case 'unpacked':
       return rule.status === 'pass' ? `All ${count(rule.required ?? 0)} planned pieces are placed.` : `${count((rule.required ?? 0) - (rule.measured ?? 0))} planned pieces are not placed yet (${rule.entityIds.join(', ')}).`;
   }

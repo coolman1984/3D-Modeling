@@ -30,7 +30,17 @@
 - [x] Live updates: re-check the project whenever the live connection (re)opens (race found by the browser tests)
 - [x] Tests: reference cases, property test, server tools, browser journey, planted bug; `pnpm check`
 
-## Next: T7 — warehouse MVP (plan §7)
+## Done: T7 — warehouse MVP (done definition in the plan §7, decision 0011)
+
+- [x] `packages/industry`: floor grid, exact distance transform, reachability, Dijkstra travel field, routes (reference + property tests)
+- [x] Hall walkway rule moved onto `packages/industry`, identical results (hall tests unchanged)
+- [x] Core: `Space.zones` (validated, ids unique, kept by `space.set`), `keepPackData` for room editors
+- [x] Pack: rack bays (levels × positions), 3 rack types + floor pallet, `newWarehouse` with docks and staging, `rackRows`, truck profiles (project data), 5 rules with sources, warehouse metrics, route to a bay
+- [x] Server: create warehouses (HTTP + tool), `add_rack_rows`, `edit_zones`, `set_truck`, `route_to_bay`, `define_item` rack, warehouse facts for agents
+- [x] Editor: warehouse in the create dialog, Racks panel (truck, capacity, row generator, zones), rack inspector, route on the plan, zones on plan / 3D / report, procedural instanced racks, report capacity
+- [x] Tests: hand-computed cases, property tests, frozen warehouse save, server tools, browser journey, planted bugs; `pnpm check`
+
+## Next: T8 — production line MVP (plan §7)
 
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)
@@ -151,6 +161,15 @@
 - [x] Editor: keyboard map, precision panel, selection panel
 - [x] Report page + print styles + editor link
 - [x] Tests (logic, e2e), decision record 0004, README, review, commit, push
+
+## Found along the way (T7)
+
+- The first aisle measurement capped distances at twice the required aisle, so a 3.61 m aisle read
+  3.60 m; the property test caught it. It now looks near first, then out to the wall: always exact.
+- A planted bug (things touching a rack face ignored) slipped past the first tests; a case with a
+  pallet against the face and a column in the aisle now covers it.
+- Room editors rebuilt the space from walls and doors and would have dropped zones; `keepPackData`
+  now keeps the pack's data in both the editor and the agent tool.
 
 ## Found along the way (T4)
 

@@ -1,8 +1,8 @@
 {
-  "name": "@space-planner/starter",
+  "name": "@space-planner/industry",
   "version": "0.0.0",
   "private": true,
-  "description": "Starter catalog, item shapes and room templates. Activity knowledge lives here, not in the core.",
+  "description": "Shared industrial capabilities over the core: floor grids, distance transforms and routing. Pure, no activity knowledge.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -12,8 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@space-planner/core": "workspace:*",
-    "@space-planner/industry": "workspace:*"
+    "@space-planner/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

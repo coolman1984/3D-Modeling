@@ -18,6 +18,11 @@ const TOOL_WORDS: Readonly<Record<string, string>> = {
   check_project: 'Checked the plan',
   get_history: 'Read the history',
   restore_revision: 'Restored a revision',
+  pack_container: 'Packed the container',
+  add_rack_rows: 'Added rack rows',
+  edit_zones: 'Changed the zones',
+  set_truck: 'Chose the truck',
+  route_to_bay: 'Measured a truck route',
 };
 
 const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
@@ -30,6 +35,11 @@ const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
     'Load all planned cargo, heaviest at the bottom, and keep the centre of mass near the middle.',
     'Pack the pallets for stop 2 near the doors so stop 1 can be unloaded first.',
     'Compare the three packing strategies and apply the one that fits the most.',
+  ],
+  warehouse: [
+    'Fill the floor with pallet racks for the reach truck and keep every rack face reachable from the docks.',
+    'Compare a reach truck and a very narrow aisle truck: how many pallet locations does each layout give?',
+    'Add a picking zone near the docks and keep a 3 m lane from the docks to every aisle.',
   ],
   office: [
     'Lay out 16 desks with chairs in rows, with a 90 cm walkway to every door.',

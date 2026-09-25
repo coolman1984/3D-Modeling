@@ -73,3 +73,22 @@ x from the front wall to the doors at the east end; the roof is the ceiling.
 4. `get_project` / `check_project` report payload, support (70% of the base), load on top,
    orientation, stacking groups, unloading order (last in, first out), balance and unplaced pieces,
    each with the source of its threshold.
+
+## Warehouses
+
+Warehouses are projects made with `create_project` and `activity: "warehouse"` (default 48 × 30 m,
+10 m clear height). They start with two docks and a staging zone on the south wall and three rack
+types. One rack bay is one item; its front (where pallets go in) is the item's front.
+
+1. `set_truck` picks the lift truck the layout is planned for (`counterbalance`, `reach`, `vna`):
+   it sets the working aisle, the lane the truck drives in and the highest beam it reaches.
+2. `add_rack_rows` lays rows of bays running east from a corner, back to back across a flue and
+   face to face across the aisle (default: the truck's aisle), as one revision.
+3. `edit_zones` adds rectangular zones (`dock`, `staging`, `picking`, `no-go`) or removes them by id.
+   Trucks start from docks and never drive through no-go zones.
+4. `define_item` with `rack` (`levels`, `positions`, `level_height_cm`, `position_load_kg`)
+   defines a rack type; its height follows levels × level height.
+5. `get_project` / `check_project` report capacity (pallet locations, rack capacity, floor and
+   volume use, drive from a dock) and the rules: aisle width, lift height, ceiling clearance
+   (45 cm), rack access from the docks and at least one dock, each with its source.
+   `route_to_bay` gives the drive to one bay and its corners, without changing anything.

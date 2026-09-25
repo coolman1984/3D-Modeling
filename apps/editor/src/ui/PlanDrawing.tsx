@@ -39,6 +39,9 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
       <path d={pathOf(v, project.space.boundary)} className="wall" style={{ strokeWidth: wall * 2 }} />
       <path d={pathOf(v, project.space.boundary)} className="floor" />
       <path d={grid.join('')} className="grid" />
+      {(project.space.zones ?? []).map((z) => (
+        <path key={z.id} d={pathOf(v, z.polygon)} className={`zone-area zone-${z.kind}`} data-report-zone={z.id} />
+      ))}
       {project.space.obstacles.map((o) => (
         <path key={o.id} d={pathOf(v, o.polygon)} className={o.kind === 'column' ? 'column' : 'blocked-zone'} style={o.kind === 'column' ? undefined : { fill: 'url(#report-hatch)' }} />
       ))}

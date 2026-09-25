@@ -161,6 +161,10 @@ Parametric racks (bays × levels × positions), rows, aisles, docks, staging / p
 (locations, pallet capacity, floor and cube utilisation), aisle-width rules with provenance,
 instanced racks and pallets, report, agent tools. Introduces `packages/industry` (routing).
 
+**Status (2026-09-25): done** — decision 0011. Deviation: one Dijkstra field from all docks instead
+of A* per bay (one pass serves every bay; A* would repeat the search per bay). The truck is project
+data (`space.meta.truck`), not a per-browser style.
+
 ### T8 — Production line MVP
 Machines with operating / maintenance clearance, operator side, input / output points, stations,
 buffers, conveyors, sources, sinks, flow relations drawn as directed paths, flow length and

@@ -131,7 +131,10 @@ class Collector {
 }
 
 const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'catalog', 'items'] as const;
-const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight', 'meta'] as const;
+const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight', 'meta', 'zones'] as const;
+const ZONE_FIELDS = ['id', 'kind', 'name', 'polygon', 'meta'] as const;
+/** Zones per space and the length of their tags and names. */
+export const ZONE_LIMITS = { zones: 500, kindLength: 64, nameLength: 200 } as const;
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
 const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing'] as const;
 const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint', 'mass', 'meta'] as const;
@@ -224,6 +227,25 @@ function checkSpace(c: Collector, value: unknown, path: string): void {
     if (boundary && hinge && locatePoint(boundary, hinge) !== 'boundary') {
       c.add('door-off-boundary', `${at}.hinge`, 'the hinge must lie on the space boundary');
     }
+  });
+
+  if (space.zones === undefined) return;
+  const zones = c.array(space.zones, `${path}.zones`);
+  if (zones && zones.length === 0) c.add('missing', `${path}.zones`, 'store no zones instead of an empty list');
+  if (zones && zones.length > ZONE_LIMITS.zones) c.add('invalid-number', `${path}.zones`, `at most ${ZONE_LIMITS.zones} zones`);
+  zones?.forEach((value, i) => {
+    const at = `${path}.zones.${i}`;
+    const zone = c.object(value, at, ZONE_FIELDS);
+    if (!zone) return;
+    c.id(zone.id, `${at}.id`);
+    const kind = c.string(zone.kind, `${at}.kind`, { nonEmpty: true });
+    if (kind !== undefined && kind.length > ZONE_LIMITS.kindLength) c.add('wrong-type', `${at}.kind`, `up to ${ZONE_LIMITS.kindLength} characters`);
+    if (zone.name !== undefined) {
+      const name = c.string(zone.name, `${at}.name`);
+      if (name !== undefined && name.length > ZONE_LIMITS.nameLength) c.add('wrong-type', `${at}.name`, `up to ${ZONE_LIMITS.nameLength} characters`);
+    }
+    c.polygon(zone.polygon, `${at}.polygon`);
+    if (zone.meta !== undefined) checkMeta(c, zone.meta, `${at}.meta`);
   });
 }
 

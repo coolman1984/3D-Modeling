@@ -1,5 +1,5 @@
 import { checkProject, type Project } from '@space-planner/core';
-import { containerMetrics, containerType, SHAPES, shapeOf, stepOf, stopOf } from '@space-planner/starter';
+import { containerMetrics, containerType, SHAPES, shapeOf, stepOf, stopOf, truckOf, warehouseMetrics } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -97,6 +97,7 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const cargo = report.activity.pack === 'container';
   const load = cargo ? containerMetrics(project) : null;
   const box = cargo ? containerType(String(project.space.meta?.containerType ?? '')) : undefined;
+  const store = report.activity.pack === 'warehouse' ? warehouseMetrics(project) : null;
   const sequence = cargo
     ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
     : [];
@@ -133,7 +134,11 @@ export function ReportPage({ projectId }: { projectId: string }) {
           <div className="cover-kicker">{kicker}</div>
           <h1>{report.name}</h1>
           <p className="cover-lede">
-            {cargo && load ? (
+            {store ? (
+              <>
+                A warehouse layout of {plural(store.bays, 'rack bay')} with {plural(store.locations, 'pallet location')} in a {roomSize} building, checked for aisle width, lift height, ceiling clearance and truck access from the docks for a {truckOf(project).label.toLowerCase()}.
+              </>
+            ) : cargo && load ? (
               <>
                 A loading plan for {plural(load.pieces, 'piece')} in a {box?.label ?? 'custom container'} ({roomSize} inside), checked for fit, support, load on top, orientation, unloading order and balance.
               </>
@@ -186,7 +191,16 @@ export function ReportPage({ projectId }: { projectId: string }) {
               </div>
             </div>
             <div className="cover-metrics">
-              {(cargo && load
+              {(store
+                ? [
+                    [<span data-testid="report-locations">{formatCount(store.locations)}</span>, 'Pallet locations'],
+                    [formatCount(store.bays), 'Rack bays'],
+                    [store.rackCapacity === undefined ? '—' : formatMass(store.rackCapacity), 'Rack capacity'],
+                    [formatPercent(store.storageFloorShare), 'Floor used'],
+                    [store.cubeShare === undefined ? '—' : formatPercent(store.cubeShare), 'Volume used'],
+                    [store.travelAverage === undefined ? '—' : formatLength(store.travelAverage), 'Dock to rack'],
+                  ]
+                : cargo && load
                 ? [
                     [<span data-testid="report-pieces">{formatCount(load.pieces)}</span>, 'Pieces'],
                     [load.mass === undefined ? '—' : formatMass(load.mass), 'Load mass'],

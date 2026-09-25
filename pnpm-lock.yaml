@@ -106,12 +106,34 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2))
 
-  packages/starter:
+  packages/industry:
     dependencies:
       '@space-planner/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.2
+      fast-check:
+        specifier: ^4.10.2
+        version: 4.10.2
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2))
+
+  packages/starter:
+    dependencies:
+      '@space-planner/core':
+        specifier: workspace:*
+        version: link:../core
+      '@space-planner/industry':
+        specifier: workspace:*
+        version: link:../industry
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.2
       fast-check:
         specifier: ^4.10.2
         version: 4.10.2

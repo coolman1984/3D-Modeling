@@ -26,6 +26,7 @@ export const SHAPES = [
   { key: 'plant', label: 'Plant' },
   { key: 'dance-floor', label: 'Floor / dance floor' },
   { key: 'box', label: 'Box' },
+  { key: 'rack', label: 'Pallet rack bay' },
 ] as const;
 
 export type ShapeKey = (typeof SHAPES)[number]['key'];
@@ -87,3 +88,4 @@ export * from './hall.js';
 export * from './optimization.js';
 export * from './container.js';
 export * from './packer.js';
+export * from './warehouse.js';

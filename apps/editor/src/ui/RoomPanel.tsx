@@ -1,4 +1,4 @@
-import { fromUnit, readRoom, roomProblems, roomSpace, toUnit, type ColumnSpec, type DoorSpec, type Project, type RoomSpec, type Wall } from '@space-planner/core';
+import { fromUnit, keepPackData, readRoom, roomProblems, roomSpace, toUnit, type ColumnSpec, type DoorSpec, type Project, type RoomSpec, type Wall } from '@space-planner/core';
 import { CaretDown, CaretRight, DoorOpen, Plus, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { formatSquareMetres } from '../logic/format.js';
@@ -211,7 +211,7 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
             if (!spec) return;
             // Pack data about the space (a container's type and payload) stays with the room.
             const space = roomSpace(spec);
-            dispatch({ type: 'command', command: { type: 'space.set', space: project.space.meta ? { ...space, meta: project.space.meta } : space } });
+            dispatch({ type: 'command', command: { type: 'space.set', space: keepPackData(project.space, space) } });
             setDirty(false);
           }}
         >

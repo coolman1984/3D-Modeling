@@ -14,7 +14,8 @@ Layout:
 | Path | What |
 |---|---|
 | `packages/core` | Pure TypeScript: units, geometry, model, commands, checks, metrics, save format |
-| `packages/starter` | Activity packs (hall, office: catalogs, styles, rules in `PACKS`), shared rules, 3D shape keys, room templates (activity knowledge lives here, not in core) |
+| `packages/industry` | Pure TypeScript shared by industrial packs: floor grid, distance transform, reachability, travel distances and routes for a mover of a given width |
+| `packages/starter` | Activity packs (hall, office, container, warehouse: catalogs, styles, rules in `PACKS`), shared rules, packer, 3D shape keys, room templates (activity knowledge lives here, not in core) |
 | `apps/server` | Local server: SQLite store (projects, revisions, settings, agent runs), HTTP API, live events, agent tools, MCP bridge, agent runner |
 | `apps/editor` | React editor: projects page, 2D plan, 3D view, room and item-type editors, history, agent panel, settings |
 | `scripts/start.mjs` + `start.*` | One-click launcher |

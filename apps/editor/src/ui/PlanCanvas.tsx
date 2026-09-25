@@ -47,6 +47,8 @@ interface Props {
   readonly itemFills?: ReadonlyMap<Id, string> | undefined;
   /** Labels that replace the type name (loading step numbers). */
   readonly itemLabels?: ReadonlyMap<Id, string> | undefined;
+  /** A driving route to draw over the plan (a truck from the dock to a rack bay). */
+  readonly route?: readonly Vec2[] | undefined;
 }
 
 type Gesture =
@@ -81,7 +83,7 @@ const HANDLE_GAP = 26; // pixels between the selection box and the rotation hand
  * click / Shift-click / box select, drag with grid and smart guides (Shift locks the axis,
  * Alt is slow and precise, Ctrl ignores snapping), a rotation handle, and pan and zoom.
  */
-export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels }: Props) {
+export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const gesture = useRef<Gesture | null>(null);
@@ -381,6 +383,18 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
               </g>
             );
           })()}
+        {(project.space.zones ?? []).map((z) => {
+          const b = boundsOf(z.polygon);
+          const corner = toScreen(v, { x: b.minX, y: b.maxY });
+          return (
+            <g key={z.id} className={`zone zone-${z.kind}`} data-zone={z.id} pointerEvents="none">
+              <path d={pathOf(v, z.polygon)} />
+              <text x={corner.x + 6} y={corner.y + 14} className="zone-label">
+                {z.name ?? z.kind}
+              </text>
+            </g>
+          );
+        })}
         <path d={minorGrid} className="grid-minor" />
         <path d={majorGrid} className="grid" />
         {rulerX.map((m) => {
@@ -460,6 +474,15 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             </g>
           );
         })}
+        {route && route.length > 1 && (
+          <g className="route" data-testid="route" pointerEvents="none">
+            <polyline points={route.map((p) => toScreen(v, p)).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} />
+            {[route[0]!, route.at(-1)!].map((p, i) => {
+              const q = toScreen(v, p);
+              return <circle key={i} cx={q.x} cy={q.y} r={i === 0 ? 4 : 5} className={i === 0 ? 'route-start' : 'route-end'} />;
+            })}
+          </g>
+        )}
         {issues.map((issue, i) =>
           issue.evidence && issue.severity !== 'info' ? <path key={`e-${i}`} d={pathOf(v, issue.evidence)} className={`evidence ${issue.severity}`} /> : null,
         )}

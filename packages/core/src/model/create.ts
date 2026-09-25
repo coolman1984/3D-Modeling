@@ -22,10 +22,24 @@ export function createSpace(boundary: readonly Vec2[], extra: Partial<Omit<Space
     doors: extra.doors ?? [],
     ...(extra.ceilingHeight === undefined ? {} : { ceilingHeight: extra.ceilingHeight }),
     ...(extra.meta === undefined ? {} : { meta: extra.meta }),
+    ...(extra.zones === undefined || extra.zones.length === 0 ? {} : { zones: extra.zones.map((z) => ({ ...z, polygon: toCounterClockwise(z.polygon) })) }),
   };
 }
 
 /** An empty project at revision 0. The result is not validated; run `validateProject` on untrusted input. */
 export function createProject(id: Id, name: string, space: Space): Project {
   return { schemaVersion: SCHEMA_VERSION, id, name, revision: 0, space, catalog: {}, items: {} };
+}
+
+/**
+ * `next` with the pack-owned parts of `previous` (meta and zones) kept. Room editors rebuild the
+ * walls, doors and columns from a spec; without this they would silently drop a warehouse's
+ * docks or a container's payload limit.
+ */
+export function keepPackData(previous: Space, next: Space): Space {
+  return {
+    ...next,
+    ...(previous.meta === undefined ? {} : { meta: previous.meta }),
+    ...(previous.zones === undefined ? {} : { zones: previous.zones }),
+  };
 }

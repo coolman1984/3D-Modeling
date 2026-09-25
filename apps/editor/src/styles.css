@@ -1211,3 +1211,25 @@ button.rule-row:hover { background: var(--page); }
 .legend-row { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--ink-2); font-size: 11.5px; }
 .legend-row > span { display: inline-flex; align-items: center; gap: 5px; }
 .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; box-shadow: inset 0 0 0 1px rgba(26, 25, 23, 0.1); }
+
+/* ---------- Warehouse: zones, truck route, warehouse panel ---------- */
+.zone path { fill: rgba(125, 120, 110, 0.08); stroke: var(--ink-4); stroke-width: 1; stroke-dasharray: 5 4; }
+.zone-dock path { fill: rgba(43, 84, 208, 0.07); stroke: var(--accent); }
+.zone-staging path { fill: rgba(168, 148, 108, 0.12); }
+.zone-no-go path { fill: url(#hatch); stroke: var(--ink-2); }
+.zone-label { font: 500 11px var(--sans); fill: var(--ink-3); letter-spacing: 0.02em; }
+.zone-dock .zone-label { fill: var(--accent); }
+.plan-drawing .zone-area { fill: rgba(125, 120, 110, 0.08); stroke: var(--ink-4); stroke-width: 0.8; stroke-dasharray: 4 3; }
+.plan-drawing .zone-dock { fill: rgba(43, 84, 208, 0.07); stroke: var(--accent); }
+.route polyline { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-dasharray: 8 5; }
+.route .route-start { fill: var(--paper); stroke: var(--accent); stroke-width: 2; }
+.route .route-end { fill: var(--accent); }
+.item.shape-rack .item-body { fill: var(--fill, #e7e9ee); }
+.item.shape-rack .item-front { stroke: #c27a3a; stroke-width: 3; }
+.zone-row { display: grid; grid-template-columns: 10px 1fr auto auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.zone-row .swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--line-mid); }
+.zone-row .swatch.dock { background: rgba(43, 84, 208, 0.35); border-color: var(--accent); }
+.zone-row .swatch.staging { background: rgba(168, 148, 108, 0.45); }
+.zone-row .swatch.no-go { background: var(--ink-2); }
+.zone-row .swatch.picking { background: rgba(125, 135, 148, 0.45); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }

@@ -1,0 +1,328 @@
+{
+  "catalog": {
+    "floor-pallet": {
+      "category": "box",
+      "clearance": {
+        "back": 0,
+        "front": 0,
+        "left": 0,
+        "right": 0
+      },
+      "id": "floor-pallet",
+      "mass": 800000,
+      "meta": {
+        "pallet": true
+      },
+      "name": "Floor pallet 120 × 100",
+      "size": {
+        "d": 10000,
+        "h": 15000,
+        "w": 12000
+      }
+    },
+    "rack-bay": {
+      "category": "rack",
+      "clearance": {
+        "back": 0,
+        "front": 0,
+        "left": 0,
+        "right": 0
+      },
+      "id": "rack-bay",
+      "meta": {
+        "levelHeight": 15000,
+        "levels": 5,
+        "positionLoad": 1000000,
+        "positions": 3,
+        "rack": "pallet"
+      },
+      "name": "Pallet rack bay 2.7 m · 5 levels",
+      "size": {
+        "d": 11000,
+        "h": 75000,
+        "w": 28000
+      }
+    },
+    "rack-bay-high": {
+      "category": "rack",
+      "clearance": {
+        "back": 0,
+        "front": 0,
+        "left": 0,
+        "right": 0
+      },
+      "id": "rack-bay-high",
+      "meta": {
+        "levelHeight": 15000,
+        "levels": 7,
+        "positionLoad": 1000000,
+        "positions": 3,
+        "rack": "pallet"
+      },
+      "name": "Pallet rack bay 2.7 m · 7 levels",
+      "size": {
+        "d": 11000,
+        "h": 105000,
+        "w": 28000
+      }
+    },
+    "rack-bay-wide": {
+      "category": "rack",
+      "clearance": {
+        "back": 0,
+        "front": 0,
+        "left": 0,
+        "right": 0
+      },
+      "id": "rack-bay-wide",
+      "meta": {
+        "levelHeight": 16000,
+        "levels": 4,
+        "positionLoad": 800000,
+        "positions": 4,
+        "rack": "pallet"
+      },
+      "name": "Pallet rack bay 3.6 m · 4 levels",
+      "size": {
+        "d": 11000,
+        "h": 64000,
+        "w": 37000
+      }
+    }
+  },
+  "id": "p-w1",
+  "items": {
+    "rack-bay-1": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-1",
+      "locked": false,
+      "position": {
+        "x": 64000,
+        "y": 105500
+      },
+      "rotation": 180000
+    },
+    "rack-bay-10": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-10",
+      "locked": false,
+      "position": {
+        "x": 92000,
+        "y": 159500
+      },
+      "rotation": 180000
+    },
+    "rack-bay-11": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-11",
+      "locked": false,
+      "position": {
+        "x": 120000,
+        "y": 159500
+      },
+      "rotation": 180000
+    },
+    "rack-bay-12": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-12",
+      "locked": false,
+      "position": {
+        "x": 148000,
+        "y": 159500
+      },
+      "rotation": 180000
+    },
+    "rack-bay-2": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-2",
+      "locked": false,
+      "position": {
+        "x": 92000,
+        "y": 105500
+      },
+      "rotation": 180000
+    },
+    "rack-bay-3": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-3",
+      "locked": false,
+      "position": {
+        "x": 120000,
+        "y": 105500
+      },
+      "rotation": 180000
+    },
+    "rack-bay-4": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-4",
+      "locked": false,
+      "position": {
+        "x": 148000,
+        "y": 105500
+      },
+      "rotation": 180000
+    },
+    "rack-bay-5": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-5",
+      "locked": false,
+      "position": {
+        "x": 64000,
+        "y": 118500
+      },
+      "rotation": 0
+    },
+    "rack-bay-6": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-6",
+      "locked": false,
+      "position": {
+        "x": 92000,
+        "y": 118500
+      },
+      "rotation": 0
+    },
+    "rack-bay-7": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-7",
+      "locked": false,
+      "position": {
+        "x": 120000,
+        "y": 118500
+      },
+      "rotation": 0
+    },
+    "rack-bay-8": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-8",
+      "locked": false,
+      "position": {
+        "x": 148000,
+        "y": 118500
+      },
+      "rotation": 0
+    },
+    "rack-bay-9": {
+      "definitionId": "rack-bay",
+      "id": "rack-bay-9",
+      "locked": false,
+      "position": {
+        "x": 64000,
+        "y": 159500
+      },
+      "rotation": 180000
+    }
+  },
+  "name": "Saved warehouse",
+  "revision": 1,
+  "schemaVersion": 1,
+  "space": {
+    "boundary": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 300000,
+        "y": 0
+      },
+      {
+        "x": 300000,
+        "y": 200000
+      },
+      {
+        "x": 0,
+        "y": 200000
+      }
+    ],
+    "ceilingHeight": 80000,
+    "doors": [
+      {
+        "angle": 90000,
+        "hinge": {
+          "x": 0,
+          "y": 20000
+        },
+        "id": "door-1",
+        "swing": "right",
+        "width": 10000
+      }
+    ],
+    "meta": {
+      "pack": "warehouse",
+      "truck": "reach"
+    },
+    "obstacles": [],
+    "zones": [
+      {
+        "id": "dock-1",
+        "kind": "dock",
+        "name": "Dock 1",
+        "polygon": [
+          {
+            "x": 20000,
+            "y": 0
+          },
+          {
+            "x": 60000,
+            "y": 0
+          },
+          {
+            "x": 60000,
+            "y": 40000
+          },
+          {
+            "x": 20000,
+            "y": 40000
+          }
+        ]
+      },
+      {
+        "id": "dock-2",
+        "kind": "dock",
+        "name": "Dock 2",
+        "polygon": [
+          {
+            "x": 70000,
+            "y": 0
+          },
+          {
+            "x": 110000,
+            "y": 0
+          },
+          {
+            "x": 110000,
+            "y": 40000
+          },
+          {
+            "x": 70000,
+            "y": 40000
+          }
+        ]
+      },
+      {
+        "id": "staging-1",
+        "kind": "staging",
+        "name": "Staging",
+        "polygon": [
+          {
+            "x": 20000,
+            "y": 40000
+          },
+          {
+            "x": 110000,
+            "y": 40000
+          },
+          {
+            "x": 110000,
+            "y": 80000
+          },
+          {
+            "x": 20000,
+            "y": 80000
+          }
+        ]
+      }
+    ]
+  }
+}

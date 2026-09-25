@@ -1,5 +1,5 @@
 import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
-import { shapeOf, type ShapeKey } from '@space-planner/starter';
+import { rackOf, shapeOf, type RackSpec, type ShapeKey } from '@space-planner/starter';
 import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Scissors, Square } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
@@ -58,7 +58,14 @@ const COLORS = {
   error: 0xb93a2e,
   warning: 0x9a6400,
   grid: 0x1a1917,
+  upright: 0x5d6f86,
+  beam: 0xc27a3a,
+  pallet: 0xb58b5a,
+  load: 0xd9c6a5,
 };
+
+/** Floor tints for zones, by kind; unknown kinds are grey. */
+const ZONE_COLORS: Readonly<Record<string, number>> = { dock: 0x2b54d0, staging: 0xa8946c, picking: 0x7d8794, 'no-go': 0x3a3834 };
 
 /**
  * Put the camera where the whole room is in view, looking down at it from the south, and aim
@@ -156,8 +163,29 @@ function cylinder(r: number, h: number, color: number, x = 0, y = h / 2, z = 0, 
  * A simple model for each shape, in the item's local frame: width along X, depth along Z,
  * front facing -Z (plan north at rotation 0), standing on Y = 0.
  */
-function buildModel(shape: ShapeKey, w: number, d: number, h: number): THREE.Group {
+function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: RackSpec): THREE.Group {
   const g = new THREE.Group();
+  if (shape === 'rack' && rack) {
+    // Four uprights, front and back beams under every raised level, and a loaded pallet in every
+    // position: what the bay looks like full.
+    const post = 0.08;
+    const level = mt(rack.levelHeight);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(post, h, post, COLORS.upright, sx * (w / 2 - post / 2), h / 2, sz * (d / 2 - post / 2)));
+    for (let k = 1; k < rack.levels; k++) for (const sz of [-1, 1]) g.add(box(w - 2 * post, 0.1, 0.05, COLORS.beam, 0, k * level - 0.05, sz * (d / 2 - 0.05)));
+    const slot = (w - 2 * post) / rack.positions;
+    for (let k = 0; k < rack.levels; k++) {
+      for (let i = 0; i < rack.positions; i++) {
+        const x = -w / 2 + post + slot * (i + 0.5);
+        const base = k * level;
+        const pw = slot * 0.86;
+        const pd = d * 0.9;
+        g.add(box(pw, 0.14, pd, COLORS.pallet, x, base + 0.07));
+        const loadH = Math.max(0.1, level - 0.14 - 0.25);
+        g.add(box(pw * 0.96, loadH, pd * 0.96, COLORS.load, x, base + 0.14 + loadH / 2));
+      }
+    }
+    return g;
+  }
   const leg = Math.min(0.05, w / 8, d / 8);
   const legs = (height: number, color: number, inset = 0.04) => {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(leg, height, leg, color, sx * (w / 2 - inset - leg / 2), height / 2, sz * (d / 2 - inset - leg / 2)));
@@ -364,6 +392,16 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
     group.add(mesh);
   }
 
+  // Zones are tints on the floor, drawn under the items.
+  for (const z of project.space.zones ?? []) {
+    const s = new THREE.Shape(z.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
+    const tintMesh = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({ color: ZONE_COLORS[z.kind] ?? 0x8a8780, transparent: true, opacity: 0.16, depthWrite: false }));
+    tintMesh.rotation.x = -Math.PI / 2;
+    tintMesh.position.y = 0.004;
+    tintMesh.name = 'zone';
+    group.add(tintMesh);
+  }
+
   const severity = new Map<Id, 'error' | 'warning'>();
   for (const issue of issues) {
     const first = issue.entityIds[0];
@@ -409,7 +447,7 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
   const unit = new THREE.Vector3(1, 1, 1);
   for (const { definition, tilt, state, color, items } of batches.values()) {
     const { w, d, h } = definition.size;
-    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h));
+    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), rackOf(definition));
     // A lying item: turn the upright model about its centre, then stand it on the floor again.
     const placedHeight = tilt === 'x' ? mt(w) : tilt === 'y' ? mt(d) : mt(h);
     const lay = new THREE.Matrix4()

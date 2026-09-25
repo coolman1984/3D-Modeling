@@ -1,5 +1,6 @@
 import {
   checkProject,
+  keepPackData,
   fromUnit,
   measureProject,
   normalizeAngle,
@@ -18,6 +19,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
+import { baysOf, rackOf, rackRows, rectZone, routeToBay, topBeam, TRUCK_PROFILES, truckOf, warehouseMetrics, isWarehouse, newWarehouse, ZONE_KINDS } from '@space-planner/starter';
 import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, detectPack, extremePointPacker, isContainer, newContainer, newRoom, packContainer, packOf, PACKS, ROUND_SHAPES, SHAPES, stepOf, stopOf, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
@@ -112,6 +114,7 @@ function takenIds(project: Project): Set<string> {
     ...Object.keys(project.catalog),
     ...project.space.doors.map((d) => d.id),
     ...project.space.obstacles.map((o) => o.id),
+    ...(project.space.zones ?? []).map((z) => z.id),
   ]);
 }
 
@@ -164,11 +167,38 @@ export function describeProject(project: Project): string {
   const metrics = measureProject(project);
   lines.push(`Metrics: ${metrics.seats} seats, ${metrics.itemCount} items, floor ${toSquareMetres(metrics.floorArea).toFixed(2)} m², occupied ${(metrics.occupancy * 100).toFixed(1)}%`);
   if (isContainer(project)) lines.push(...describeLoad(project));
+  if (isWarehouse(project)) lines.push(...describeWarehouse(project));
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse' };
+
+const mOf = (ticks: number | undefined) => (ticks === undefined ? 'unknown' : `${Math.round(toUnit(ticks, 'm') * 100) / 100} m`);
+
+/** Warehouse facts for agents: truck, zones, rack types and capacity. */
+function describeWarehouse(project: Project): string[] {
+  const truck = truckOf(project);
+  const w = warehouseMetrics(project);
+  const lines = [
+    `Truck: ${truck.id} (${truck.label}): needs a ${mOf(truck.aisle)} working aisle and a ${mOf(truck.width)} lane, lifts to ${mOf(truck.maxLift)}. Other trucks: ${TRUCK_PROFILES.filter((t) => t.id !== truck.id).map((t) => t.id).join(', ')} (set_truck).`,
+    'Rack bays: one item per bay; the front (where pallets go in) faces the item\'s front. Rows run along x.',
+    `Capacity: ${w.bays} bays, ${w.locations} pallet locations (${w.rackLocations} in racks, ${w.floorPallets} on the floor)${w.rackCapacity === undefined ? '' : `, racks carry up to ${kgOf(w.rackCapacity)}`}; storage covers ${(w.storageFloorShare * 100).toFixed(1)}% of the floor${w.cubeShare === undefined ? '' : ` and ${(w.cubeShare * 100).toFixed(1)}% of the volume`}.`,
+    `Travel from the docks to rack faces: ${w.travelAverage === undefined ? 'no bay reachable' : `average ${mOf(w.travelAverage)}, farthest ${mOf(w.travelMax)}`}.`,
+    `Zones (id | kind | name | x..x, y..y m) — kinds: ${ZONE_KINDS.join(', ')}; trucks never drive through no-go zones:`,
+  ];
+  for (const z of project.space.zones ?? []) {
+    const xs = z.polygon.map((p) => p.x);
+    const ys = z.polygon.map((p) => p.y);
+    lines.push(`  ${z.id} | ${z.kind} | ${z.name ?? ''} | ${toUnit(Math.min(...xs), 'm')}..${toUnit(Math.max(...xs), 'm')}, ${toUnit(Math.min(...ys), 'm')}..${toUnit(Math.max(...ys), 'm')}`);
+  }
+  lines.push('Rack types (id | levels | pallets per level | level height | top beam | load per pallet):');
+  for (const d of Object.values(project.catalog)) {
+    const r = rackOf(d);
+    if (r) lines.push(`  ${d.id} | ${r.levels} | ${r.positions} | ${mOf(r.levelHeight)} | ${mOf(topBeam(r))} | ${kgOf(r.positionLoad)}`);
+  }
+  return lines;
+}
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -220,6 +250,16 @@ function describeRules(project: Project, packId: PackId = detectPack(project), s
         return `  load on top: heaviest load ${kgOf(r.measured)}: ${r.status}${r.entityIds.length ? ` — overloaded ${r.entityIds.join(', ')}` : ''}`;
       case 'balance':
         return `  balance: centre of mass ${r.measured}% off the middle (limit ${r.required}%): ${r.status}`;
+      case 'aisle-width':
+        return `  aisle width: narrowest ${cmOf(r.measured)} in front of a rack face (truck needs ${cmOf(r.required)}): ${r.status}${r.entityIds.length ? ` — too narrow at ${r.entityIds.join(', ')}` : ''}`;
+      case 'lift-height':
+        return `  lift height: highest beam ${cmOf(r.measured)} (truck lifts ${cmOf(r.required)}): ${r.status}${r.entityIds.length ? ` — out of reach: ${r.entityIds.join(', ')}` : ''}`;
+      case 'ceiling-clearance':
+        return `  ceiling clearance: ${cmOf(r.measured)} above the highest load (needs ${cmOf(r.required)}): ${r.status}${r.entityIds.length ? ` — ${r.entityIds.join(', ')}` : ''}`;
+      case 'rack-access':
+        return `  rack access from the docks: ${r.measured} of ${r.required} bays: ${r.status}${r.entityIds.length ? ` — cut off: ${r.entityIds.join(', ')}` : ''}`;
+      case 'docks':
+        return `  docks: ${r.measured} (needs ${r.required}): ${r.status}`;
       case 'unpacked':
         return `  planned pieces placed: ${r.measured} of ${r.required}: ${r.status}${r.entityIds.length ? ` — short: ${r.entityIds.join(', ')}` : ''}`;
       default:
@@ -250,6 +290,27 @@ function cargoMeta(value: unknown, previous: Record<string, string | number | bo
   return Object.keys(meta).length > 0 ? { meta } : {};
 }
 
+/** Rack fields of define_item → the type's meta, over the rest of its meta. */
+function rackMeta(value: unknown, rest: Record<string, string | number | boolean> | undefined): { meta?: Record<string, string | number | boolean> } {
+  const meta: Record<string, string | number | boolean> = { ...(rest ?? {}) };
+  if (typeof value === 'object' && value !== null) {
+    const r = value as Record<string, unknown>;
+    const levels = num(r, 'levels');
+    const positions = num(r, 'positions');
+    if (levels < 1 || positions < 1 || levels > 30 || positions > 20) throw new ToolError('rack levels must be 1 to 30 and positions 1 to 20');
+    Object.assign(meta, { rack: 'pallet', levels: Math.round(levels), positions: Math.round(positions), levelHeight: centimetres(num(r, 'level_height_cm')) });
+    const load = num(r, 'position_load_kg', true);
+    if (load !== undefined) meta.positionLoad = Math.round(load * 1000);
+  }
+  return Object.keys(meta).length > 0 ? { meta } : {};
+}
+
+function rackHeight(value: unknown): number | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const r = value as Record<string, unknown>;
+  return Math.round(num(r, 'levels')) * centimetres(num(r, 'level_height_cm'));
+}
+
 /** stop / step of a placed piece → its meta. */
 function pieceMeta(s: Record<string, unknown>): { meta?: Record<string, number> } {
   const meta: Record<string, number> = {};
@@ -277,7 +338,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Returns the new project id.',
+    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Warehouses: activity "warehouse" (default 48 × 30 m, 10 m clear height) with two docks and a staging zone on the south wall and sample rack types. Returns the new project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -294,6 +355,15 @@ export const TOOLS: readonly ToolDef[] = [
     run: (ctx, input) => {
       if (str(input, 'activity', true) === 'container') {
         const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}`;
+      }
+      if (str(input, 'activity', true) === 'warehouse') {
+        const w = num(input, 'width_m', true) ?? 48;
+        const d = num(input, 'depth_m', true) ?? 30;
+        const h = num(input, 'ceiling_m', true) ?? 10;
+        if (w < 10 || d < 10 || w > 500 || d > 500) throw new ToolError('warehouse sides must be between 10 and 500 m');
+        if (h <= 0 || h > 50) throw new ToolError('ceiling_m must be between 0 and 50 m');
+        const created = ctx.store.createProject(newWarehouse(str(input, 'name'), { width: metres(w), depth: metres(d), height: metres(h) }), ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
       const width = num(input, 'width_m');
@@ -392,7 +462,7 @@ export const TOOLS: readonly ToolDef[] = [
       const problems = roomProblems(spec);
       if (problems.length > 0) throw new ToolError(problems.join('; '));
       // The pack's data about the space (a container's type and payload) stays with the room.
-      const space = { ...roomSpace(spec), ...(project.space.meta ? { meta: project.space.meta } : {}) };
+      const space = keepPackData(project.space, roomSpace(spec));
       const structural = validateSpace(space);
       if (structural.length > 0) throw new ToolError(structural.map((p) => `${p.path}: ${p.message}`).join('; '));
       const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || 'Room changed');
@@ -419,6 +489,12 @@ export const TOOLS: readonly ToolDef[] = [
         seats: { type: 'integer', description: 'Seats this item adds to capacity.' },
         footprint: { type: 'string', enum: ['rect', 'round'], description: 'Floor outline; "round" for round tables and pots (an ellipse inside width × depth). Defaults to round for round-table and plant.' },
         mass_kg: { type: 'number', description: 'Mass of one piece.' },
+        rack: {
+          type: 'object',
+          description: 'Warehouse pallet rack bay (category "rack"): load levels including the floor, pallets per level, level height, load per pallet position. The height is then levels × level height.',
+          properties: { levels: { type: 'integer' }, positions: { type: 'integer' }, level_height_cm: { type: 'number' }, position_load_kg: { type: 'number' } },
+          required: ['levels', 'positions', 'level_height_cm'],
+        },
         cargo: {
           type: 'object',
           description: 'Container cargo data: quantity planned, stackable, max_load_on_top_kg, allow_tilt (may lie on its side), stack_group, stop (1 = unloaded first).',
@@ -440,12 +516,12 @@ export const TOOLS: readonly ToolDef[] = [
         id: str(input, 'id'),
         name: str(input, 'name'),
         category,
-        size: { w: centimetres(num(input, 'width_cm')), d: centimetres(num(input, 'depth_cm')), h: centimetres(num(input, 'height_cm')) },
+        size: { w: centimetres(num(input, 'width_cm')), d: centimetres(num(input, 'depth_cm')), h: rackHeight(input.rack) ?? centimetres(num(input, 'height_cm')) },
         clearance: { front: side('front'), back: side('back'), left: side('left'), right: side('right') },
         ...(seats === undefined ? {} : { seats }),
         ...(footprint === 'round' ? { footprint: 'round' as const } : {}),
         ...(input.mass_kg === undefined ? {} : { mass: Math.round(num(input, 'mass_kg') * 1000) }),
-        ...cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta),
+        ...rackMeta(input.rack, cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta).meta),
       };
       const existed = Boolean(project.catalog[definition.id]);
       const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'Changed' : 'Added'} item type ${definition.name}`);
@@ -537,6 +613,128 @@ export const TOOLS: readonly ToolDef[] = [
       if (chosen.commands.length === 0) return `Nothing to place.\n${text}`;
       const updated = commit(ctx, project, [...chosen.commands], str(input, 'summary', true) || `Packed ${chosen.commands.length} pieces (${chosen.label.toLowerCase()})`);
       return afterChange(updated, `Applied "${chosen.label}".`) + '\n' + describeRules(updated).join('\n');
+    },
+  },
+  {
+    name: 'add_rack_rows',
+    description:
+      'Warehouses: add rows of pallet rack bays running east from (x_m, y_m), the south-west corner of the first bay. Rows alternate: the first faces first_facing, then pairs stand back to back across the flue and face each other across the aisle. One revision.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        definition_id: { type: 'string', description: 'A rack type (default "rack-bay").' },
+        x_m: { type: 'number' },
+        y_m: { type: 'number' },
+        bays: { type: 'integer', description: 'Bays per row.' },
+        rows: { type: 'integer' },
+        aisle_m: { type: 'number', description: 'Clear aisle between facing rows (default: the truck’s working aisle).' },
+        flue_m: { type: 'number', description: 'Gap between back-to-back rows (default 0.2).' },
+        first_facing: { type: 'string', enum: ['north', 'south'], description: 'Default south.' },
+        summary,
+      },
+      required: ['project_id', 'x_m', 'y_m', 'bays', 'rows'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const definitionId = str(input, 'definition_id', true) || 'rack-bay';
+      const definition = project.catalog[definitionId];
+      if (!definition || !rackOf(definition)) throw new ToolError(`"${definitionId}" is not a rack type; define one with define_item and "rack"`);
+      const bays = Math.round(num(input, 'bays'));
+      const rows = Math.round(num(input, 'rows'));
+      if (bays < 1 || rows < 1 || bays * rows > 5000) throw new ToolError('bays and rows must be at least 1, and at most 5000 bays in one call');
+      const commands = rackRows(definition, {
+        definitionId,
+        origin: { x: metres(num(input, 'x_m')), y: metres(num(input, 'y_m')) },
+        bays,
+        rows,
+        aisle: input.aisle_m === undefined ? truckOf(project).aisle : metres(num(input, 'aisle_m')),
+        flue: metres(num(input, 'flue_m', true) ?? 0.2),
+        firstFacing: input.first_facing === 'north' ? 'north' : 'south',
+        taken: takenIds(project),
+      });
+      const updated = commit(ctx, project, commands, str(input, 'summary', true) || `Added ${rows} ${rows === 1 ? 'rack row' : 'rack rows'} of ${bays} bays`);
+      return afterChange(updated, `Added ${commands.length} bays.`) + '\n' + describeRules(updated).join('\n');
+    },
+  },
+  {
+    name: 'edit_zones',
+    description: `Warehouses and other packs: add rectangular zones and/or remove zones by id (one revision). Kinds: ${ZONE_KINDS.join(', ')} (dock = where trucks start, no-go = trucks never drive through).`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        add: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { id: { type: 'string' }, kind: { type: 'string' }, name: { type: 'string' }, x_m: { type: 'number' }, y_m: { type: 'number' }, width_m: { type: 'number' }, depth_m: { type: 'number' } },
+            required: ['kind', 'x_m', 'y_m', 'width_m', 'depth_m'],
+          },
+        },
+        remove: { type: 'array', items: { type: 'string' } },
+        summary,
+      },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const remove = new Set(Array.isArray(input.remove) ? input.remove.filter((x): x is string => typeof x === 'string') : []);
+      const unknownIds = [...remove].filter((id) => !(project.space.zones ?? []).some((z) => z.id === id));
+      if (unknownIds.length) throw new ToolError(`No zone ${unknownIds.join(', ')}`);
+      const taken = takenIds(project);
+      const added = list(input, 'add', true).map((z) => {
+        const kind = str(z, 'kind');
+        const id = typeof z.id === 'string' && z.id ? z.id : nextId(kind, taken);
+        return rectZone(id, kind, str(z, 'name', true) || kind, metres(num(z, 'x_m')), metres(num(z, 'y_m')), metres(num(z, 'width_m')), metres(num(z, 'depth_m')));
+      });
+      if (added.length === 0 && remove.size === 0) throw new ToolError('give zones to add or ids to remove');
+      const zones = [...(project.space.zones ?? []).filter((z) => !remove.has(z.id)), ...added];
+      const { zones: _old, ...rest } = project.space;
+      const space = zones.length ? { ...rest, zones } : rest;
+      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || `Zones: ${added.length} added, ${remove.size} removed`);
+      return afterChange(updated, `Zones now: ${zones.map((z) => `${z.id} (${z.kind})`).join(', ') || 'none'}.`);
+    },
+  },
+  {
+    name: 'set_truck',
+    description: `Warehouses: the lift truck the layout is planned for (${TRUCK_PROFILES.map((t) => `${t.id}: ${t.label}, aisle ${mOf(t.aisle)}, lift ${mOf(t.maxLift)}`).join('; ')}). Typical figures; the actual truck's rated aisle decides. One revision.`,
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, truck: { type: 'string', enum: TRUCK_PROFILES.map((t) => t.id) }, summary },
+      required: ['project_id', 'truck'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (!isWarehouse(project)) throw new ToolError('set_truck works on warehouse projects (create one with activity "warehouse")');
+      const truck = str(input, 'truck');
+      if (!TRUCK_PROFILES.some((t) => t.id === truck)) throw new ToolError(`unknown truck "${truck}"`);
+      const space = { ...project.space, meta: { ...(project.space.meta ?? {}), truck } };
+      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || `Truck: ${truckOf({ ...project, space }).label}`);
+      return afterChange(updated, `Truck set to ${truck}.`) + '\n' + describeRules(updated).join('\n');
+    },
+  },
+  {
+    name: 'route_to_bay',
+    description: 'Warehouses: the driving route of the project’s truck from the nearest dock to the front of a rack bay, with its length. Nothing changes.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, bay_id: { type: 'string' }, truck: { type: 'string', enum: TRUCK_PROFILES.map((t) => t.id), description: 'Compare another truck without changing the project.' } },
+      required: ['project_id', 'bay_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const bayId = str(input, 'bay_id');
+      if (!baysOf(project).some((b) => b.item.id === bayId)) throw new ToolError(`"${bayId}" is not a rack bay`);
+      const route = routeToBay(project, bayId, str(input, 'truck', true) || undefined);
+      if (route.length === 0) return `A ${truckOf(project, str(input, 'truck', true) || undefined).label.toLowerCase()} cannot reach ${bayId} from a dock.`;
+      let length = 0;
+      for (let i = 1; i < route.length; i++) length += Math.hypot(route[i]!.x - route[i - 1]!.x, route[i]!.y - route[i - 1]!.y);
+      return `Route to ${bayId}: ${mOf(length)} (straight segments between cell centres; the drive is about this long).\nCorners (m): ${route.map((p) => `(${toUnit(p.x, 'm').toFixed(2)}, ${toUnit(p.y, 'm').toFixed(2)})`).join(' → ')}`;
     },
   },
   {
