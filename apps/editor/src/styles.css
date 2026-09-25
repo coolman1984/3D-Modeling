@@ -1233,3 +1233,25 @@ button.rule-row:hover { background: var(--page); }
 .zone-row .swatch.no-go { background: var(--ink-2); }
 .zone-row .swatch.picking { background: rgba(125, 135, 148, 0.45); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+
+/* ---------- Variants ---------- */
+.variants-dialog { width: min(980px, 100%); padding: 20px 24px 20px; }
+.variants-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.variants-head h2 { font-size: 26px; letter-spacing: -0.015em; }
+.variants-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+.variants-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.variants-table th, .variants-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.variants-table thead th { background: var(--paper); min-width: 150px; }
+.variants-table thead th.current { box-shadow: inset 0 -2px 0 var(--accent); }
+.variants-table thead th .name { display: block; font-weight: 500; margin-top: 2px; }
+.variants-table thead th .faint { display: block; font-size: 12px; }
+.variants-table tbody th { font-weight: 400; color: var(--ink-3); white-space: nowrap; }
+.variants-table td.best { color: var(--accent); font-weight: 500; }
+.variants-table td.best svg { margin-left: 4px; vertical-align: -1px; }
+.variants-table td.bad { color: var(--error); }
+.variants-table tr.count-row th, .variants-table tr.count-row td { background: var(--paper); }
+.variants-table .actions { display: flex; gap: 6px; }
+.variant-new { display: flex; gap: 8px; margin-top: 14px; }
+.variant-new .input { flex: 1; }
+
+.fact > span:first-child { white-space: nowrap; }

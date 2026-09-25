@@ -7,6 +7,20 @@ export interface ProjectSummary {
   itemCount: number;
   createdAt: string;
   updatedAt: string;
+  /** The project this one is an alternative of; null for an ordinary project. */
+  variantOf: string | null;
+}
+
+/** One column of the variant comparison (see the server's `compareFamily`). */
+export interface VariantRow {
+  project: ProjectSummary;
+  base: boolean;
+  pack: string;
+  errors: number;
+  warnings: number;
+  rulesFailed: number;
+  rulesUnknown: number;
+  figures: Array<{ id: string; label: string; value?: number; unit: 'count' | 'percent' | 'square-metres' | 'grams' | 'ticks'; better?: 'higher' | 'lower' }>;
 }
 
 export interface RevisionInfo {
@@ -66,6 +80,13 @@ export const api = {
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   deleteProject: (id: string) => request<unknown>(`/api/projects/${id}`, { method: 'DELETE' }),
   duplicateProject: (id: string) => post<Project>(`/api/projects/${id}/duplicate`, {}),
+  createVariant: (id: string, name: string) => post<Project>(`/api/projects/${id}/variants`, { name }),
+  variants: (id: string) => request<VariantRow[]>(`/api/projects/${id}/variants`),
+  adopt: async (variantId: string) => {
+    const result = await post<Project & { error?: string }>(`/api/projects/${variantId}/adopt`, {});
+    if (typeof result.revision !== 'number') throw new Error(result.error ?? 'The variant could not be adopted');
+    return result as Project;
+  },
   sendCommands: (id: string, commands: Command[], baseRevision: number) =>
     post<CommandResult>(`/api/projects/${id}/commands`, { commands, baseRevision, actor: 'human' }),
   history: (id: string) => request<RevisionInfo[]>(`/api/projects/${id}/history?limit=200`),

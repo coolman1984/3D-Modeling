@@ -1,9 +1,9 @@
-import { type ItemDefinition, type Project } from '@space-planner/core';
+import { measureProject, toSquareMetres, type ItemDefinition, type Project } from '@space-planner/core';
 import { checkHall, HALL_STYLES, type HallStyle } from './hall.js';
 import { STARTER_CATALOG } from './hallCatalog.js';
 import { checkOffice, OFFICE_CATALOG, OFFICE_STYLES, type OfficeStyle } from './office.js';
-import { checkContainer, CONTAINER_CATALOG, CONTAINER_STYLES, isContainer } from './container.js';
-import { checkWarehouse, isWarehouse, WAREHOUSE_CATALOG, WAREHOUSE_STYLES } from './warehouse.js';
+import { checkContainer, CONTAINER_CATALOG, CONTAINER_STYLES, containerMetrics, isContainer } from './container.js';
+import { checkWarehouse, isWarehouse, WAREHOUSE_CATALOG, WAREHOUSE_STYLES, warehouseMetrics } from './warehouse.js';
 import { RULE_SOURCES, type RuleResult } from './rules.js';
 
 export type PackId = 'hall' | 'office' | 'container' | 'warehouse';
@@ -18,13 +18,55 @@ export interface Pack {
   readonly catalog: readonly ItemDefinition[];
   readonly styles: readonly { readonly id: string; readonly label: string }[];
   readonly check: (project: Project, style: string) => RuleResult[];
+  /** The few numbers that decide between alternatives of this kind of space (variant comparison). */
+  readonly figures: (project: Project) => Figure[];
+}
+
+/** One number for comparing variants; undefined when it cannot be measured. */
+export interface Figure {
+  readonly id: string;
+  readonly label: string;
+  readonly value: number | undefined;
+  readonly unit: 'count' | 'percent' | 'square-metres' | 'grams' | 'ticks';
+  /** Which way is better, when there is a better way. */
+  readonly better?: 'higher' | 'lower';
+}
+
+function seatFigures(project: Project, perSeat: string): Figure[] {
+  const m = measureProject(project);
+  return [
+    { id: 'seats', label: 'Seats', value: m.seats, unit: 'count', better: 'higher' },
+    { id: 'area-per-seat', label: perSeat, value: m.seats > 0 ? Math.round((toSquareMetres(m.floorArea) / m.seats) * 100) / 100 : undefined, unit: 'square-metres' },
+    { id: 'items', label: 'Items', value: m.itemCount, unit: 'count' },
+  ];
+}
+
+function containerFigures(project: Project): Figure[] {
+  const m = containerMetrics(project);
+  return [
+    { id: 'pieces', label: 'Pieces loaded', value: m.pieces, unit: 'count', better: 'higher' },
+    { id: 'unpacked', label: 'Not placed', value: m.unpacked, unit: 'count', better: 'lower' },
+    { id: 'volume-use', label: 'Volume used', value: m.volumeUse, unit: 'percent', better: 'higher' },
+    { id: 'payload-use', label: 'Payload used', value: m.payloadUse, unit: 'percent' },
+    { id: 'off-centre', label: 'Off centre', value: m.balance ? Math.max(m.balance.along, m.balance.across) / 100 : undefined, unit: 'percent', better: 'lower' },
+  ];
+}
+
+function warehouseFigures(project: Project): Figure[] {
+  const w = warehouseMetrics(project);
+  return [
+    { id: 'locations', label: 'Pallet locations', value: w.locations, unit: 'count', better: 'higher' },
+    { id: 'rack-capacity', label: 'Rack capacity', value: w.rackCapacity, unit: 'grams', better: 'higher' },
+    { id: 'floor-use', label: 'Floor used', value: w.storageFloorShare, unit: 'percent' },
+    { id: 'travel', label: 'Dock to rack (average)', value: w.travelAverage, unit: 'ticks', better: 'lower' },
+  ];
 }
 
 export const PACKS: readonly Pack[] = [
-  { id: 'hall', label: 'Event hall', catalog: STARTER_CATALOG, styles: HALL_STYLES, check: (p, s) => checkHall(p, s as HallStyle) },
-  { id: 'office', label: 'Office', catalog: OFFICE_CATALOG, styles: OFFICE_STYLES, check: (p, s) => checkOffice(p, s as OfficeStyle) },
-  { id: 'container', label: 'Container loading', catalog: CONTAINER_CATALOG, styles: CONTAINER_STYLES, check: (p) => checkContainer(p) },
-  { id: 'warehouse', label: 'Warehouse', catalog: WAREHOUSE_CATALOG, styles: WAREHOUSE_STYLES, check: (p) => checkWarehouse(p) },
+  { id: 'hall', label: 'Event hall', catalog: STARTER_CATALOG, styles: HALL_STYLES, check: (p, s) => checkHall(p, s as HallStyle), figures: (p) => seatFigures(p, 'Floor per guest') },
+  { id: 'office', label: 'Office', catalog: OFFICE_CATALOG, styles: OFFICE_STYLES, check: (p, s) => checkOffice(p, s as OfficeStyle), figures: (p) => seatFigures(p, 'Floor per person') },
+  { id: 'container', label: 'Container loading', catalog: CONTAINER_CATALOG, styles: CONTAINER_STYLES, check: (p) => checkContainer(p), figures: containerFigures },
+  { id: 'warehouse', label: 'Warehouse', catalog: WAREHOUSE_CATALOG, styles: WAREHOUSE_STYLES, check: (p) => checkWarehouse(p), figures: warehouseFigures },
 ];
 
 export function packOf(id: string | null | undefined): Pack {

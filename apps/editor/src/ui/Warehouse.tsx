@@ -61,7 +61,13 @@ export function WarehousePanel({ project, dispatch }: { project: Project; dispat
       <div className="section-title">
         <span className="kicker">Truck</span>
       </div>
-      <Segmented label="Truck" value={truck.id} onChange={setTruck} options={TRUCK_PROFILES.map((t) => ({ id: t.id, label: t.label.replace(' forklift', '').replace('Very narrow aisle truck', 'Narrow aisle'), title: t.label }))} />
+      <select className="input" aria-label="Truck" value={truck.id} onChange={(e) => setTruck(e.target.value)}>
+        {TRUCK_PROFILES.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.label}
+          </option>
+        ))}
+      </select>
       <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }} data-testid="truck-needs">
         Needs a {formatLength(truck.aisle)} aisle, lifts to {formatLength(truck.maxLift)}. Typical figures: use the rated aisle of the truck you buy.
       </p>
@@ -80,8 +86,8 @@ export function WarehousePanel({ project, dispatch }: { project: Project; dispat
         <span>{w.rackCapacity === undefined ? 'Not stated' : formatMass(w.rackCapacity)}</span>
       </div>
       <div className="fact">
-        <span>Dock to rack face</span>
-        <span data-testid="travel">{w.travelAverage === undefined ? '—' : `${formatLength(w.travelAverage)} average · ${formatLength(w.travelMax ?? 0)} farthest`}</span>
+        <span>Dock to rack</span>
+        <span data-testid="travel">{w.travelAverage === undefined ? '—' : `${formatLength(w.travelAverage)} avg · ${formatLength(w.travelMax ?? 0)} max`}</span>
       </div>
 
       <div className="section-gap" />

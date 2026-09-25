@@ -44,11 +44,11 @@ test('a warehouse: rack rows, truck, aisle and access rules, a blocked aisle, th
   await expect(page.locator('[data-rule="ceiling-clearance"]')).toHaveAttribute('data-status', 'pass');
 
   // A counterbalance truck needs 3.5 m: the aisle fails. The truck is project data (a revision).
-  await panel.getByRole('button', { name: 'Counterbalance' }).click();
+  await panel.getByLabel('Truck', { exact: true }).selectOption('counterbalance');
   await saved(page);
   await expect(page.locator('[data-rule="aisle-width"]')).toHaveAttribute('data-status', 'fail');
   expect((await revision(page, id)).space.meta).toEqual({ pack: 'warehouse', truck: 'counterbalance' });
-  await panel.getByRole('button', { name: 'Reach truck' }).click();
+  await panel.getByLabel('Truck', { exact: true }).selectOption('reach');
   await saved(page);
   await expect(page.locator('[data-rule="aisle-width"]')).toHaveAttribute('data-status', 'pass');
 

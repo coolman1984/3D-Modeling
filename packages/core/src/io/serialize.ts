@@ -18,6 +18,11 @@ export function serializeProject(project: Project): string {
   return `${JSON.stringify(sortKeys(project), null, 2)}\n`;
 }
 
+/** Canonical JSON of any plain value (sorted keys, no undefined): equal data gives equal text. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortKeys(value));
+}
+
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
   if (typeof value === 'object' && value !== null) {

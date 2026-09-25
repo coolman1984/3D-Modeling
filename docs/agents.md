@@ -92,3 +92,12 @@ types. One rack bay is one item; its front (where pallets go in) is the item's f
    volume use, drive from a dock) and the rules: aisle width, lift height, ceiling clearance
    (45 cm), rack access from the docks and at least one dock, each with its source.
    `route_to_bay` gives the drive to one bay and its corners, without changing anything.
+
+## Variants
+
+Try ideas without touching the approved plan. `create_variant` copies a project into a linked
+variant with its own history; change the variant with the usual tools; `compare_variants` lists
+the base and its variants with errors, warnings, rules not met or unknown, and the figures that
+matter for the kind of space. `adopt_variant` applies a variant to the base as one revision; use it
+only when the person has chosen.
+

@@ -189,6 +189,8 @@ The master plan's multi-user chapters (§19–§24), now designed around the pac
 - **Variants** (T6 container options first, then every pack): a project can have candidate
   variants; comparison table of metrics and issues; AI proposals arrive as variants, never replacing
   the approved one.
+  **Status (2026-09-25): done** for every pack — decision 0012 (stored links, pack figures, adopt as
+  one revision).
 - **Viewer tools** (§9), one per stage as packs need them.
 - **GeometryPort** (union / offset / difference / free space) at T7 when zones and aisles need it.
 

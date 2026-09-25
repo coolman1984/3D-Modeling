@@ -22,6 +22,7 @@ import {
 import { baysOf, rackOf, rackRows, rectZone, routeToBay, topBeam, TRUCK_PROFILES, truckOf, warehouseMetrics, isWarehouse, newWarehouse, ZONE_KINDS } from '@space-planner/starter';
 import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, detectPack, extremePointPacker, isContainer, newContainer, newRoom, packContainer, packOf, PACKS, ROUND_SHAPES, SHAPES, stepOf, stopOf, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
+import { compareFamily, figureText } from './variants.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
 export interface ToolDef {
@@ -735,6 +736,47 @@ export const TOOLS: readonly ToolDef[] = [
       let length = 0;
       for (let i = 1; i < route.length; i++) length += Math.hypot(route[i]!.x - route[i - 1]!.x, route[i]!.y - route[i - 1]!.y);
       return `Route to ${bayId}: ${mOf(length)} (straight segments between cell centres; the drive is about this long).\nCorners (m): ${route.map((p) => `(${toUnit(p.x, 'm').toFixed(2)}, ${toUnit(p.y, 'm').toFixed(2)})`).join(' → ')}`;
+    },
+  },
+  {
+    name: 'create_variant',
+    description:
+      'Make an alternative of a project to try an idea without touching the approved plan: a linked copy with its own history. Propose layouts in variants, compare them with compare_variants, and let the person adopt one. Returns the new project id.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, name: { type: 'string', description: 'Short name of the idea, e.g. "Reach truck, 3 m aisles".' } },
+      required: ['project_id', 'name'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const created = ctx.store.createVariant(project.id, str(input, 'name').slice(0, 200), ctx.actor);
+      if (!created) throw new ToolError('could not create the variant');
+      return `Created variant ${created.id} "${created.name}" of ${ctx.store.summary(created.id)?.variantOf}. Change it with the usual tools (project_id ${created.id}).`;
+    },
+  },
+  {
+    name: 'compare_variants',
+    description: 'Compare a project and all its variants side by side: errors, warnings, failed and unknown rules, and the figures that matter for its kind of space (seats, pallet locations, volume used…). Nothing changes.',
+    inputSchema: { type: 'object', properties: { project_id: projectId }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const rows = compareFamily(ctx.store, project.id);
+      if (rows.length < 2) return `${project.id} has no variants yet. Use create_variant.`;
+      return rows
+        .map((r) => `${r.base ? 'BASE ' : ''}${r.project.id} "${r.project.name}" rev ${r.project.revision}: ${r.errors} errors, ${r.warnings} warnings, ${r.rulesFailed} rules failed, ${r.rulesUnknown} unknown; ${r.figures.map((f) => `${f.label} ${figureText(f)}`).join(', ')}`)
+        .join('\n');
+    },
+  },
+  {
+    name: 'adopt_variant',
+    description: 'Make the base project look like this variant, as one new revision of the base (undoable, in its history). Only when the person asked for it: adopting replaces the approved layout.',
+    inputSchema: { type: 'object', properties: { variant_id: { type: 'string' }, summary }, required: ['variant_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const id = str(input, 'variant_id');
+      const result = ctx.store.adoptVariant(id, ctx.actor);
+      if (!result.ok) throw new ToolError(result.status === 400 ? `${id} is not a variant` : result.status === 404 ? `No project "${id}"` : result.status === 422 ? `Rejected: ${result.rejection.message}` : 'the base changed meanwhile; try again');
+      return afterChange(result.project, `Adopted ${id} into ${result.project.id}.`);
     },
   },
   {

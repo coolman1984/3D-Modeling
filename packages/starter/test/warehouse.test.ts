@@ -16,6 +16,7 @@ import {
   rackOf,
   warehouseMetrics,
   WAREHOUSE_CATALOG,
+  packOf,
 } from '../src/index.js';
 
 const m = (v: number) => fromUnit(v, 'm');
@@ -216,5 +217,17 @@ describe('warehouse pack', () => {
     expect(detectPack(opened.project)).toBe('warehouse');
     expect(checkWarehouse(opened.project).map((r) => `${r.code}:${r.status}`)).toEqual(['aisle-width:pass', 'lift-height:pass', 'ceiling-clearance:pass', 'rack-access:pass', 'docks:pass']);
     expect(warehouseMetrics(opened.project).locations).toBe(180);
+  });
+
+  it('gives the figures variants are compared on', () => {
+    const figures = packOf('warehouse').figures(threeRows());
+    expect(figures.map((f) => [f.id, f.value, f.better])).toEqual([
+      ['locations', 180, 'higher'],
+      ['rack-capacity', 180_000_000, 'higher'],
+      ['floor-use', expect.closeTo((12 * 2.8 * 1.1) / 600, 9), undefined],
+      ['travel', expect.any(Number), 'lower'],
+    ]);
+    const empty = packOf('warehouse').figures(newWarehouse('W', { width: m(30), depth: m(20) }));
+    expect(empty.find((f) => f.id === 'travel')!.value).toBeUndefined();
   });
 });

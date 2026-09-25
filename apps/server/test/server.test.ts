@@ -40,6 +40,20 @@ async function until<T>(check: () => T | undefined | null | false, timeout = 10_
 }
 
 describe('store', () => {
+  it('opens a database made before variants and adds the link column; old projects stay ordinary', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const path = join(dir, 'old.db');
+    const old = new DatabaseSync(path);
+    old.exec(`CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, revision INTEGER NOT NULL, item_count INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      INSERT INTO projects VALUES ('p-old', 'Old', 0, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');`);
+    old.close();
+    const reopened = new Store(path);
+    expect(reopened.listProjects()).toEqual([expect.objectContaining({ id: 'p-old', variantOf: null })]);
+    reopened.close();
+    // Opening it again does not try to add the column twice.
+    new Store(path).close();
+  });
+
   it('keeps every change as a revision with who and what', () => {
     const project = store.createProject(demoHall(), 'human');
     expect(project.id).toMatch(/^p-/);
@@ -168,6 +182,37 @@ describe('agent tools', () => {
     runTool(ctx, 'define_item', { project_id: id, id: 'rack-tall', name: 'Tall bay', category: 'rack', width_cm: 280, depth_cm: 110, height_cm: 1, rack: { levels: 8, positions: 3, level_height_cm: 150, position_load_kg: 900 } });
     expect(store.getProject(id)!.catalog['rack-tall']).toMatchObject({ size: { h: 120_000 }, meta: { rack: 'pallet', levels: 8, positions: 3, levelHeight: 15_000, positionLoad: 900_000 } });
     expect(runTool(ctx, 'add_rack_rows', { project_id: id, definition_id: 'chair', x_m: 1, y_m: 1, bays: 1, rows: 1 }).isError).toBe(true);
+  });
+
+  it('variants: an agent proposes in a variant, compares, and the person adopts it as one revision of the base', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const id = /Created (p-[\w]+)/.exec(runTool(ctx, 'create_project', { name: 'DC', activity: 'warehouse', width_m: 30, depth_m: 20, ceiling_m: 8 }).text)![1]!;
+    const made = runTool(ctx, 'create_variant', { project_id: id, name: 'Three rows' });
+    const variant = /Created variant (p-[\w]+)/.exec(made.text)![1]!;
+    expect(store.summary(variant)).toMatchObject({ variantOf: id, name: 'Three rows' });
+    runTool(ctx, 'add_rack_rows', { project_id: variant, x_m: 5, y_m: 10, bays: 4, rows: 3, aisle_m: 3 });
+    // A variant of a variant belongs to the same base.
+    const second = /Created variant (p-[\w]+)/.exec(runTool(ctx, 'create_variant', { project_id: variant, name: 'Four rows' }).text)![1]!;
+    expect(store.summary(second)!.variantOf).toBe(id);
+    expect(store.familyOf(second).map((p) => p.id)).toEqual([id, variant, second]);
+
+    const table = runTool(ctx, 'compare_variants', { project_id: id }).text;
+    expect(table).toContain(`BASE ${id} "DC" rev 0: 0 errors, 0 warnings, 0 rules failed, 4 unknown; Pallet locations 0`);
+    expect(table).toContain(`${variant} "Three rows" rev 1: 0 errors, 0 warnings, 0 rules failed, 0 unknown; Pallet locations 180, Rack capacity 180000 kg`);
+    // The base is untouched until someone adopts.
+    expect(Object.keys(store.getProject(id)!.items)).toHaveLength(0);
+
+    expect(runTool(ctx, 'adopt_variant', { variant_id: id }).isError).toBe(true);
+    const adopted = runTool({ store, actor: 'human' }, 'adopt_variant', { variant_id: variant });
+    expect(adopted.isError).toBe(false);
+    const base = store.getProject(id)!;
+    expect(base.revision).toBe(1);
+    expect(Object.keys(base.items)).toHaveLength(12);
+    expect(base.name).toBe('DC');
+    expect(store.history(id)[0]).toMatchObject({ actor: 'human', summary: 'Adopted variant “Three rows”' });
+    // Deleting the base leaves its variants as ordinary projects.
+    store.deleteProject(id);
+    expect(store.summary(variant)!.variantOf).toBeNull();
   });
 
   it('lets an agent set the room, define an item and place items, with clear feedback', () => {

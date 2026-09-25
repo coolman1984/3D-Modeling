@@ -40,6 +40,13 @@
 - [x] Editor: warehouse in the create dialog, Racks panel (truck, capacity, row generator, zones), rack inspector, route on the plan, zones on plan / 3D / report, procedural instanced racks, report capacity
 - [x] Tests: hand-computed cases, property tests, frozen warehouse save, server tools, browser journey, planted bugs; `pnpm check`
 
+## Done: V1 — variants (plan §7 cross-cutting, decision 0012)
+
+- [x] Core: `diffCommands(from, to)` (reference case, round-trip property test, planted bug)
+- [x] Starter: `Pack.figures` for every pack
+- [x] Server: `variant_of` column (old databases upgraded on open, test), create / family / adopt in the store, HTTP routes, `create_variant` / `compare_variants` / `adopt_variant` tools
+- [x] Editor: Variants dialog (comparison, open, adopt, new variant), "Variant of …" on the projects page; browser journey
+
 ## Next: T8 — production line MVP (plan §7)
 
 
