@@ -37,6 +37,25 @@ pnpm --filter @space-planner/core test -- test/checks.test.ts   # one file
   Bump `SCHEMA_VERSION` and add a step to `MIGRATIONS` instead.
 - **Deterministic output.** Same input, same result, same order (no locale-aware sorting).
 
+## When to keep going and when to stop
+
+When a step doesn't need the owner's input, keep going. Put status notes in the same message
+as your next action; don't end a turn with "want me to continue?" or a list of options that
+don't block the work.
+
+Stop and ask only when you can't continue without the owner (a product decision, missing
+information, access you don't have), or before anything destructive: deleting data or files you
+didn't create, force-pushing, rewriting history, or changing anything outside this repository.
+
+## Long tasks
+
+- Keep the task list in `TASKS.md`: a checklist with the finish line at the top. Tick items as
+  they're done and add anything new you find. It survives context summaries; the chat doesn't.
+- Every task starts from a stated finish line ("done means: …"). If the request has none, write
+  one at the top of `TASKS.md` from the plan's done criterion before starting.
+- Split broad audits or reviews across subagents only when the work is genuinely parallel, and
+  check each subagent's evidence before accepting it.
+
 ## How to work
 
 1. **Plan the stage before coding.** Each stage in `docs/02-core-plan.md` has a done criterion.
@@ -52,7 +71,9 @@ pnpm --filter @space-planner/core test -- test/checks.test.ts   # one file
    current stage does not need. A new runtime dependency needs a decision record first.
 6. **Record decisions.** Any architectural choice or deviation from the plan gets a short entry
    in `docs/decisions/` (context, decision, consequences).
-7. **Close the loop.** Update the status table in `README.md`, commit with a message listing
+7. **Review before you commit.** Re-read the diff as a reviewer would, listing only problems
+   you'd block the merge for. Fix them, then commit.
+8. **Close the loop.** Update the status table in `README.md`, commit with a message listing
    what changed and why, and push.
 
 ## Code style
@@ -63,8 +84,24 @@ pnpm --filter @space-planner/core test -- test/checks.test.ts   # one file
 - Tests live in `packages/core/test/`; shared scenarios live in `test/fixtures.ts`
   (reference hall 10 × 8 m with door, column, table and four chairs, and no issues).
 
+## User interface
+
+- The owner and first users read Arabic: UI text is Arabic, panels are right-to-left, and the
+  plan canvas keeps its own math orientation (X east, Y north).
+- It is a working tool, not a landing page. Leave out: cream or off-white page backgrounds,
+  gradients and glassmorphism, oversized hero text, italic accent words, numbered "01 / 02"
+  section labels, monospace labels, pill-shaped buttons, emoji inside the app, and decorative
+  shadows. Prefer dense, calm panels, one accent colour, and red, amber and blue reserved for
+  error, warning and info.
+- Every UI change goes through core commands; the UI never edits a project directly.
+
 ## Talking to the project owner
 
 The owner is not a developer. Report in short, warm Egyptian Arabic, with fitting emoji,
 no English words, and no jargon: what now works, what it means for the product,
 what is next. Put technical detail in commits and docs, not in the chat.
+
+End every run with three short parts, in this order:
+1. **Needed from you**: decisions or approvals you are waiting on (say "nothing" if none).
+2. **What changed**.
+3. **What I found**: surprises, risks, and anything you could not confirm, with where you looked.
