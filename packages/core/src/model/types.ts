@@ -5,7 +5,7 @@ import type { Tick } from '../units/length.js';
 /** Identifiers are created outside the core (the core never generates randomness). Unique across a project. */
 export type Id = string;
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface Project {
   readonly schemaVersion: typeof SCHEMA_VERSION;
@@ -23,9 +23,20 @@ export interface Space {
   readonly boundary: readonly Vec2[];
   readonly obstacles: readonly Obstacle[];
   readonly doors: readonly Door[];
+  /** Optional named geometry. Activity packs interpret `kind`; the core only validates the polygon. */
+  readonly zones?: readonly Zone[];
   /** Missing means height checks report "unknown", never "pass". */
   readonly ceilingHeight?: Tick;
   /** Pack-owned data about the space (a container's type and payload limit…); stored only when not empty. */
+  readonly meta?: Meta;
+}
+
+export interface Zone {
+  readonly id: Id;
+  /** A free tag: receiving, pedestrian, no-go and their meaning belong to an activity pack. */
+  readonly kind: string;
+  /** Simple counter-clockwise polygon of integer tick positions. */
+  readonly polygon: readonly Vec2[];
   readonly meta?: Meta;
 }
 
@@ -47,6 +58,8 @@ export interface Door {
   readonly angle: MilliDeg;
   /** 'left' opens counter-clockwise from the closed leaf, 'right' clockwise. */
   readonly swing: 'left' | 'right';
+  /** Optional activity-owned information, such as a warehouse dock's role. */
+  readonly meta?: Meta;
 }
 
 /**

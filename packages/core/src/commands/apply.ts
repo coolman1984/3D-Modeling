@@ -40,6 +40,7 @@ function idsInUse(project: Project, except: 'space' | 'none' = 'none'): Set<stri
   if (except !== 'space') {
     for (const o of project.space.obstacles) ids.add(o.id);
     for (const d of project.space.doors) ids.add(d.id);
+    for (const z of project.space.zones ?? []) ids.add(z.id);
   }
   return ids;
 }
@@ -156,7 +157,7 @@ function applyInner(project: Project, command: Command): Outcome {
       const problems = validateSpace(command.space);
       if (problems.length > 0) return reject('invalid-payload', 'space is not valid', { problems });
       const taken = idsInUse(project, 'space');
-      const clash = [...command.space.obstacles, ...command.space.doors].find((e) => taken.has(e.id));
+      const clash = [...command.space.obstacles, ...command.space.doors, ...(command.space.zones ?? [])].find((e) => taken.has(e.id));
       if (clash) return reject('duplicate-id', `id "${clash.id}" is already used`);
       return {
         ok: true,

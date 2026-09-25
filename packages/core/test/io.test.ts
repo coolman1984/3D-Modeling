@@ -19,6 +19,18 @@ function open(text: string): Project {
 }
 
 describe('save and open', () => {
+  it('preserves named polygon zones, validates their geometry and undoes a zone change', () => {
+    const hall = referenceHall();
+    const zone = { id: 'zone-1', kind: 'staging', polygon: [{ x: 10000, y: 10000 }, { x: 20000, y: 10000 }, { x: 20000, y: 20000 }, { x: 10000, y: 20000 }] };
+    const result = apply(hall, { type: 'space.set', space: { ...hall.space, zones: [zone] } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(open(serializeProject(result.project)).space.zones).toEqual([zone]);
+    const undone = apply(result.project, result.inverse);
+    expect(undone.ok && undone.project.space.zones).toBeUndefined();
+    const malformed = apply(hall, { type: 'space.set', space: { ...hall.space, zones: [{ ...zone, polygon: [...zone.polygon].reverse() }] } });
+    expect(malformed.ok).toBe(false);
+  });
   it('round-trips the reference halls exactly', () => {
     for (const project of [referenceHall(), furnishedHall()]) {
       const text = serializeProject(project);
@@ -46,7 +58,7 @@ describe('save and open', () => {
     const text = serializeProject(referenceHall());
     expect(text.endsWith('}\n')).toBe(true);
     expect(text.indexOf('"catalog"')).toBeLessThan(text.indexOf('"id"'));
-    expect(text).toContain('\n  "schemaVersion": 1');
+    expect(text).toContain(`\n  "schemaVersion": ${SCHEMA_VERSION}`);
   });
 
   it('round-trips after any sequence of edits', () => {
@@ -96,7 +108,7 @@ describe('opening bad files', () => {
   });
 
   it('refuses old versions it has no migration for', () => {
-    const older = serializeProject(referenceHall()).replace('"schemaVersion": 1', '"schemaVersion": 0');
+    const older = serializeProject(referenceHall()).replace(`"schemaVersion": ${SCHEMA_VERSION}`, '"schemaVersion": 0');
     const result = deserializeProject(older);
     expect(!result.ok && result.problems[0]?.message).toMatch(/no migration from schema version 0/);
   });
@@ -121,14 +133,16 @@ describe('opening bad files', () => {
 });
 
 describe('saves written by earlier versions', () => {
-  it('a hall saved before T5 (schema 1, no mass, tilt or meta) opens and saves byte for byte', async () => {
+  it('a hall saved before T5 (schema 1) migrates without losing its data or planning results', async () => {
     const { readFileSync } = await import('node:fs');
     const text = readFileSync(new URL('./saves/v1-hall-2026-09.json', import.meta.url), 'utf8');
     const opened = deserializeProject(text);
     expect(opened.ok).toBe(true);
     if (!opened.ok) return;
-    expect(opened.migratedFrom).toBeUndefined();
-    expect(serializeProject(opened.project)).toBe(text);
+    expect(opened.migratedFrom).toBe(1);
+    expect(opened.project.schemaVersion).toBe(2);
+    const upgraded = serializeProject(opened.project);
+    expect(serializeProject(open(upgraded))).toBe(upgraded);
     expect(checkProject(opened.project)).toEqual([]);
     expect(measureProject(opened.project)).toMatchObject({ itemCount: 5, seats: 4, massUnknown: 5 });
   });

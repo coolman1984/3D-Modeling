@@ -99,6 +99,23 @@ describe('store', () => {
 });
 
 describe('agent tools', () => {
+  it('creates a warehouse and adds an addressable rack through one revision', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'Warehouse', activity: 'warehouse', reference: true });
+    expect(created.isError).toBe(false);
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    expect(runTool(ctx, 'warehouse_metrics', { project_id: id }).text).toContain('"positions":240');
+    expect(runTool(ctx, 'find_warehouse_route', { project_id: id, dock_id: 'receiving', rack_id: 'R01' }).text).toContain('reachable');
+    const added = runTool(ctx, 'add_warehouse_rack', { project_id: id, x_m: 15, y_m: 1.5, bays: 2, levels: 3, positions_per_level: 2 });
+    expect(added.isError).toBe(false);
+    expect(store.getProject(id)?.revision).toBe(1);
+    expect(runTool(ctx, 'warehouse_metrics', { project_id: id }).text).toContain('"positions":252');
+    expect(store.history(id)[0]).toMatchObject({ actor: 'agent:test', summary: 'Added rack row rack-1' });
+    expect(runTool(ctx, 'add_warehouse_zone', { project_id: id, kind: 'charging', vertices: [{ x_m: 25, y_m: 15 }, { x_m: 29, y_m: 15 }, { x_m: 29, y_m: 19 }, { x_m: 25, y_m: 19 }] }).isError).toBe(false);
+    expect(store.getProject(id)?.space.zones?.some((z) => z.kind === 'charging')).toBe(true);
+    expect(runTool(ctx, 'add_warehouse_zone', { project_id: id, kind: 'no-go', vertices: [{ x_m: -1, y_m: 1 }, { x_m: 1, y_m: 1 }, { x_m: 1, y_m: 2 }] }).isError).toBe(true);
+  });
+
   it('lets an agent create a container, plan cargo, compare packing candidates and apply one as one revision', () => {
     const ctx = { store, actor: 'agent:test' };
     const created = runTool(ctx, 'create_project', { name: 'Order 7', activity: 'container', container_type: '20gp' });

@@ -1,5 +1,5 @@
-import { checkProject, type Project } from '@space-planner/core';
-import { containerMetrics, containerType, SHAPES, shapeOf, stepOf, stopOf } from '@space-planner/starter';
+import { area, checkProject, toSquareMetres, type Project } from '@space-planner/core';
+import { containerMetrics, containerType, SHAPES, shapeOf, stepOf, stopOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -54,7 +54,9 @@ export function ReportPage({ projectId }: { projectId: string }) {
     if (!project) return;
     // Let the page paint first; drawing the 3D picture takes a moment on slow machines.
     const cargo = project.space.meta?.pack === 'container';
-    const look = cargo ? { itemColors: colorsOf(project, 'stop').colors, cutaway: true } : undefined;
+    const rack = project.space.meta?.pack === 'warehouse' ? Object.values(project.items).find((i) => project.catalog[i.definitionId]?.category === 'rack') : undefined;
+    const sample = rack && project.space.doors[0] ? warehouseRoute(project, project.space.doors[0].id, rack.id) : null;
+    const look = cargo ? { itemColors: colorsOf(project, 'stop').colors, cutaway: true } : sample?.reachable ? { routePoints: sample.points } : undefined;
     const timer = setTimeout(() => setPicture(renderSnapshot(project, issues, 1200, 640, look, cargo)), 30);
     return () => clearTimeout(timer);
   }, [project, issues]);
@@ -96,6 +98,9 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const seatsLine = report.totals.seats > 0 ? `A plan for ${plural(report.totals.seats, 'seat')}` : 'A plan';
   const cargo = report.activity.pack === 'container';
   const load = cargo ? containerMetrics(project) : null;
+  const warehouse = report.activity.pack === 'warehouse' ? warehouseMetrics(project) : null;
+  const firstRack = warehouse ? Object.values(project.items).find((i) => project.catalog[i.definitionId]?.category === 'rack') : undefined;
+  const sampleRoute = firstRack && project.space.doors[0] ? warehouseRoute(project, project.space.doors[0].id, firstRack.id) : null;
   const box = cargo ? containerType(String(project.space.meta?.containerType ?? '')) : undefined;
   const sequence = cargo
     ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
@@ -133,7 +138,9 @@ export function ReportPage({ projectId }: { projectId: string }) {
           <div className="cover-kicker">{kicker}</div>
           <h1>{report.name}</h1>
           <p className="cover-lede">
-            {cargo && load ? (
+            {warehouse ? (
+              <>A spatial warehouse plan with {formatCount(warehouse.rackRows)} rack rows and {formatCount(warehouse.positions)} addressable pallet positions, checked for fit and forklift access.</>
+            ) : cargo && load ? (
               <>
                 A loading plan for {plural(load.pieces, 'piece')} in a {box?.label ?? 'custom container'} ({roomSize} inside), checked for fit, support, load on top, orientation, unloading order and balance.
               </>
@@ -186,7 +193,16 @@ export function ReportPage({ projectId }: { projectId: string }) {
               </div>
             </div>
             <div className="cover-metrics">
-              {(cargo && load
+              {(warehouse
+                ? [
+                    [<span data-testid="report-warehouse-capacity">{formatCount(warehouse.positions)}</span>, 'Pallet positions'],
+                    [formatCount(warehouse.usablePositions), 'Usable positions'],
+                    [formatCount(warehouse.rackRows), 'Rack rows'],
+                    [formatCount(warehouse.bays), 'Bays'],
+                    [`${warehouse.rackArea.toFixed(1)} m²`, 'Rack footprint'],
+                    [sampleRoute?.reachable ? `${(sampleRoute.distance / 10_000).toFixed(1)} m` : '—', 'First dock to rack'],
+                  ]
+                : cargo && load
                 ? [
                     [<span data-testid="report-pieces">{formatCount(load.pieces)}</span>, 'Pieces'],
                     [load.mass === undefined ? '—' : formatMass(load.mass), 'Load mass'],
@@ -323,6 +339,14 @@ export function ReportPage({ projectId }: { projectId: string }) {
                 </tr>
               </tfoot>
             </table>
+          )}
+          {warehouse && (
+            <div data-testid="report-warehouse-zones">
+              <div className="sheet-h later"><h2>Warehouse operations</h2><span>Spatial planning capacity · no live inventory</span></div>
+              <p className="sub">{formatCount(warehouse.positions)} pallet positions, {formatCount(warehouse.usablePositions)} usable · {warehouse.rackArea.toFixed(1)} m² rack footprint of {warehouse.floorArea.toFixed(1)} m² floor · {formatCount(warehouse.docks)} docks.</p>
+              <p className="sub">Dock openings: {project.space.doors.map((d) => `${d.id} (${formatMetres(d.width)} m)`).join(' · ') || 'not specified'}. Example route: {sampleRoute?.reachable ? `${project.space.doors[0]?.id} to ${firstRack?.id} · ${(sampleRoute.distance / 10_000).toFixed(1)} m` : 'not available'}.</p>
+              <p className="sub">Zones: {(project.space.zones ?? []).map((z) => `${z.kind} (${toSquareMetres(area(z.polygon)).toFixed(1)} m²)`).join(' · ') || 'none defined'}.</p>
+            </div>
           )}
           {cargo && sequence.length > 0 && (
             <>

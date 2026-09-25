@@ -70,7 +70,7 @@ describe('validation', () => {
 
   it('rejects an unknown schema version before anything else', () => {
     const raw = corrupt(referenceHall(), (p) => {
-      p.schemaVersion = 2;
+      p.schemaVersion = 3;
       p.name = 7;
     });
     expect(codes(validateProject(raw))).toEqual(['unsupported-version @ schemaVersion']);

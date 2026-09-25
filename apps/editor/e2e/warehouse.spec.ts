@@ -1,0 +1,33 @@
+import { expect, test } from '@playwright/test';
+import { openTab, saved } from './helpers.js';
+
+test('reference warehouse: capacity, forklift route, edit one rack and print report', async ({ page }) => {
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Create project' }).first().click();
+  await page.locator('[data-template="warehouse"]').click();
+  await page.locator('input[name="project-name"]').fill('Receiving warehouse');
+  await page.getByTestId('create-project').click();
+  await expect(page.locator('h1.project-name')).toHaveText('Receiving warehouse');
+  await saved(page);
+  const id = /#\/p\/([\w-]+)/.exec(page.url())![1]!;
+  await expect(page.getByTestId('warehouse-capacity')).toContainText('240');
+  await expect(page.locator('[data-item-id]')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Show route' }).click();
+  await expect(page.getByTestId('warehouse-route')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'reachable' })).toContainText('m · reachable');
+  await page.locator('[data-item-id="R01"]').click();
+  await expect(page.locator('.insp-group', { hasText: 'Rack capacity' })).toContainText('48');
+  await page.getByLabel('Rack bays').fill('5');
+  await page.getByLabel('Rack bays').press('Enter');
+  await saved(page);
+  await expect(page.getByTestId('warehouse-capacity')).toContainText('232');
+  const project = await (await page.request.get(`/api/projects/${id}`)).json();
+  expect(project.items.R01.definitionId).not.toBe(project.items.R02.definitionId);
+  await openTab(page, 'Review');
+  await expect(page.locator('[data-rule="rack-capacity"]')).toHaveAttribute('data-status', 'pass');
+  await page.getByRole('button', { name: /3D/ }).first().click();
+  await expect(page.getByTestId('view3d').locator('canvas')).toBeVisible();
+  await page.getByRole('link', { name: 'Client report' }).click();
+  await expect(page.getByTestId('report-warehouse-capacity')).toHaveText('232');
+  await expect(page.getByTestId('report-picture')).toBeVisible({ timeout: 15_000 });
+});
