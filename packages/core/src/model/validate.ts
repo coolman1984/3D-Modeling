@@ -15,7 +15,8 @@ export type ProblemCode =
   | 'duplicate-id'
   | 'id-mismatch'
   | 'broken-reference'
-  | 'door-off-boundary';
+  | 'door-off-boundary'
+  | 'unknown-field';
 
 /** One reason a project is not structurally sound. `path` points at the offending field, e.g. `items.t1.position.x`. */
 export interface Problem {
@@ -34,10 +35,18 @@ class Collector {
     this.problems.push({ code, path, message });
   }
 
-  object(value: unknown, path: string): Obj | undefined {
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value as Obj;
-    this.add(value === undefined ? 'missing' : 'wrong-type', path, 'expected an object');
-    return undefined;
+  /** An object; when `fields` is given, any other key is reported so stray data never slips into a save file. */
+  object(value: unknown, path: string, fields?: readonly string[]): Obj | undefined {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      this.add(value === undefined ? 'missing' : 'wrong-type', path, 'expected an object');
+      return undefined;
+    }
+    if (fields) {
+      for (const key of Object.keys(value)) {
+        if (!fields.includes(key)) this.add('unknown-field', `${path}.${key}`, 'field is not part of the schema');
+      }
+    }
+    return value as Obj;
   }
 
   array(value: unknown, path: string): unknown[] | undefined {
@@ -84,7 +93,7 @@ class Collector {
   }
 
   point(value: unknown, path: string): Vec2 | undefined {
-    const o = this.object(value, path);
+    const o = this.object(value, path, POINT_FIELDS);
     if (!o) return undefined;
     const x = this.coordinate(o.x, `${path}.x`);
     const y = this.coordinate(o.y, `${path}.y`);
@@ -120,6 +129,14 @@ class Collector {
   }
 }
 
+const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'catalog', 'items'] as const;
+const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight'] as const;
+const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
+const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing'] as const;
+const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats'] as const;
+const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked'] as const;
+const POINT_FIELDS = ['x', 'y'] as const;
+
 /**
  * Check that a value is a structurally sound project: right types, valid numbers,
  * simple polygons, unique ids and intact references.
@@ -134,97 +151,117 @@ export function validateProject(value: unknown): Problem[] {
     c.add('unsupported-version', 'schemaVersion', `expected ${SCHEMA_VERSION}, got ${String(project.schemaVersion)}`);
     return c.problems;
   }
+  c.object(value, 'project', PROJECT_FIELDS);
   c.id(project.id, 'id');
   c.string(project.name, 'name');
   c.integer(project.revision, 'revision', 0, Number.MAX_SAFE_INTEGER);
 
-  validateSpace(c, project.space);
-  const definitionIds = validateCatalog(c, project.catalog);
-  validateItems(c, project.items, definitionIds);
+  checkSpace(c, project.space, 'space');
+  const definitionIds = new Set<string>();
+  const catalog = c.object(project.catalog, 'catalog');
+  for (const [key, definition] of Object.entries(catalog ?? {})) {
+    checkDefinition(c, definition, `catalog.${key}`, key);
+    definitionIds.add(key);
+  }
+  const items = c.object(project.items, 'items');
+  for (const [key, item] of Object.entries(items ?? {})) {
+    checkItem(c, item, `items.${key}`, key, definitionIds);
+  }
   return c.problems;
 }
 
-function validateSpace(c: Collector, value: unknown): void {
-  const space = c.object(value, 'space');
-  if (!space) return;
-  const boundary = c.polygon(space.boundary, 'space.boundary');
-  if (space.ceilingHeight !== undefined) c.length(space.ceilingHeight, 'space.ceilingHeight', { positive: true });
+/** Structural problems of a space on its own (ids unique within the space). */
+export function validateSpace(value: unknown): Problem[] {
+  const c = new Collector();
+  checkSpace(c, value, 'space');
+  return c.problems;
+}
 
-  c.array(space.obstacles, 'space.obstacles')?.forEach((value, i) => {
-    const path = `space.obstacles.${i}`;
-    const obstacle = c.object(value, path);
+/** Structural problems of one catalog definition on its own. */
+export function validateDefinition(value: unknown): Problem[] {
+  const c = new Collector();
+  checkDefinition(c, value, 'definition');
+  return c.problems;
+}
+
+/** Structural problems of one placed item on its own; the catalog reference is not checked. */
+export function validateItem(value: unknown): Problem[] {
+  const c = new Collector();
+  checkItem(c, value, 'item');
+  return c.problems;
+}
+
+function checkSpace(c: Collector, value: unknown, path: string): void {
+  const space = c.object(value, path, SPACE_FIELDS);
+  if (!space) return;
+  const boundary = c.polygon(space.boundary, `${path}.boundary`);
+  if (space.ceilingHeight !== undefined) c.length(space.ceilingHeight, `${path}.ceilingHeight`, { positive: true });
+
+  c.array(space.obstacles, `${path}.obstacles`)?.forEach((value, i) => {
+    const at = `${path}.obstacles.${i}`;
+    const obstacle = c.object(value, at, OBSTACLE_FIELDS);
     if (!obstacle) return;
-    c.id(obstacle.id, `${path}.id`);
+    c.id(obstacle.id, `${at}.id`);
     if (obstacle.kind !== 'column' && obstacle.kind !== 'blocked-zone') {
-      c.add('wrong-type', `${path}.kind`, 'expected "column" or "blocked-zone"');
+      c.add('wrong-type', `${at}.kind`, 'expected "column" or "blocked-zone"');
     }
-    c.polygon(obstacle.polygon, `${path}.polygon`);
+    c.polygon(obstacle.polygon, `${at}.polygon`);
   });
 
-  c.array(space.doors, 'space.doors')?.forEach((value, i) => {
-    const path = `space.doors.${i}`;
-    const door = c.object(value, path);
+  c.array(space.doors, `${path}.doors`)?.forEach((value, i) => {
+    const at = `${path}.doors.${i}`;
+    const door = c.object(value, at, DOOR_FIELDS);
     if (!door) return;
-    c.id(door.id, `${path}.id`);
-    const hinge = c.point(door.hinge, `${path}.hinge`);
-    c.length(door.width, `${path}.width`, { positive: true });
-    c.angle(door.angle, `${path}.angle`);
+    c.id(door.id, `${at}.id`);
+    const hinge = c.point(door.hinge, `${at}.hinge`);
+    c.length(door.width, `${at}.width`, { positive: true });
+    c.angle(door.angle, `${at}.angle`);
     if (door.swing !== 'left' && door.swing !== 'right') {
-      c.add('wrong-type', `${path}.swing`, 'expected "left" or "right"');
+      c.add('wrong-type', `${at}.swing`, 'expected "left" or "right"');
     }
     if (boundary && hinge && locatePoint(boundary, hinge) !== 'boundary') {
-      c.add('door-off-boundary', `${path}.hinge`, 'the hinge must lie on the space boundary');
+      c.add('door-off-boundary', `${at}.hinge`, 'the hinge must lie on the space boundary');
     }
   });
 }
 
-function validateCatalog(c: Collector, value: unknown): Set<string> {
-  const ids = new Set<string>();
-  const catalog = c.object(value, 'catalog');
-  if (!catalog) return ids;
-  for (const [key, value] of Object.entries(catalog)) {
-    const path = `catalog.${key}`;
-    const definition = c.object(value, path);
-    if (!definition) continue;
-    const id = c.id(definition.id, `${path}.id`);
-    if (id !== undefined && id !== key) c.add('id-mismatch', `${path}.id`, `id "${id}" differs from its key "${key}"`);
-    ids.add(key);
-    c.string(definition.name, `${path}.name`);
-    c.string(definition.category, `${path}.category`);
-    const size = c.object(definition.size, `${path}.size`);
-    if (size) {
-      c.length(size.w, `${path}.size.w`, { positive: true });
-      c.length(size.d, `${path}.size.d`, { positive: true });
-      c.length(size.h, `${path}.size.h`, { positive: true });
-    }
-    const clearance = c.object(definition.clearance, `${path}.clearance`);
-    if (clearance) {
-      for (const side of ['front', 'back', 'left', 'right'] as const) {
-        c.length(clearance[side], `${path}.clearance.${side}`);
-      }
-    }
-    if (definition.seats !== undefined) c.integer(definition.seats, `${path}.seats`, 0, 10_000);
+function checkDefinition(c: Collector, value: unknown, path: string, key?: string): void {
+  const definition = c.object(value, path, DEFINITION_FIELDS);
+  if (!definition) return;
+  const id = c.id(definition.id, `${path}.id`);
+  if (key !== undefined && id !== undefined && id !== key) {
+    c.add('id-mismatch', `${path}.id`, `id "${id}" differs from its key "${key}"`);
   }
-  return ids;
+  c.string(definition.name, `${path}.name`);
+  c.string(definition.category, `${path}.category`);
+  const size = c.object(definition.size, `${path}.size`, ['w', 'd', 'h']);
+  if (size) {
+    c.length(size.w, `${path}.size.w`, { positive: true });
+    c.length(size.d, `${path}.size.d`, { positive: true });
+    c.length(size.h, `${path}.size.h`, { positive: true });
+  }
+  const sides = ['front', 'back', 'left', 'right'] as const;
+  const clearance = c.object(definition.clearance, `${path}.clearance`, sides);
+  if (clearance) {
+    for (const side of sides) c.length(clearance[side], `${path}.clearance.${side}`);
+  }
+  if (definition.seats !== undefined) c.integer(definition.seats, `${path}.seats`, 0, 10_000);
 }
 
-function validateItems(c: Collector, value: unknown, definitionIds: Set<string>): void {
-  const items = c.object(value, 'items');
-  if (!items) return;
-  for (const [key, value] of Object.entries(items)) {
-    const path = `items.${key}`;
-    const item = c.object(value, path);
-    if (!item) continue;
-    const id = c.id(item.id, `${path}.id`);
-    if (id !== undefined && id !== key) c.add('id-mismatch', `${path}.id`, `id "${id}" differs from its key "${key}"`);
-    const definitionId = c.string(item.definitionId, `${path}.definitionId`, { nonEmpty: true });
-    if (definitionId !== undefined && !definitionIds.has(definitionId)) {
-      c.add('broken-reference', `${path}.definitionId`, `no catalog definition "${definitionId}"`);
-    }
-    c.point(item.position, `${path}.position`);
-    c.angle(item.rotation, `${path}.rotation`);
-    if (typeof item.locked !== 'boolean') c.add('wrong-type', `${path}.locked`, 'expected true or false');
+function checkItem(c: Collector, value: unknown, path: string, key?: string, definitionIds?: Set<string>): void {
+  const item = c.object(value, path, ITEM_FIELDS);
+  if (!item) return;
+  const id = c.id(item.id, `${path}.id`);
+  if (key !== undefined && id !== undefined && id !== key) {
+    c.add('id-mismatch', `${path}.id`, `id "${id}" differs from its key "${key}"`);
   }
+  const definitionId = c.string(item.definitionId, `${path}.definitionId`, { nonEmpty: true });
+  if (definitionIds && definitionId !== undefined && !definitionIds.has(definitionId)) {
+    c.add('broken-reference', `${path}.definitionId`, `no catalog definition "${definitionId}"`);
+  }
+  c.point(item.position, `${path}.position`);
+  c.angle(item.rotation, `${path}.rotation`);
+  if (typeof item.locked !== 'boolean') c.add('wrong-type', `${path}.locked`, 'expected true or false');
 }
 
 /** Throw a CoreError listing every problem unless the value is a sound project. */
