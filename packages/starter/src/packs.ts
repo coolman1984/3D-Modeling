@@ -3,11 +3,12 @@ import { checkHall, HALL_STYLES, type HallStyle } from './hall.js';
 import { STARTER_CATALOG } from './hallCatalog.js';
 import { checkOffice, OFFICE_CATALOG, OFFICE_STYLES, type OfficeStyle } from './office.js';
 import { checkContainer, CONTAINER_CATALOG, CONTAINER_STYLES, containerMetrics, isContainer } from './container.js';
+import { checkDepot, depotMetrics, DEPOT_CATALOG, DEPOT_STYLES, isDepot } from './depot.js';
 import { checkFactory, factoryMetrics, FACTORY_CATALOG, FACTORY_STYLES, isFactory, lineSimulator } from './factory.js';
 import { checkWarehouse, isWarehouse, WAREHOUSE_CATALOG, WAREHOUSE_STYLES, warehouseMetrics } from './warehouse.js';
 import { RULE_SOURCES, type RuleResult } from './rules.js';
 
-export type PackId = 'hall' | 'office' | 'container' | 'warehouse' | 'factory';
+export type PackId = 'hall' | 'office' | 'container' | 'warehouse' | 'factory' | 'depot';
 
 /**
  * An activity pack: what a kind of space is furnished with and which rules it is checked
@@ -53,6 +54,16 @@ function containerFigures(project: Project): Figure[] {
   ];
 }
 
+function depotFigures(project: Project): Figure[] {
+  const d = depotMetrics(project);
+  return [
+    { id: 'accessible', label: 'Bays a vehicle can use', value: d.accessible, unit: 'count', better: 'higher' },
+    { id: 'bays', label: 'Bays drawn', value: d.bays, unit: 'count' },
+    { id: 'entry', label: 'Drive into a bay (average)', value: d.entryAverage, unit: 'ticks', better: 'lower' },
+    { id: 'reversing', label: 'Bays needing a reverse', value: d.withReversing, unit: 'count', better: 'lower' },
+  ];
+}
+
 /** Floor figures, then one shift's output when every cycle time is known (never guessed). */
 function factoryFigures(project: Project): Figure[] {
   const f = factoryMetrics(project, 'cart');
@@ -81,6 +92,7 @@ export const PACKS: readonly Pack[] = [
   { id: 'container', label: 'Container loading', catalog: CONTAINER_CATALOG, styles: CONTAINER_STYLES, check: (p) => checkContainer(p), figures: containerFigures },
   { id: 'warehouse', label: 'Warehouse', catalog: WAREHOUSE_CATALOG, styles: WAREHOUSE_STYLES, check: (p) => checkWarehouse(p), figures: warehouseFigures },
   { id: 'factory', label: 'Production line', catalog: FACTORY_CATALOG, styles: FACTORY_STYLES, check: (p, s) => checkFactory(p, s), figures: factoryFigures },
+  { id: 'depot', label: 'Vehicle depot', catalog: DEPOT_CATALOG, styles: DEPOT_STYLES, check: (p) => checkDepot(p), figures: depotFigures },
 ];
 
 export function packOf(id: string | null | undefined): Pack {
@@ -95,6 +107,7 @@ export function detectPack(project: Project): PackId {
   if (isContainer(project)) return 'container';
   if (isWarehouse(project)) return 'warehouse';
   if (isFactory(project)) return 'factory';
+  if (isDepot(project)) return 'depot';
   const present = (pack: Pack) => pack.catalog.filter((d) => project.catalog[d.id] !== undefined).length;
   let best = PACKS[0]!;
   for (const pack of PACKS) if (present(pack) > present(best)) best = pack;

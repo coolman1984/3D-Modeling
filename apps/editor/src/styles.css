@@ -1280,3 +1280,23 @@ button.rule-row:hover { background: var(--page); }
 .flow-chip { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 0; }
 .flow-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stat-value.nowrap { white-space: nowrap; }
+
+/* ---------- Depot: bays, swept paths ---------- */
+.bay-row { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+.bay-row.active { background: var(--paper); box-shadow: inset 2px 0 0 var(--accent); }
+.bay-pick { flex: 1; display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; padding: 7px 4px; border: 0; background: none; text-align: left; font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; min-width: 0; }
+.bay-pick > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-4); }
+.status-dot.pass { background: var(--ok); }
+.status-dot.fail { background: var(--error); }
+.status-dot.unknown { background: var(--warning); }
+.zone-bay path { fill: rgba(125, 120, 110, 0.05); stroke: var(--ink-3); stroke-dasharray: none; }
+.zone-gate path { fill: rgba(43, 84, 208, 0.07); stroke: var(--accent); }
+.zone-gate .zone-label { fill: var(--accent); }
+.swept { fill: none; stroke-width: 1; }
+.swept.enter { stroke: rgba(43, 84, 208, 0.55); }
+.swept.leave { stroke: rgba(111, 106, 97, 0.45); stroke-dasharray: 3 3; }
+.axle-path { fill: none; stroke-width: 2; }
+.axle-path.enter { stroke: var(--accent); }
+.axle-path.leave { stroke: var(--ink-3); stroke-dasharray: 6 4; }
+.item.shape-vehicle .item-body { fill: var(--fill, #dfe3e9); }

@@ -51,8 +51,10 @@ interface Props {
   readonly route?: readonly Vec2[] | undefined;
   /** Directed flows to draw as arrows (production lines); crossing flows are marked. */
   readonly arrows?: ReadonlyArray<{ readonly from: Vec2; readonly to: Vec2; readonly crossing: boolean; readonly key: string }> | undefined;
-  /** Extra dashed outlines under the items (maintenance space). */
-  readonly outlines?: ReadonlyArray<{ readonly key: string; readonly polygon: readonly Vec2[] }> | undefined;
+  /** Extra dashed outlines under the items (maintenance space; a vehicle's swept body when toned). */
+  readonly outlines?: ReadonlyArray<{ readonly key: string; readonly polygon: readonly Vec2[]; readonly tone?: 'enter' | 'leave' }> | undefined;
+  /** Paths drawn over the plan (a vehicle's rear axle going in and coming out). */
+  readonly paths?: ReadonlyArray<{ readonly key: string; readonly points: readonly Vec2[]; readonly tone: 'enter' | 'leave' }> | undefined;
 }
 
 type Gesture =
@@ -87,7 +89,7 @@ const HANDLE_GAP = 26; // pixels between the selection box and the rotation hand
  * click / Shift-click / box select, drag with grid and smart guides (Shift locks the axis,
  * Alt is slow and precise, Ctrl ignores snapping), a rotation handle, and pan and zoom.
  */
-export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route, arrows, outlines }: Props) {
+export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route, arrows, outlines, paths }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const gesture = useRef<Gesture | null>(null);
@@ -444,7 +446,9 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             </g>
           );
         })}
-        {outlines?.map((o) => <path key={`m-${o.key}`} d={pathOf(v, o.polygon)} className="maintenance" data-maintenance={o.key} />)}
+        {outlines?.map((o) =>
+          o.tone ? <path key={`s-${o.key}`} d={pathOf(v, o.polygon)} className={`swept ${o.tone}`} data-swept={o.tone} /> : <path key={`m-${o.key}`} d={pathOf(v, o.polygon)} className="maintenance" data-maintenance={o.key} />,
+        )}
         {items.map((item) => {
           const definition = project.catalog[item.definitionId];
           if (!definition) return null;
@@ -493,6 +497,9 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             })}
           </g>
         )}
+        {paths?.map((p) => (
+          <polyline key={`p-${p.key}`} points={p.points.map((q) => toScreen(v, q)).map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' ')} className={`axle-path ${p.tone}`} pointerEvents="none" data-path={p.tone} />
+        ))}
         {route && route.length > 1 && (
           <g className="route" data-testid="route" pointerEvents="none">
             <polyline points={route.map((p) => toScreen(v, p)).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} />

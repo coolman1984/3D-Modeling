@@ -7,6 +7,7 @@ import {
   Package,
   Warehouse,
   Factory,
+  Garage,
   Check,
   CheckCircle,
   CircleDashed,
@@ -205,6 +206,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               { id: 'container', label: 'Container', count: count('container') },
               { id: 'warehouse', label: 'Warehouse', count: count('warehouse') },
               { id: 'factory', label: 'Production', count: count('factory') },
+              { id: 'depot', label: 'Depot', count: count('depot') },
             ]}
           />
           <span className="spacer" />
@@ -431,6 +433,7 @@ const TEMPLATES: readonly Template[] = [
   { id: 'hall', name: 'Event hall', desc: '24 × 16 m · 4.5 m ceiling · one door', width: 24, depth: 16, ceiling: 4.5, pack: 'hall' },
   { id: 'office', name: 'Open office', desc: '32 × 18 m · 3.0 m ceiling · one door', width: 32, depth: 18, ceiling: 3, pack: 'office' },
   { id: 'meeting', name: 'Meeting room', desc: '7.2 × 5.4 m · 2.8 m ceiling · one door', width: 7.2, depth: 5.4, ceiling: 2.8, pack: 'office' },
+  { id: 'depot', name: 'Vehicle depot', desc: '40 × 30 m yard · one gate · car, van, truck, bus', width: 40, depth: 30, ceiling: 5, pack: 'depot' },
   { id: 'factory', name: 'Production hall', desc: '40 × 20 m · 6 m ceiling · sample stations', width: 40, depth: 20, ceiling: 6, pack: 'factory' },
   { id: 'warehouse', name: 'Warehouse', desc: '48 × 30 m · 10 m clear · two docks', width: 48, depth: 30, ceiling: 10, pack: 'warehouse' },
   { id: 'demo', name: 'Demo hall', desc: '10 × 8 m · a door and a column to try things', width: 10, depth: 8, ceiling: 3, pack: 'hall', demo: true },
@@ -519,6 +522,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 ['container', 'Container', 'Cargo loading plans', <Package size={22} />],
                 ['warehouse', 'Warehouse', 'Pallet racks, aisles, docks', <Warehouse size={22} />],
                 ['factory', 'Production', 'Machines, flows, simulation', <Factory size={22} />],
+                ['depot', 'Depot', 'Bays, gates, swept paths', <Garage size={22} />],
               ] as const
             ).map(([id, label, hint, icon]) => (
               <button
@@ -527,12 +531,12 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 className={`activity-card${activity === id ? ' active' : ''}`}
                 aria-pressed={activity === id}
                 data-activity={id}
-                disabled={template.demo && id !== 'container' && id !== 'warehouse' && id !== 'factory'}
+                disabled={template.demo && id !== 'container' && id !== 'warehouse' && id !== 'factory' && id !== 'depot'}
                 onClick={() => {
-                  if ((id === 'warehouse' || id === 'factory') && activity !== id) choose(TEMPLATES.find((t) => t.pack === id)!);
+                  if ((id === 'warehouse' || id === 'factory' || id === 'depot') && activity !== id) choose(TEMPLATES.find((t) => t.pack === id)!);
                   else {
                     setActivity(id);
-                    if (template.demo || ((template.pack === 'warehouse' || template.pack === 'factory') && template.pack !== id)) setTemplate(blank);
+                    if (template.demo || ((template.pack === 'warehouse' || template.pack === 'factory' || template.pack === 'depot') && template.pack !== id)) setTemplate(blank);
                   }
                 }}
               >

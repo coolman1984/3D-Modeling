@@ -11,7 +11,7 @@ import { Dialog, LineTabs, NumberField, SwitchRow } from './Fields.js';
 const cm = (v: number) => fromUnit(v, 'cm');
 
 /** Library categories, from the item's shape. Item types not from any pack are "Custom". */
-export type Category = 'All' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Storage' | 'Production' | 'Other' | 'Custom';
+export type Category = 'All' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Storage' | 'Production' | 'Vehicles' | 'Other' | 'Custom';
 const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Custom'>>> = {
   table: 'Tables',
   'round-table': 'Tables',
@@ -27,8 +27,9 @@ const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Cu
   rack: 'Storage',
   machine: 'Production',
   conveyor: 'Production',
+  vehicle: 'Vehicles',
 };
-const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Storage', 'Production', 'Other', 'Custom'];
+const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Storage', 'Production', 'Vehicles', 'Other', 'Custom'];
 const PACK_IDS = new Set(PACKS.flatMap((p) => p.catalog.map((d) => d.id)));
 
 export function categoryOf(definition: ItemDefinition): Exclude<Category, 'All'> {

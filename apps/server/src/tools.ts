@@ -19,6 +19,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
+import { bayAccess, bayRow, baysOfDepot, BAY_USES, depotMetrics, gatesOf, isDepot, newDepot, vehicleOf } from '@space-planner/starter';
 import { factoryMetrics, isFactory, lineSimulator, newFactory, nextOf, stationOf, stationsOf, withNext } from '@space-planner/starter';
 import { baysOf, rackOf, rackRows, rectZone, routeToBay, topBeam, TRUCK_PROFILES, truckOf, warehouseMetrics, isWarehouse, newWarehouse, ZONE_KINDS } from '@space-planner/starter';
 import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, detectPack, extremePointPacker, isContainer, newContainer, newRoom, packContainer, packOf, PACKS, ROUND_SHAPES, SHAPES, stepOf, stopOf, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
@@ -171,13 +172,37 @@ export function describeProject(project: Project): string {
   if (isContainer(project)) lines.push(...describeLoad(project));
   if (isWarehouse(project)) lines.push(...describeWarehouse(project));
   if (isFactory(project)) lines.push(...describeFactory(project));
+  if (isDepot(project)) lines.push(...describeDepot(project));
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', factory: 'Production line' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', factory: 'Production line', depot: 'Vehicle depot' };
 
 const secOf = (ms: number | undefined) => (ms === undefined ? 'not set' : `${Math.round(ms / 100) / 10} s`);
+
+/** Depot facts for agents: vehicle types, gates, bays and whether each bay can be used. */
+function describeDepot(project: Project): string[] {
+  const d = depotMetrics(project);
+  const lines = [
+    `Depot: ${d.bays} bays (${Object.entries(d.byUse).map(([k, n]) => `${n} ${k}`).join(', ') || 'none'}), ${d.accessible} usable, ${d.unknown} unknown; ${d.gates} gate(s). A bay is usable only if its vehicle can drive in from a gate and out again (swept body path at its turning circle).`,
+    'Vehicle types (id | length × width m | wheelbase | turning circle kerb to kerb | may reverse):',
+  ];
+  for (const def of Object.values(project.catalog)) {
+    const v = vehicleOf(def);
+    if (v) lines.push(`  ${def.id} | ${toUnit(v.length, 'm')} × ${toUnit(v.width, 'm')} | ${toUnit(v.wheelbase, 'm')} m | ${toUnit(Number(def.meta?.turnCircle ?? 0), 'm')} m | ${v.reverse ? 'yes' : 'no'}`);
+  }
+  for (const g of gatesOf(project)) lines.push(`  Gate ${g.zone.id}: centre (${toUnit(Math.round(g.centre.x), 'm')}, ${toUnit(Math.round(g.centre.y), 'm')}), vehicles drive in heading ${Math.round((g.heading * 180) / Math.PI)}°`);
+  const bays = baysOfDepot(project);
+  if (bays.length) {
+    lines.push('Bays (id | vehicle | use | entry | usable):');
+    for (const b of bays) {
+      const a = bayAccess(project, b);
+      lines.push(`  ${b.zone.id} | ${String(b.zone.meta?.vehicle ?? '?')} | ${b.use} | ${String(b.zone.meta?.entry ?? 'forward')} | ${a.status === 'pass' ? `yes (in ${mOf(a.enter.length)}, out ${mOf(a.leave.length)}${a.enter.gearChanges + a.leave.gearChanges ? `, ${a.enter.gearChanges + a.leave.gearChanges} gear changes` : ''})` : a.status === 'fail' ? 'no' : 'unknown'}`);
+    }
+  }
+  return lines;
+}
 
 /** Production line facts for agents: stations with cycle times and flows. */
 function describeFactory(project: Project): string[] {
@@ -291,6 +316,14 @@ function describeRules(project: Project, packId: PackId = detectPack(project), s
         return `  flows from a source to a sink through every station: ${r.status}${r.entityIds.length ? ` — check ${r.entityIds.join(', ')}` : ''}`;
       case 'flow-path':
         return `  material can be moved along ${r.measured} of ${r.required} flows: ${r.status}${r.entityIds.length ? ` — blocked after ${r.entityIds.join(', ')}` : ''}`;
+      case 'bay-access':
+        return `  bays a vehicle can drive into and out of: ${r.measured} of ${r.required}: ${r.status}${r.entityIds.length ? ` — ${r.status === 'fail' ? 'no way for' : 'not settled for'} ${r.entityIds.join(', ')}` : ''}`;
+      case 'bay-size':
+        return `  bays big enough for their vehicle: ${r.measured} of ${r.required}: ${r.status}${r.entityIds.length ? ` — too small: ${r.entityIds.join(', ')}` : ''}`;
+      case 'vehicle-headroom':
+        return `  headroom: ceiling ${cmOf(r.measured)} (needs ${cmOf(r.required)}): ${r.status}`;
+      case 'gates':
+        return `  gates: ${r.measured} (needs ${r.required}): ${r.status}`;
       case 'flow-crossings':
         return `  flow crossings: ${r.measured}: ${r.status}${r.entityIds.length ? ` — ${r.entityIds.join(', ')}` : ''}`;
       case 'unpacked':
@@ -334,6 +367,20 @@ function rackMeta(value: unknown, rest: Record<string, string | number | boolean
     Object.assign(meta, { rack: 'pallet', levels: Math.round(levels), positions: Math.round(positions), levelHeight: centimetres(num(r, 'level_height_cm')) });
     const load = num(r, 'position_load_kg', true);
     if (load !== undefined) meta.positionLoad = Math.round(load * 1000);
+  }
+  return Object.keys(meta).length > 0 ? { meta } : {};
+}
+
+/** Vehicle fields of define_item → the type's meta; the rear overhang is what the length leaves. */
+function vehicleMeta(value: unknown, lengthCm: number, rest: Record<string, string | number | boolean> | undefined): { meta?: Record<string, string | number | boolean> } {
+  const meta: Record<string, string | number | boolean> = { ...(rest ?? {}) };
+  if (typeof value === 'object' && value !== null) {
+    const v = value as Record<string, unknown>;
+    const wheelbase = metres(num(v, 'wheelbase_m'));
+    const front = metres(num(v, 'front_overhang_m'));
+    const rear = centimetres(lengthCm) - wheelbase - front;
+    if (wheelbase <= 0 || front < 0 || rear < 0) throw new ToolError('wheelbase and front overhang must fit inside the length');
+    Object.assign(meta, { vehicle: true, wheelbase, frontOverhang: front, rearOverhang: rear, turnCircle: metres(num(v, 'turning_circle_m')), reverse: v.reverse !== false });
   }
   return Object.keys(meta).length > 0 ? { meta } : {};
 }
@@ -399,7 +446,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Warehouses: activity "warehouse" (default 48 × 30 m, 10 m clear height) with two docks and a staging zone on the south wall and sample rack types. Production lines: activity "factory" (default 40 × 20 m, 6 m) with sample stations. Returns the new project id.',
+    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Warehouses: activity "warehouse" (default 48 × 30 m, 10 m clear height) with two docks and a staging zone on the south wall and sample rack types. Production lines: activity "factory" (default 40 × 20 m, 6 m) with sample stations. Vehicle depots: activity "depot" (default 40 × 30 m) with one gate and sample vehicles. Returns the new project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -416,6 +463,14 @@ export const TOOLS: readonly ToolDef[] = [
     run: (ctx, input) => {
       if (str(input, 'activity', true) === 'container') {
         const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}`;
+      }
+      if (str(input, 'activity', true) === 'depot') {
+        const w = num(input, 'width_m', true) ?? 40;
+        const d = num(input, 'depth_m', true) ?? 30;
+        const h = num(input, 'ceiling_m', true);
+        if (w < 10 || d < 10 || w > 500 || d > 500) throw new ToolError('depot sides must be between 10 and 500 m');
+        const created = ctx.store.createProject(newDepot(str(input, 'name'), { width: metres(w), depth: metres(d), ...(h === undefined ? {} : { height: metres(h) }) }), ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
       if (str(input, 'activity', true) === 'factory') {
@@ -558,6 +613,12 @@ export const TOOLS: readonly ToolDef[] = [
         seats: { type: 'integer', description: 'Seats this item adds to capacity.' },
         footprint: { type: 'string', enum: ['rect', 'round'], description: 'Floor outline; "round" for round tables and pots (an ellipse inside width × depth). Defaults to round for round-table and plant.' },
         mass_kg: { type: 'number', description: 'Mass of one piece.' },
+        vehicle: {
+          type: 'object',
+          description: 'Vehicle type (category "vehicle"; width_cm = width, depth_cm = length): wheelbase_m, front_overhang_m, turning_circle_m (kerb to kerb, from the spec sheet), reverse (may it reverse).',
+          properties: { wheelbase_m: { type: 'number' }, front_overhang_m: { type: 'number' }, turning_circle_m: { type: 'number' }, reverse: { type: 'boolean' } },
+          required: ['wheelbase_m', 'front_overhang_m', 'turning_circle_m'],
+        },
         station: {
           type: 'object',
           description: 'Production line station: kind (source, machine, buffer, conveyor, sink), cycle_s (a source’s release interval, a machine’s cycle, a conveyor’s transit time — as measured, never guessed), capacity (parts a buffer or conveyor holds), maintenance_cm (free space per side), in_side / out_side.',
@@ -603,7 +664,7 @@ export const TOOLS: readonly ToolDef[] = [
         ...(seats === undefined ? {} : { seats }),
         ...(footprint === 'round' ? { footprint: 'round' as const } : {}),
         ...(input.mass_kg === undefined ? {} : { mass: Math.round(num(input, 'mass_kg') * 1000) }),
-        ...stationMeta(input.station, rackMeta(input.rack, cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta).meta).meta),
+        ...vehicleMeta(input.vehicle, num(input, 'depth_cm'), stationMeta(input.station, rackMeta(input.rack, cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta).meta).meta).meta),
       };
       const existed = Boolean(project.catalog[definition.id]);
       const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'Changed' : 'Added'} item type ${definition.name}`);
@@ -751,7 +812,7 @@ export const TOOLS: readonly ToolDef[] = [
           type: 'array',
           items: {
             type: 'object',
-            properties: { id: { type: 'string' }, kind: { type: 'string' }, name: { type: 'string' }, x_m: { type: 'number' }, y_m: { type: 'number' }, width_m: { type: 'number' }, depth_m: { type: 'number' } },
+            properties: { id: { type: 'string' }, kind: { type: 'string' }, name: { type: 'string' }, x_m: { type: 'number' }, y_m: { type: 'number' }, width_m: { type: 'number' }, depth_m: { type: 'number' }, heading_deg: { type: 'number', description: 'Gates: the direction vehicles drive in (0 = east, 90 = north).' } },
             required: ['kind', 'x_m', 'y_m', 'width_m', 'depth_m'],
           },
         },
@@ -770,7 +831,9 @@ export const TOOLS: readonly ToolDef[] = [
       const added = list(input, 'add', true).map((z) => {
         const kind = str(z, 'kind');
         const id = typeof z.id === 'string' && z.id ? z.id : nextId(kind, taken);
-        return rectZone(id, kind, str(z, 'name', true) || kind, metres(num(z, 'x_m')), metres(num(z, 'y_m')), metres(num(z, 'width_m')), metres(num(z, 'depth_m')));
+        const zone = rectZone(id, kind, str(z, 'name', true) || kind, metres(num(z, 'x_m')), metres(num(z, 'y_m')), metres(num(z, 'width_m')), metres(num(z, 'depth_m')));
+        const heading = num(z, 'heading_deg', true);
+        return heading === undefined ? zone : { ...zone, meta: { heading: degrees(heading) } };
       });
       if (added.length === 0 && remove.size === 0) throw new ToolError('give zones to add or ids to remove');
       const zones = [...(project.space.zones ?? []).filter((z) => !remove.has(z.id)), ...added];
@@ -817,6 +880,68 @@ export const TOOLS: readonly ToolDef[] = [
       let length = 0;
       for (let i = 1; i < route.length; i++) length += Math.hypot(route[i]!.x - route[i - 1]!.x, route[i]!.y - route[i - 1]!.y);
       return `Route to ${bayId}: ${mOf(length)} (straight segments between cell centres; the drive is about this long).\nCorners (m): ${route.map((p) => `(${toUnit(p.x, 'm').toFixed(2)}, ${toUnit(p.y, 'm').toFixed(2)})`).join(' → ')}`;
+    },
+  },
+  {
+    name: 'add_bay_row',
+    description:
+      'Depots: add a row of bays running east along an aisle, as one revision. (x_m, y_m) is where the row starts on the aisle edge; bays open to the aisle and face north (the row lies north of the aisle) or south. angle 90 = square, 60 / 45 = angled, 0 = parallel. Width and length default to the vehicle plus its margins. Each bay names its design vehicle.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        vehicle_id: { type: 'string' },
+        x_m: { type: 'number' },
+        y_m: { type: 'number' },
+        count: { type: 'integer' },
+        angle: { type: 'integer', enum: [90, 60, 45, 0] },
+        width_m: { type: 'number' },
+        length_m: { type: 'number' },
+        facing: { type: 'string', enum: ['north', 'south'] },
+        entry: { type: 'string', enum: ['forward', 'reverse', 'either'], description: 'How vehicles park: nose in, backed in, or either.' },
+        use: { type: 'string', enum: [...BAY_USES] },
+        summary,
+      },
+      required: ['project_id', 'vehicle_id', 'x_m', 'y_m', 'count'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const vehicleId = str(input, 'vehicle_id');
+      const v = vehicleOf(project.catalog[vehicleId]);
+      if (!v) throw new ToolError(`"${vehicleId}" is not a vehicle type; define one with define_item and "vehicle"`);
+      const count = Math.round(num(input, 'count'));
+      if (count < 1 || count > 200) throw new ToolError('count must be 1 to 200');
+      const angle = [90, 60, 45, 0].includes(num(input, 'angle', true) ?? 90) ? ((num(input, 'angle', true) ?? 90) as 90 | 60 | 45 | 0) : 90;
+      const zones = bayRow({
+        vehicleId,
+        use: (BAY_USES as readonly string[]).includes(str(input, 'use', true)) ? (str(input, 'use', true) as (typeof BAY_USES)[number]) : 'parking',
+        origin: { x: metres(num(input, 'x_m')), y: metres(num(input, 'y_m')) },
+        count,
+        angle,
+        bayWidth: input.width_m === undefined ? v.width + fromUnit(60, 'cm') + fromUnit(10, 'cm') : metres(num(input, 'width_m')),
+        bayLength: input.length_m === undefined ? v.length + fromUnit(30, 'cm') : metres(num(input, 'length_m')),
+        facing: input.facing === 'south' ? 'south' : 'north',
+        entry: input.entry === 'reverse' || input.entry === 'either' ? input.entry : 'forward',
+        taken: takenIds(project),
+      });
+      const space = { ...project.space, zones: [...(project.space.zones ?? []), ...zones] };
+      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || `Added ${count} ${count === 1 ? 'bay' : 'bays'} for ${v.label}`);
+      return afterChange(updated, `Added ${zones.map((z) => z.id).join(', ')}.`) + '\n' + describeRules(updated).join('\n');
+    },
+  },
+  {
+    name: 'check_bay',
+    description: 'Depots: can this bay’s vehicle drive in from a gate and out again? Gives the driven lengths and gear changes, or why not. Nothing changes.',
+    inputSchema: { type: 'object', properties: { project_id: projectId, bay_id: { type: 'string' } }, required: ['project_id', 'bay_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const bay = baysOfDepot(project).find((b) => b.zone.id === str(input, 'bay_id'));
+      if (!bay) throw new ToolError(`No bay "${str(input, 'bay_id')}"`);
+      const a = bayAccess(project, bay);
+      if (a.status === 'pass') return `${bay.zone.id}: usable. In: ${mOf(a.enter.length)}${a.enter.gearChanges ? ` with ${a.enter.gearChanges} gear change(s)` : ', forward only'}. Out: ${mOf(a.leave.length)}${a.leave.gearChanges ? ` with ${a.leave.gearChanges} gear change(s)` : ', forward only'}.`;
+      const why = { 'no-way': 'no way in or out: the body cannot pass (proved)', 'search-budget': 'not settled: the search gave up before finding a way (treat as unknown)', 'no-gates': 'there is no gate', 'no-vehicle-data': 'the bay has no vehicle type with dimensions' }[a.why] ?? a.why;
+      return `${bay.zone.id}: ${a.status === 'fail' ? 'not usable' : 'unknown'} — ${why}.`;
     },
   },
   {

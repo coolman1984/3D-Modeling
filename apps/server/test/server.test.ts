@@ -217,6 +217,28 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'connect_flow', { project_id: id, from: 'cnc-1', to: 'nowhere' }).isError).toBe(true);
   });
 
+  it('lets an agent lay out a depot: bays for a vehicle, gates, and whether each bay can be used', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'Yard', activity: 'depot', width_m: 30, depth_m: 20, ceiling_m: 5 });
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    expect(created.text).toContain('car | 4.7 × 1.8 | 2.8 m | 11 m | yes');
+    expect(created.text).toContain('Gate gate-1: centre (6, 2), vehicles drive in heading 90°');
+    const bays = runTool(ctx, 'add_bay_row', { project_id: id, vehicle_id: 'car', x_m: 4, y_m: 12, count: 5, width_m: 2.5, length_m: 5 });
+    expect(bays.isError).toBe(false);
+    expect(bays.text).toContain('Added bay-1, bay-2, bay-3, bay-4, bay-5.');
+    expect(bays.text).toContain('bays a vehicle can drive into and out of: 5 of 5: pass');
+    expect(bays.text).toContain('bays big enough for their vehicle: 5 of 5: pass');
+    expect(store.history(id)[0]).toMatchObject({ actor: 'agent:test', summary: 'Added 5 bays for Car' });
+    expect(runTool(ctx, 'check_bay', { project_id: id, bay_id: 'bay-3' }).text).toMatch(/^bay-3: usable\. In: [\d.]+ m/);
+    // A second gate with its driving direction, through edit_zones.
+    runTool(ctx, 'edit_zones', { project_id: id, add: [{ id: 'gate-2', kind: 'gate', x_m: 26, y_m: 8, width_m: 4, depth_m: 6, heading_deg: 180 }] });
+    expect(store.getProject(id)!.space.zones!.find((z) => z.id === 'gate-2')!.meta).toEqual({ heading: 180_000 });
+    // A custom vehicle: the rear overhang is what the length leaves.
+    runTool(ctx, 'define_item', { project_id: id, id: 'minibus', name: 'Minibus', category: 'vehicle', width_cm: 200, depth_cm: 700, height_cm: 280, vehicle: { wheelbase_m: 4.3, front_overhang_m: 1.0, turning_circle_m: 15 } });
+    expect(store.getProject(id)!.catalog.minibus!.meta).toEqual({ vehicle: true, wheelbase: 43_000, frontOverhang: 10_000, rearOverhang: 17_000, turnCircle: 150_000, reverse: true });
+    expect(runTool(ctx, 'add_bay_row', { project_id: id, vehicle_id: 'chair', x_m: 1, y_m: 1, count: 1 }).isError).toBe(true);
+  });
+
   it('variants: an agent proposes in a variant, compares, and the person adopts it as one revision of the base', () => {
     const ctx = { store, actor: 'agent:test' };
     const id = /Created (p-[\w]+)/.exec(runTool(ctx, 'create_project', { name: 'DC', activity: 'warehouse', width_m: 30, depth_m: 20, ceiling_m: 8 }).text)![1]!;

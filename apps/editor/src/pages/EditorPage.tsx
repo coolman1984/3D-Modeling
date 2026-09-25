@@ -39,6 +39,7 @@ import {
   Warehouse,
   GitFork,
   Factory,
+  Garage,
   Magnet,
   Ruler,
   SidebarSimple,
@@ -83,15 +84,17 @@ import { View3D, type SceneLook } from '../ui/View3D.js';
 import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 import { WarehousePanel } from '../ui/Warehouse.js';
 import { LinePanel, lineOverlay } from '../ui/Factory.js';
+import { DepotPanel, sweptOverlay } from '../ui/Depot.js';
 import { VariantsDialog } from '../ui/Variants.js';
 
 type ViewMode = 'plan' | '3d' | 'split';
-type LeftPanel = 'load' | 'warehouse' | 'line' | 'library' | 'objects' | 'space' | 'precision';
+type LeftPanel = 'load' | 'warehouse' | 'line' | 'depot' | 'library' | 'objects' | 'space' | 'precision';
 type RightTab = 'properties' | 'review' | 'history';
 
 const LOAD_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'load', label: 'Load', title: 'Loading plan', icon: <Package size={21} /> };
 const WAREHOUSE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'warehouse', label: 'Racks', title: 'Warehouse', icon: <Warehouse size={21} /> };
 const LINE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'line', label: 'Line', title: 'Production line', icon: <Factory size={21} /> };
+const DEPOT_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'depot', label: 'Bays', title: 'Vehicle depot', icon: <Garage size={21} /> };
 const LEFT_PANELS: ReadonlyArray<{ id: LeftPanel; label: string; title: string; icon: ReactNode }> = [
   { id: 'library', label: 'Library', title: 'Object library', icon: <SquaresFour size={21} /> },
   { id: 'objects', label: 'Objects', title: 'Objects', icon: <ListBullets size={21} /> },
@@ -158,7 +161,8 @@ function Editor({ initial }: { initial: Project }) {
   const cargo = startPack === 'container';
   // A container is easiest to read in 3D next to its floor plan.
   const [view, setView] = useState<ViewMode>(cargo ? 'split' : 'plan');
-  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : startPack === 'warehouse' ? 'warehouse' : startPack === 'factory' ? 'line' : 'library');
+  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : startPack === 'warehouse' ? 'warehouse' : startPack === 'factory' ? 'line' : startPack === 'depot' ? 'depot' : 'library');
+  const [bayFocus, setBayFocus] = useState<Id | null>(null);
   const [colorBy, setColorBy] = useState<ColorBy>('type');
   const [cutaway, setCutaway] = useState(true);
   const [playStep, setPlayStep] = useState<number | null>(null);
@@ -184,7 +188,9 @@ function Editor({ initial }: { initial: Project }) {
   const issues = useMemo(() => checkProject(checked), [checked]);
   const metrics = useMemo(() => measureProject(checked), [checked]);
   const [activity, setActivity] = useState<Activity>(() => loadActivity(initial));
-  const rules = useMemo(() => checkPack(checked, activity.pack, activity.style), [checked, activity]);
+  // Depot rules drive every bay's vehicle along its swept path: check the saved plan, not every
+  // frame of a drag.
+  const rules = useMemo(() => checkPack(activity.pack === 'depot' ? project : checked, activity.pack, activity.style), [activity, project, checked]);
   const summary = useMemo(() => summarize(issues, rules), [issues, rules]);
   const previewIssues = useMemo(() => (preview ? checkProject(preview.project) : []), [preview]);
 
@@ -406,7 +412,9 @@ function Editor({ initial }: { initial: Project }) {
   const isCargo = activity.pack === 'container';
   const isWarehouse = activity.pack === 'warehouse';
   const isFactory = activity.pack === 'factory';
-  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : isFactory ? [LINE_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
+  const isDepot = activity.pack === 'depot';
+  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : isFactory ? [LINE_PANEL, ...LEFT_PANELS] : isDepot ? [DEPOT_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
+  const swept = useMemo(() => (isDepot ? sweptOverlay(project, bayFocus) : undefined), [isDepot, project, bayFocus]);
   const overlay = useMemo(() => (isFactory ? lineOverlay(shownProject) : undefined), [isFactory, shownProject]);
   // The truck's route to a selected rack bay, drawn on the plan; its length is the drive.
   const bayId = isWarehouse && single && rackOf(project.catalog[single.definitionId]) ? single.id : undefined;
@@ -601,6 +609,7 @@ function Editor({ initial }: { initial: Project }) {
             </div>
             {left === 'load' && isCargo && <LoadPanel project={project} dispatch={dispatch} />}
             {left === 'warehouse' && isWarehouse && <WarehousePanel project={project} dispatch={dispatch} />}
+            {left === 'depot' && isDepot && <DepotPanel project={project} dispatch={dispatch} focus={bayFocus} onFocus={setBayFocus} />}
             {left === 'line' && isFactory && <LinePanel project={project} onSelect={(id) => dispatch({ type: 'select', ids: [id] })} />}
             {left === 'library' && <LibraryPanel project={project} pack={activity.pack} onAdd={(d) => addItem(d)} dispatch={dispatch} onEdit={setEditingType} />}
             {left === 'objects' && <ObjectsPanel project={project} issues={issues} selectedIds={session.selectedIds} dispatch={dispatch} />}
@@ -639,7 +648,8 @@ function Editor({ initial }: { initial: Project }) {
                 itemLabels={planLabels}
                 route={preview ? undefined : route}
                 arrows={overlay?.arrows}
-                outlines={overlay?.outlines}
+                outlines={overlay?.outlines ?? swept?.outlines}
+                paths={preview ? undefined : swept?.paths}
               />
             </section>
           )}

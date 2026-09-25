@@ -118,3 +118,18 @@ Production lines are projects made with `create_project` and `activity: "factory
    in progress, busy / blocked / starved per station and the bottleneck. It refuses, naming the
    stations, when data is missing. Propose improvements (a buffer, a second machine) in a variant.
 
+## Vehicle depots
+
+Depots are projects made with `create_project` and `activity: "depot"` (default 40 × 30 m, one gate
+on the south wall). Vehicle types carry spec-sheet data; bays and gates are zones.
+
+1. `define_item` with `vehicle` (`wheelbase_m`, `front_overhang_m`, `turning_circle_m` kerb to
+   kerb, `reverse`) defines a vehicle type (width_cm = width, depth_cm = length).
+2. `add_bay_row` adds a row of bays for a vehicle (90°, 60°, 45° or parallel; nose in, backed in or
+   either); `edit_zones` adds gates with `heading_deg` (the direction vehicles drive in).
+3. `check_project` reports whether every bay's vehicle can drive in from a gate and out again
+   (swept body path at its turning circle), bay sizes, headroom and gates. `check_bay` gives one
+   bay's driven lengths and gear changes. "Not settled" means the search gave up: treat it as
+   unknown, never as usable.
+4. Parked vehicles are items (`place_items`, front faces north at rotation 0); they block others.
+

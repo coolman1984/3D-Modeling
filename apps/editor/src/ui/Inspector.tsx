@@ -63,6 +63,7 @@ import { CommitField, NumberField } from './Fields.js';
 import { CargoGroup, containerFacts } from './Container.js';
 import { RackGroup, warehouseFacts } from './Warehouse.js';
 import { factoryFacts, FlowGroup } from './Factory.js';
+import { depotFacts } from './Depot.js';
 import { toTicks } from './units.js';
 
 /** Everything the review counts, shared by the inspector tab, the status bar and the summary box. */
@@ -150,7 +151,7 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
   const types = new Set(Object.values(project.items).map((i) => i.definitionId)).size;
   const columns = project.space.obstacles.filter((o) => o.kind === 'column').length;
   const areaPerSeat = metrics.seats > 0 ? toSquareMetres(metrics.floorArea) / metrics.seats : undefined;
-  const facts: Array<[string, ReactNode]> = activity.pack === 'container' ? containerFacts(project) : activity.pack === 'warehouse' ? warehouseFacts(project) : activity.pack === 'factory' ? factoryFacts(project) : [
+  const facts: Array<[string, ReactNode]> = activity.pack === 'container' ? containerFacts(project) : activity.pack === 'warehouse' ? warehouseFacts(project) : activity.pack === 'factory' ? factoryFacts(project) : activity.pack === 'depot' ? depotFacts(project) : [
     ['Room', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
     ['Ceiling', project.space.ceilingHeight === undefined ? 'Not set' : `${formatMetres(project.space.ceilingHeight)} m`],
     ['Floor area', formatArea(metrics.floorArea)],

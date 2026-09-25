@@ -45,7 +45,11 @@ export type RuleCode =
   | 'maintenance-access'
   | 'flow-links'
   | 'flow-path'
-  | 'flow-crossings';
+  | 'flow-crossings'
+  | 'bay-access'
+  | 'bay-size'
+  | 'vehicle-headroom'
+  | 'gates';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -93,6 +97,10 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'maintenance-access': { kind: 'engineering', title: 'The maintenance space each machine type states is free of other equipment, columns and walls', ruleSet: 'starter.factory.v1' },
   'flow-links': { kind: 'engineering', title: 'Every station lies on a flow from a source to a sink, and every flow names a station', ruleSet: 'starter.factory.v1' },
   'flow-path': { kind: 'common-guidance', title: 'Material can be moved along every flow with the chosen handling equipment (typical widths; measure your own)', ruleSet: 'starter.factory.v1' },
+  'bay-access': { kind: 'engineering', title: 'Each bay’s vehicle can drive in from a gate and out again: swept body path at its turning circle, clear of walls, columns and parked vehicles', ruleSet: 'starter.depot.v1' },
+  'bay-size': { kind: 'common-guidance', title: 'Bay at least the vehicle width plus 30 cm each side for doors, and its length plus 25 cm', ruleSet: 'starter.depot.v1' },
+  'vehicle-headroom': { kind: 'common-guidance', title: 'Ceiling at least 20 cm above the tallest vehicle', ruleSet: 'starter.depot.v1' },
+  gates: { kind: 'engineering', title: 'At least one gate for vehicles to enter and leave', ruleSet: 'starter.depot.v1' },
   'flow-crossings': { kind: 'company-policy', title: 'Lean layout practice: material flows do not cross', ruleSet: 'starter.factory.v1' },
 };
 
@@ -106,7 +114,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'no-ceiling' | 'no-docks' | 'no-stations' | 'no-flows' | 'no-maintenance-data';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'no-ceiling' | 'no-docks' | 'no-stations' | 'no-flows' | 'no-maintenance-data' | 'no-bays' | 'no-gates' | 'no-vehicle-data' | 'search-budget';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }

@@ -65,6 +65,8 @@ const COLORS = {
   machine: 0xd9dde3,
   machineDoor: 0x9aa6b5,
   roller: 0xb8bcc2,
+  vehicle: 0xc9ced6,
+  glass: 0x5d6f86,
 };
 
 /** Floor tints for zones, by kind; unknown kinds are grey. */
@@ -260,6 +262,22 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: Rac
         const roller = cylinder(0.025, d - 0.1, COLORS.roller, -w / 2 + (i + 0.5) * (w / rollers), top - 0.03, 0, 12);
         roller.rotation.x = Math.PI / 2;
         g.add(roller);
+      }
+      break;
+    }
+    case 'vehicle': {
+      // A body with a lower bonnet at the front (+Z… front faces −Z here) and a cabin, on wheels.
+      const wheel = Math.min(0.45, h * 0.22);
+      const body = h - wheel * 0.6;
+      g.add(box(w, body * 0.45, d, COLORS.vehicle, 0, wheel * 0.6 + (body * 0.45) / 2));
+      g.add(box(w * 0.94, body * 0.55, d * 0.62, COLORS.vehicle, 0, wheel * 0.6 + body * 0.45 + (body * 0.55) / 2, d * 0.12));
+      g.add(box(w * 0.95, body * 0.4, 0.02, COLORS.glass, 0, wheel * 0.6 + body * 0.45 + (body * 0.55) / 2, -d * 0.19 - 0.01));
+      for (const sx of [-1, 1]) {
+        for (const sz of [-0.33, 0.33]) {
+          const tyre = cylinder(wheel, 0.22, COLORS.column, sx * (w / 2 - 0.11), wheel, sz * d, 18);
+          tyre.rotation.z = Math.PI / 2;
+          g.add(tyre);
+        }
       }
       break;
     }

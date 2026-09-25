@@ -37,6 +37,8 @@ export function shortName(project: Project, id: Id): string {
   if (project.space.doors.some((d) => d.id === id)) return 'Door';
   const obstacle = project.space.obstacles.find((o) => o.id === id);
   if (obstacle) return obstacle.kind === 'column' ? 'Column' : 'Blocked zone';
+  const zone = project.space.zones?.find((z) => z.id === id);
+  if (zone) return zone.name ?? zone.kind;
   return id;
 }
 
@@ -143,6 +145,10 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'flow-links': 'Every station on a flow from source to sink',
   'flow-path': 'Material can be moved along every flow',
   'flow-crossings': 'Flows do not cross',
+  'bay-access': 'Every bay can be driven into and out of',
+  'bay-size': 'Bays big enough for their vehicle',
+  'vehicle-headroom': 'Headroom above the tallest vehicle',
+  gates: 'At least one gate',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -214,6 +220,14 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} passable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} flows` };
     case 'flow-crossings':
       return { measured: rule.measured === undefined ? dash : formatCount(rule.measured), required: 'None' };
+    case 'bay-access':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} usable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} bays` };
+    case 'bay-size':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} big enough`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} bays` };
+    case 'vehicle-headroom':
+      return { measured: rule.measured === undefined ? dash : `${formatLength(rule.measured)} ceiling`, required: rule.required === undefined ? dash : `${formatLength(rule.required)} or more` };
+    case 'gates':
+      return { measured: rule.measured === undefined ? dash : formatCount(rule.measured), required: `${formatCount(rule.required ?? 1)} or more` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -255,6 +269,14 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'No flows connect the stations yet.';
       case 'no-maintenance-data':
         return 'No station type states the space it needs for maintenance.';
+      case 'no-bays':
+        return 'There are no bays in the plan yet.';
+      case 'no-gates':
+        return 'There is no gate for vehicles to come in by.';
+      case 'no-vehicle-data':
+        return 'The bays have no vehicle type with dimensions and a turning circle.';
+      case 'search-budget':
+        return `Not settled for ${rule.entityIds.join(', ')}: the manoeuvre search gave up before finding a way. Treat as unknown, not as usable.`;
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -328,6 +350,16 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass'
         ? `Material can be moved along all ${count(rule.required ?? 0)} flows with the chosen equipment.`
         : `Material cannot be moved on from ${list(rule.entityIds)} with the chosen equipment: the way to the next station is blocked or too narrow.`;
+    case 'bay-access':
+      return rule.status === 'pass'
+        ? `All ${count(rule.required ?? 0)} bays can be driven into from a gate and out again by their vehicle.`
+        : `No way in or out for ${list(rule.entityIds)}: the vehicle’s body cannot pass at its turning circle. Widen the aisle, move what is in the way, or change the bay.`;
+    case 'bay-size':
+      return rule.status === 'pass' ? 'Every bay is big enough for its vehicle with room for doors.' : `Too small for their vehicle: ${list(rule.entityIds)}.`;
+    case 'vehicle-headroom':
+      return rule.status === 'pass' ? `The ${formatLength(rule.measured ?? 0)} ceiling clears the tallest vehicle.` : `The ceiling is lower than ${formatLength(rule.required ?? 0)} over ${list(rule.entityIds)}.`;
+    case 'gates':
+      return rule.status === 'pass' ? `${count(rule.measured ?? 0)} ${rule.measured === 1 ? 'gate' : 'gates'} for vehicles.` : 'There is no gate. Add one on the yard edge.';
     case 'flow-crossings':
       return rule.status === 'pass' ? 'No material flows cross.' : `${count(rule.measured ?? 0)} ${rule.measured === 1 ? 'pair of flows crosses' : 'pairs of flows cross'} (${list(rule.entityIds)}). Reorder stations to keep flows apart.`;
     case 'docks':

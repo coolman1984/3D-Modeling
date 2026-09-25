@@ -63,7 +63,24 @@
 - A change from elsewhere restarts the editor's undo list (existing, deliberate); the browser
   test was reordered rather than the behaviour changed.
 
-## Next: T9 — vehicle depot / garage MVP (plan §7)
+## Done: T9 — vehicle depot / garage MVP (done definition in the plan §7, decision 0014)
+
+- [x] Industry: Dubins paths (forward and reverse), body poses, hybrid-A* manoeuvre search with gear changes, body check with a pinned margin; hand-checked cases, a 300-run end-pose property test, planted bugs
+- [x] Starter: vehicle types from spec sheets, bays and gates as zones, bay-row generator (90° / 60° / 45° / parallel), bay access (enter and leave, proof or unknown), bay size, headroom, gates, metrics and figures, memoised answers
+- [x] Server: create depots (HTTP + tool), `define_item` vehicle, `add_bay_row`, `check_bay`, gates with a heading in `edit_zones`, depot facts and rule lines
+- [x] Editor: depot in the create dialog, Bays panel, swept path on the plan, vehicle model in 3D, report; browser journey
+- [x] Docs, `pnpm check`, commit
+
+## Found along the way (T9)
+
+- Plain discs overstated the body ends by 70 cm (nose-to-nose rows would have failed); discs now sit
+  inside the body length and the ends are checked as points (tests pin the margin).
+- A rounded tiny negative gave −0 in a gate corner, which the core rightly rejects: fixed at the source.
+- A bay row came out turned 90° (degrees passed where millidegrees were expected): fixed, tested by hand.
+- The memo key first left out item types: a resized barrier would have kept a stale answer (tested now).
+- The editor offered the bus first (saved files list types A–Z): vehicles now follow the pack's order.
+
+## Next: T10 — restaurant MVP (plan §7)
 
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)

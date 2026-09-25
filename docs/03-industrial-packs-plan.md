@@ -180,6 +180,10 @@ allowed), bays (90°, angled, parallel, maintenance, wash, charge), lanes (one /
 Dubins / Reeds-Shepp paths, swept body envelope checked against walls, columns, parked vehicles and
 zones. A bay is usable only if the vehicle can enter and leave.
 
+**Status (2026-09-25): done** — decision 0014. Dubins paths plus a hybrid-A* search with gear
+changes stand in for the full Reeds-Shepp word set; a failed search is "unknown", a coarse
+connectivity test proves "no way".
+
 ### T10 — Restaurant MVP
 Table families (2/4/6-top, round, booth, banquette, communal), dining / bar / terrace / private
 zones, covers, floor per cover, service routes from pass to tables (shared routing), unreachable
