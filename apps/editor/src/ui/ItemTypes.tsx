@@ -28,6 +28,7 @@ const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Cu
   machine: 'Production',
   conveyor: 'Production',
   vehicle: 'Vehicles',
+  'table-set': 'Tables',
 };
 const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Storage', 'Production', 'Vehicles', 'Other', 'Custom'];
 const PACK_IDS = new Set(PACKS.flatMap((p) => p.catalog.map((d) => d.id)));

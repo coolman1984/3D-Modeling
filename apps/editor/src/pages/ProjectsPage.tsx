@@ -8,6 +8,7 @@ import {
   Warehouse,
   Factory,
   Garage,
+  ForkKnife,
   Check,
   CheckCircle,
   CircleDashed,
@@ -207,6 +208,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               { id: 'warehouse', label: 'Warehouse', count: count('warehouse') },
               { id: 'factory', label: 'Production', count: count('factory') },
               { id: 'depot', label: 'Depot', count: count('depot') },
+              { id: 'restaurant', label: 'Restaurant', count: count('restaurant') },
             ]}
           />
           <span className="spacer" />
@@ -433,6 +435,7 @@ const TEMPLATES: readonly Template[] = [
   { id: 'hall', name: 'Event hall', desc: '24 × 16 m · 4.5 m ceiling · one door', width: 24, depth: 16, ceiling: 4.5, pack: 'hall' },
   { id: 'office', name: 'Open office', desc: '32 × 18 m · 3.0 m ceiling · one door', width: 32, depth: 18, ceiling: 3, pack: 'office' },
   { id: 'meeting', name: 'Meeting room', desc: '7.2 × 5.4 m · 2.8 m ceiling · one door', width: 7.2, depth: 5.4, ceiling: 2.8, pack: 'office' },
+  { id: 'restaurant', name: 'Restaurant', desc: '20 × 14 m · kitchen pass · dining zone', width: 20, depth: 14, ceiling: 3.2, pack: 'restaurant' },
   { id: 'depot', name: 'Vehicle depot', desc: '40 × 30 m yard · one gate · car, van, truck, bus', width: 40, depth: 30, ceiling: 5, pack: 'depot' },
   { id: 'factory', name: 'Production hall', desc: '40 × 20 m · 6 m ceiling · sample stations', width: 40, depth: 20, ceiling: 6, pack: 'factory' },
   { id: 'warehouse', name: 'Warehouse', desc: '48 × 30 m · 10 m clear · two docks', width: 48, depth: 30, ceiling: 10, pack: 'warehouse' },
@@ -523,6 +526,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 ['warehouse', 'Warehouse', 'Pallet racks, aisles, docks', <Warehouse size={22} />],
                 ['factory', 'Production', 'Machines, flows, simulation', <Factory size={22} />],
                 ['depot', 'Depot', 'Bays, gates, swept paths', <Garage size={22} />],
+                ['restaurant', 'Restaurant', 'Tables, covers, service routes', <ForkKnife size={22} />],
               ] as const
             ).map(([id, label, hint, icon]) => (
               <button
@@ -531,12 +535,12 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 className={`activity-card${activity === id ? ' active' : ''}`}
                 aria-pressed={activity === id}
                 data-activity={id}
-                disabled={template.demo && id !== 'container' && id !== 'warehouse' && id !== 'factory' && id !== 'depot'}
+                disabled={template.demo && id !== 'container' && id !== 'warehouse' && id !== 'factory' && id !== 'depot' && id !== 'restaurant'}
                 onClick={() => {
-                  if ((id === 'warehouse' || id === 'factory' || id === 'depot') && activity !== id) choose(TEMPLATES.find((t) => t.pack === id)!);
+                  if ((id === 'warehouse' || id === 'factory' || id === 'depot' || id === 'restaurant') && activity !== id) choose(TEMPLATES.find((t) => t.pack === id)!);
                   else {
                     setActivity(id);
-                    if (template.demo || ((template.pack === 'warehouse' || template.pack === 'factory' || template.pack === 'depot') && template.pack !== id)) setTemplate(blank);
+                    if (template.demo || ((template.pack === 'warehouse' || template.pack === 'factory' || template.pack === 'depot' || template.pack === 'restaurant') && template.pack !== id)) setTemplate(blank);
                   }
                 }}
               >

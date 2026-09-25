@@ -40,6 +40,7 @@ import {
   GitFork,
   Factory,
   Garage,
+  ForkKnife,
   Magnet,
   Ruler,
   SidebarSimple,
@@ -85,16 +86,18 @@ import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy
 import { WarehousePanel } from '../ui/Warehouse.js';
 import { LinePanel, lineOverlay } from '../ui/Factory.js';
 import { DepotPanel, sweptOverlay } from '../ui/Depot.js';
+import { DiningPanel } from '../ui/Restaurant.js';
 import { VariantsDialog } from '../ui/Variants.js';
 
 type ViewMode = 'plan' | '3d' | 'split';
-type LeftPanel = 'load' | 'warehouse' | 'line' | 'depot' | 'library' | 'objects' | 'space' | 'precision';
+type LeftPanel = 'load' | 'warehouse' | 'line' | 'depot' | 'dining' | 'library' | 'objects' | 'space' | 'precision';
 type RightTab = 'properties' | 'review' | 'history';
 
 const LOAD_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'load', label: 'Load', title: 'Loading plan', icon: <Package size={21} /> };
 const WAREHOUSE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'warehouse', label: 'Racks', title: 'Warehouse', icon: <Warehouse size={21} /> };
 const LINE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'line', label: 'Line', title: 'Production line', icon: <Factory size={21} /> };
 const DEPOT_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'depot', label: 'Bays', title: 'Vehicle depot', icon: <Garage size={21} /> };
+const DINING_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'dining', label: 'Dining', title: 'Restaurant', icon: <ForkKnife size={21} /> };
 const LEFT_PANELS: ReadonlyArray<{ id: LeftPanel; label: string; title: string; icon: ReactNode }> = [
   { id: 'library', label: 'Library', title: 'Object library', icon: <SquaresFour size={21} /> },
   { id: 'objects', label: 'Objects', title: 'Objects', icon: <ListBullets size={21} /> },
@@ -161,7 +164,7 @@ function Editor({ initial }: { initial: Project }) {
   const cargo = startPack === 'container';
   // A container is easiest to read in 3D next to its floor plan.
   const [view, setView] = useState<ViewMode>(cargo ? 'split' : 'plan');
-  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : startPack === 'warehouse' ? 'warehouse' : startPack === 'factory' ? 'line' : startPack === 'depot' ? 'depot' : 'library');
+  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : startPack === 'warehouse' ? 'warehouse' : startPack === 'factory' ? 'line' : startPack === 'depot' ? 'depot' : startPack === 'restaurant' ? 'dining' : 'library');
   const [bayFocus, setBayFocus] = useState<Id | null>(null);
   const [colorBy, setColorBy] = useState<ColorBy>('type');
   const [cutaway, setCutaway] = useState(true);
@@ -413,7 +416,8 @@ function Editor({ initial }: { initial: Project }) {
   const isWarehouse = activity.pack === 'warehouse';
   const isFactory = activity.pack === 'factory';
   const isDepot = activity.pack === 'depot';
-  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : isFactory ? [LINE_PANEL, ...LEFT_PANELS] : isDepot ? [DEPOT_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
+  const isRestaurant = activity.pack === 'restaurant';
+  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : isFactory ? [LINE_PANEL, ...LEFT_PANELS] : isDepot ? [DEPOT_PANEL, ...LEFT_PANELS] : isRestaurant ? [DINING_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
   const swept = useMemo(() => (isDepot ? sweptOverlay(project, bayFocus) : undefined), [isDepot, project, bayFocus]);
   const overlay = useMemo(() => (isFactory ? lineOverlay(shownProject) : undefined), [isFactory, shownProject]);
   // The truck's route to a selected rack bay, drawn on the plan; its length is the drive.
@@ -609,6 +613,7 @@ function Editor({ initial }: { initial: Project }) {
             </div>
             {left === 'load' && isCargo && <LoadPanel project={project} dispatch={dispatch} />}
             {left === 'warehouse' && isWarehouse && <WarehousePanel project={project} dispatch={dispatch} />}
+            {left === 'dining' && isRestaurant && <DiningPanel project={project} style={activity.style} dispatch={dispatch} />}
             {left === 'depot' && isDepot && <DepotPanel project={project} dispatch={dispatch} focus={bayFocus} onFocus={setBayFocus} />}
             {left === 'line' && isFactory && <LinePanel project={project} onSelect={(id) => dispatch({ type: 'select', ids: [id] })} />}
             {left === 'library' && <LibraryPanel project={project} pack={activity.pack} onAdd={(d) => addItem(d)} dispatch={dispatch} onEdit={setEditingType} />}

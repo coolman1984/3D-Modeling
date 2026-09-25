@@ -149,7 +149,14 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'bay-size': 'Bays big enough for their vehicle',
   'vehicle-headroom': 'Headroom above the tallest vehicle',
   gates: 'At least one gate',
+  'service-route': 'Every table reachable from the pass',
+  'floor-per-cover': 'Guest floor per cover',
 };
+
+/** Items with seats (a chair, a table with its chairs). */
+function seatedPlaces(project: Project): number {
+  return Object.values(project.items).filter((i) => (project.catalog[i.definitionId]?.seats ?? 0) > 0).length;
+}
 
 /** How much weight a rule's numbers carry, in words. */
 export const SOURCE_KIND_WORD = {
@@ -168,7 +175,8 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
   switch (rule.code) {
     case 'walkway':
       return {
-        measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} of ${formatCount(seats)} seats reach a door`,
+        // The rule counts places with seats: a chair is one seat, a restaurant table several.
+        measured: rule.measured === undefined ? dash : seatedPlaces(project) === seats ? `${formatCount(rule.measured)} of ${formatCount(seats)} seats reach a door` : `${formatCount(rule.measured)} of ${formatCount(seatedPlaces(project))} tables reach a door`,
         required: rule.required === undefined ? dash : `${formatLength(rule.required)} wide`,
       };
     case 'area-per-guest':
@@ -228,6 +236,10 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${formatLength(rule.measured)} ceiling`, required: rule.required === undefined ? dash : `${formatLength(rule.required)} or more` };
     case 'gates':
       return { measured: rule.measured === undefined ? dash : formatCount(rule.measured), required: `${formatCount(rule.required ?? 1)} or more` };
+    case 'service-route':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reached`, required: rule.required === undefined ? dash : `${formatLength(rule.required)} aisles` };
+    case 'floor-per-cover':
+      return { measured: rule.measured === undefined ? dash : formatSquareMetres(rule.measured), required: rule.required === undefined ? dash : `${formatSquareMetres(rule.required)} or more` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -269,6 +281,8 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'No flows connect the stations yet.';
       case 'no-maintenance-data':
         return 'No station type states the space it needs for maintenance.';
+      case 'no-pass':
+        return 'There is no kitchen pass for servers to start from.';
       case 'no-bays':
         return 'There are no bays in the plan yet.';
       case 'no-gates':
@@ -358,6 +372,12 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass' ? 'Every bay is big enough for its vehicle with room for doors.' : `Too small for their vehicle: ${list(rule.entityIds)}.`;
     case 'vehicle-headroom':
       return rule.status === 'pass' ? `The ${formatLength(rule.measured ?? 0)} ceiling clears the tallest vehicle.` : `The ceiling is lower than ${formatLength(rule.required ?? 0)} over ${list(rule.entityIds)}.`;
+    case 'service-route':
+      return rule.status === 'pass'
+        ? `A server can reach all ${count(rule.measured ?? 0)} tables from the pass along ${formatLength(rule.required ?? 0)} aisles.`
+        : `No ${formatLength(rule.required ?? 0)} service aisle from the pass to ${list(rule.entityIds)}. Open a way through, or move the tables.`;
+    case 'floor-per-cover':
+      return `Each cover has ${formatSquareMetres(rule.measured ?? 0)} of guest floor; at least ${formatSquareMetres(rule.required ?? 0)} is needed for this service style.`;
     case 'gates':
       return rule.status === 'pass' ? `${count(rule.measured ?? 0)} ${rule.measured === 1 ? 'gate' : 'gates'} for vehicles.` : 'There is no gate. Add one on the yard edge.';
     case 'flow-crossings':

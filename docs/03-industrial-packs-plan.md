@@ -189,6 +189,8 @@ Table families (2/4/6-top, round, booth, banquette, communal), dining / bar / te
 zones, covers, floor per cover, service routes from pass to tables (shared routing), unreachable
 tables, clearance rules; candidate layouts (max capacity / balanced / spacious).
 
+**Status (2026-09-25): done** — decision 0015.
+
 ### T11 — Shared accounts, companies, collaboration
 The master plan's multi-user chapters (§19–§24), now designed around the packs above.
 

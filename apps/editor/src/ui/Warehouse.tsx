@@ -1,20 +1,15 @@
-import { area, fromUnit, toSquareMetres, toUnit, type Id, type ItemInstance, type Project, type Space, type Zone } from '@space-planner/core';
-import { aislesInFront, baysOf, rackOf, rackRows, rectZone, topBeam, TRUCK_PROFILES, truckOf, warehouseMetrics, ZONE_KINDS } from '@space-planner/starter';
-import { Plus, Trash } from '@phosphor-icons/react';
+import { fromUnit, toUnit, type Id, type ItemInstance, type Project } from '@space-planner/core';
+import { aislesInFront, baysOf, rackOf, rackRows, topBeam, TRUCK_PROFILES, truckOf, warehouseMetrics, ZONE_KINDS } from '@space-planner/starter';
+import { Plus } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
-import { formatCount, formatLength, formatMass, formatPercent, formatSquareMetres } from '../logic/format.js';
+import { formatCount, formatLength, formatMass, formatPercent } from '../logic/format.js';
 import type { Action } from '../logic/session.js';
-import { nextId } from '../logic/ids.js';
 import { takenIds } from '../logic/transform.js';
 import { NumberField, Segmented } from './Fields.js';
+import { ZonesSection } from './Zones.js';
 
 const ZONE_LABEL: Readonly<Record<string, string>> = { dock: 'Dock', staging: 'Staging', picking: 'Picking', 'no-go': 'No-go' };
 const m = (v: number) => fromUnit(v, 'm');
-
-function spaceWithZones(space: Space, zones: readonly Zone[]): Space {
-  const { zones: _old, ...rest } = space;
-  return zones.length > 0 ? { ...rest, zones } : rest;
-}
 
 /**
  * The warehouse panel: the truck the layout is planned for, capacity at a glance, a rack row
@@ -32,8 +27,6 @@ export function WarehousePanel({ project, dispatch }: { project: Project; dispat
   const [x, setX] = useState<number | undefined>(4);
   const [y, setY] = useState<number | undefined>(10);
   const [facing, setFacing] = useState<'south' | 'north'>('south');
-  const [zoneKind, setZoneKind] = useState<string>('staging');
-  const [zone, setZone] = useState<{ x: number | undefined; y: number | undefined; w: number | undefined; d: number | undefined }>({ x: 2, y: 2, w: 6, d: 4 });
 
   const chosen = project.catalog[typeId] ?? rackTypes[0];
   const aisleM = aisle ?? toUnit(truck.aisle, 'm');
@@ -46,15 +39,6 @@ export function WarehousePanel({ project, dispatch }: { project: Project; dispat
   const setTruck = (id: string) => {
     if (id === truck.id) return;
     dispatch({ type: 'command', command: { type: 'space.set', space: { ...project.space, meta: { ...(project.space.meta ?? {}), truck: id } } } });
-  };
-  const zones = project.space.zones ?? [];
-  const zoneReady = zone.x !== undefined && zone.y !== undefined && zone.w !== undefined && zone.d !== undefined && zone.w > 0 && zone.d > 0;
-  const addZone = () => {
-    if (!zoneReady) return;
-    const id = nextId(zoneKind, takenIds(project));
-    const count = zones.filter((z) => z.kind === zoneKind).length + 1;
-    const added = rectZone(id, zoneKind, `${ZONE_LABEL[zoneKind] ?? zoneKind} ${count}`, m(zone.x!), m(zone.y!), m(zone.w!), m(zone.d!));
-    dispatch({ type: 'command', command: { type: 'space.set', space: spaceWithZones(project.space, [...zones, added]) } });
   };
   return (
     <div className="panel-scroll panel-pad" data-testid="warehouse-panel">
@@ -130,46 +114,7 @@ export function WarehousePanel({ project, dispatch }: { project: Project; dispat
       </button>
 
       <div className="section-gap" />
-      <div className="section-title">
-        <span className="kicker">Zones</span>
-      </div>
-      {zones.length === 0 && <p className="muted">No zones yet.</p>}
-      {zones.map((z) => (
-        <div key={z.id} className="zone-row" data-zone-row={z.id}>
-          <span className={`swatch ${z.kind}`} />
-          <span>
-            {z.name ?? z.id}
-            <span className="faint"> · {ZONE_LABEL[z.kind] ?? z.kind}</span>
-          </span>
-          <span className="faint num">{formatSquareMetres(toSquareMetres(area(z.polygon)))}</span>
-          <button
-            type="button"
-            className="btn ghost icon"
-            style={{ width: 26, height: 26 }}
-            title={`Remove ${z.name ?? z.id}`}
-            aria-label={`Remove ${z.name ?? z.id}`}
-            onClick={() => dispatch({ type: 'command', command: { type: 'space.set', space: spaceWithZones(project.space, zones.filter((o) => o.id !== z.id)) } })}
-          >
-            <Trash size={14} />
-          </button>
-        </div>
-      ))}
-      <div style={{ marginTop: 10 }}>
-        <Segmented label="Zone kind" value={zoneKind} onChange={setZoneKind} options={ZONE_KINDS.map((k) => ({ id: k, label: ZONE_LABEL[k] ?? k }))} />
-      </div>
-      <div className="form-grid" style={{ marginTop: 8 }}>
-        <NumberField label="X" ariaLabel="Zone x" value={zone.x} unit="m" min={-1000} max={1000} onChange={(v) => setZone({ ...zone, x: v })} />
-        <NumberField label="Y" ariaLabel="Zone y" value={zone.y} unit="m" min={-1000} max={1000} onChange={(v) => setZone({ ...zone, y: v })} />
-        <NumberField label="W" ariaLabel="Zone width" value={zone.w} unit="m" min={0.1} max={1000} onChange={(v) => setZone({ ...zone, w: v })} />
-        <NumberField label="D" ariaLabel="Zone depth" value={zone.d} unit="m" min={0.1} max={1000} onChange={(v) => setZone({ ...zone, d: v })} />
-      </div>
-      <button type="button" className="btn" style={{ width: '100%' }} disabled={!zoneReady} onClick={addZone} data-testid="add-zone">
-        <Plus size={15} />
-        Add {(ZONE_LABEL[zoneKind] ?? zoneKind).toLowerCase()} zone
-      </button>
-      <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-        Trucks start from docks and never drive through no-go zones.
-      </p>
+      <ZonesSection project={project} dispatch={dispatch} kinds={ZONE_KINDS.map((k) => ({ id: k, label: ZONE_LABEL[k] ?? k }))} initialKind="staging" hint="Trucks start from docks and never drive through no-go zones." />
     </div>
   );
 }

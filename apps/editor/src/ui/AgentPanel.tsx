@@ -25,6 +25,7 @@ const TOOL_WORDS: Readonly<Record<string, string>> = {
   route_to_bay: 'Measured a truck route',
   connect_flow: 'Connected stations',
   add_bay_row: 'Added bays',
+  propose_layouts: 'Proposed table layouts',
   check_bay: 'Checked a bay’s swept path',
   simulate_line: 'Simulated the line',
   create_variant: 'Made a variant',
@@ -52,6 +53,11 @@ const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
     'Lay out a line: goods in, CNC, assembly, inspection, goods out, with no crossing flows and maintenance space kept free.',
     'Simulate one shift and tell me the bottleneck; propose a buffer or a second machine in a variant.',
     'Keep a 1.4 m pallet-truck route along every flow and at least 1 m in front of every machine.',
+  ],
+  restaurant: [
+    'Compare the three table layouts for the dining room and apply the balanced one.',
+    'Seat as many covers as possible with 4-tops and a few round tables, keeping every table reachable from the pass.',
+    'Add a terrace zone along the south wall with 2-tops for 16 covers.',
   ],
   depot: [
     'Fit as many car bays as possible and make sure every car can drive in from the gate and out again.',

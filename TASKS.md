@@ -80,7 +80,19 @@
 - The memo key first left out item types: a resized barrier would have kept a stale answer (tested now).
 - The editor offered the bus first (saved files list types A–Z): vehicles now follow the pack's order.
 
-## Next: T10 — restaurant MVP (plan §7)
+## Done: T10 — restaurant MVP (done definition in the plan §7, decision 0015)
+
+- [x] Starter: table families with chairs, the pass, service styles, dining zones, `routesToItems` shared with the hall walkway (hall results unchanged), service walks, 5 rules, metrics and figures, three candidate layouts behind `OptimizationPort`
+- [x] Server: create restaurants (HTTP + tool), `propose_layouts`, restaurant facts and rule lines
+- [x] Editor: restaurant in the create dialog, Dining panel with layout proposals, shared zone editor, table-with-chairs 3D model, report; browser journey
+- [x] Docs, `pnpm check`, commit
+
+## Found along the way (T10)
+
+- The walkway figure said "20 of 80 seats" for 20 tables of 4: it now counts tables when items carry several seats.
+- A balanced layout for 80 covers passes service but fails exits (one door for over 49 guests): a real finding the template leaves visible.
+
+## Next: T11 — accounts, companies, collaboration (plan §7) — needs product decisions (see the owner report)
 
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)

@@ -133,3 +133,15 @@ on the south wall). Vehicle types carry spec-sheet data; bays and gates are zone
    unknown, never as usable.
 4. Parked vehicles are items (`place_items`, front faces north at rotation 0); they block others.
 
+## Restaurants
+
+Restaurants are projects made with `create_project` and `activity: "restaurant"` (default
+20 × 14 m, an entrance on the south wall, the kitchen pass on the north wall, a dining zone).
+A table family is one item with its chairs (`seats` = covers).
+
+1. `propose_layouts` compares three layouts of one table family for a zone (most covers,
+   balanced, spacious) and changes nothing; with `apply` it applies one as a single revision.
+2. `place_items` adds tables one by one; `edit_zones` adds `dining`, `bar`, `terrace` or `private` zones.
+3. `check_project` reports a way out for every guest, a service route from the pass to every
+   table (style: `casual`, `fine`, `quick`), floor per cover on the dining zones, exits and door width.
+

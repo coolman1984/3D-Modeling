@@ -19,6 +19,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
+import { isRestaurant, newRestaurant, passesOf, restaurantLayouts, restaurantMetrics, serviceStyle, SERVICE_STYLES } from '@space-planner/starter';
 import { bayAccess, bayRow, baysOfDepot, BAY_USES, depotMetrics, gatesOf, isDepot, newDepot, vehicleOf } from '@space-planner/starter';
 import { factoryMetrics, isFactory, lineSimulator, newFactory, nextOf, stationOf, stationsOf, withNext } from '@space-planner/starter';
 import { baysOf, rackOf, rackRows, rectZone, routeToBay, topBeam, TRUCK_PROFILES, truckOf, warehouseMetrics, isWarehouse, newWarehouse, ZONE_KINDS } from '@space-planner/starter';
@@ -173,13 +174,25 @@ export function describeProject(project: Project): string {
   if (isWarehouse(project)) lines.push(...describeWarehouse(project));
   if (isFactory(project)) lines.push(...describeFactory(project));
   if (isDepot(project)) lines.push(...describeDepot(project));
+  if (isRestaurant(project)) lines.push(...describeRestaurant(project));
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', factory: 'Production line', depot: 'Vehicle depot' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', factory: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant' };
 
 const secOf = (ms: number | undefined) => (ms === undefined ? 'not set' : `${Math.round(ms / 100) / 10} s`);
+
+/** Restaurant facts for agents: covers, table families, the pass and service walks. */
+function describeRestaurant(project: Project): string[] {
+  const r = restaurantMetrics(project, 'casual');
+  const pass = passesOf(project);
+  return [
+    `Restaurant: ${r.covers} covers at ${r.tables} tables (${Object.entries(r.byFamily).map(([k, n]) => `${n} × ${k}`).join(', ') || 'none'}); guest floor ${r.guestFloor.toFixed(1)} m²${r.floorPerCover === undefined ? '' : `, ${r.floorPerCover.toFixed(2)} m² per cover`}.`,
+    `Kitchen pass: ${pass.map((p) => p.id).join(', ') || 'none (add an item whose type is the pass)'}; servers walk from its front. Walk to tables (casual aisles): ${r.serviceAverage === undefined ? '—' : `average ${mOf(r.serviceAverage)}, longest ${mOf(r.serviceMax)}`}${r.unreachable ? `; ${r.unreachable} table(s) cannot be reached` : ''}.`,
+    `Service styles: ${SERVICE_STYLES.map((st) => `${st.id} (${st.floorPerCover} m² per cover, ${Math.round(st.serviceAisle / 100)} cm aisles)`).join(', ')}. Table families are one item each, chairs included; seats = covers.`,
+  ];
+}
 
 /** Depot facts for agents: vehicle types, gates, bays and whether each bay can be used. */
 function describeDepot(project: Project): string[] {
@@ -316,6 +329,10 @@ function describeRules(project: Project, packId: PackId = detectPack(project), s
         return `  flows from a source to a sink through every station: ${r.status}${r.entityIds.length ? ` — check ${r.entityIds.join(', ')}` : ''}`;
       case 'flow-path':
         return `  material can be moved along ${r.measured} of ${r.required} flows: ${r.status}${r.entityIds.length ? ` — blocked after ${r.entityIds.join(', ')}` : ''}`;
+      case 'service-route':
+        return `  service route from the pass (${cmOf(r.required)} aisles): ${r.measured} tables reached: ${r.status}${r.entityIds.length ? ` — cannot serve ${r.entityIds.join(', ')}` : ''}`;
+      case 'floor-per-cover':
+        return `  guest floor per cover: ${r.measured} m² (needs ${r.required}): ${r.status}`;
       case 'bay-access':
         return `  bays a vehicle can drive into and out of: ${r.measured} of ${r.required}: ${r.status}${r.entityIds.length ? ` — ${r.status === 'fail' ? 'no way for' : 'not settled for'} ${r.entityIds.join(', ')}` : ''}`;
       case 'bay-size':
@@ -446,7 +463,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Warehouses: activity "warehouse" (default 48 × 30 m, 10 m clear height) with two docks and a staging zone on the south wall and sample rack types. Production lines: activity "factory" (default 40 × 20 m, 6 m) with sample stations. Vehicle depots: activity "depot" (default 40 × 30 m) with one gate and sample vehicles. Returns the new project id.',
+    description: 'Create a new project. Rooms: a rectangle with one door centred on the south wall, furnished with the catalog of "hall" (default) or "office". Containers: activity "container" with container_type (width/depth are then ignored). Warehouses: activity "warehouse" (default 48 × 30 m, 10 m clear height) with two docks and a staging zone on the south wall and sample rack types. Production lines: activity "factory" (default 40 × 20 m, 6 m) with sample stations. Vehicle depots: activity "depot" (default 40 × 30 m) with one gate and sample vehicles. Restaurants: activity "restaurant" (default 20 × 14 m) with an entrance, the kitchen pass and a dining zone. Returns the new project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -463,6 +480,14 @@ export const TOOLS: readonly ToolDef[] = [
     run: (ctx, input) => {
       if (str(input, 'activity', true) === 'container') {
         const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}`;
+      }
+      if (str(input, 'activity', true) === 'restaurant') {
+        const w = num(input, 'width_m', true) ?? 20;
+        const d = num(input, 'depth_m', true) ?? 14;
+        const h = num(input, 'ceiling_m', true) ?? 3.2;
+        if (w < 6 || d < 6 || w > 500 || d > 500) throw new ToolError('restaurant sides must be between 6 and 500 m');
+        const created = ctx.store.createProject(newRestaurant(str(input, 'name'), { width: metres(w), depth: metres(d), height: metres(h) }), ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
       if (str(input, 'activity', true) === 'depot') {
@@ -880,6 +905,38 @@ export const TOOLS: readonly ToolDef[] = [
       let length = 0;
       for (let i = 1; i < route.length; i++) length += Math.hypot(route[i]!.x - route[i - 1]!.x, route[i]!.y - route[i - 1]!.y);
       return `Route to ${bayId}: ${mOf(length)} (straight segments between cell centres; the drive is about this long).\nCorners (m): ${route.map((p) => `(${toUnit(p.x, 'm').toFixed(2)}, ${toUnit(p.y, 'm').toFixed(2)})`).join(' → ')}`;
+    },
+  },
+  {
+    name: 'propose_layouts',
+    description:
+      'Restaurants: propose table layouts for a zone (default: the first dining zone) with one table family (default table-4): most covers, balanced and spacious, each with its covers and aisles. Tables no server can reach from the pass are left out. With apply = "most" | "balanced" | "spacious" that candidate is applied as one revision.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        zone_id: { type: 'string' },
+        family_id: { type: 'string' },
+        style: { type: 'string', enum: SERVICE_STYLES.map((st) => st.id) },
+        apply: { type: 'string', enum: ['most', 'balanced', 'spacious'] },
+        summary,
+      },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (!isRestaurant(project)) throw new ToolError('propose_layouts works on restaurant projects (create one with activity "restaurant")');
+      const goal = { ...(str(input, 'zone_id', true) ? { zoneId: str(input, 'zone_id') } : {}), ...(str(input, 'family_id', true) ? { familyId: str(input, 'family_id') } : {}), style: serviceStyle(str(input, 'style', true) || null).id };
+      const candidates = restaurantLayouts.propose(project, goal);
+      if (candidates.length === 0) throw new ToolError('no layout: check the table family has seats');
+      const text = candidates.map((c, i) => `${i + 1}. ${c.label}: ${c.explanation}`).join('\n');
+      const choice = { most: 0, balanced: 1, spacious: 2 }[str(input, 'apply', true) as 'most' | 'balanced' | 'spacious'];
+      if (choice === undefined) return `Candidates (nothing changed):\n${text}`;
+      const chosen = candidates[choice]!;
+      if (chosen.commands.length === 0) return `Nothing fits.\n${text}`;
+      const updated = commit(ctx, project, [...chosen.commands], str(input, 'summary', true) || `Laid out ${chosen.metrics.tables} tables (${chosen.label.toLowerCase()})`);
+      return afterChange(updated, `Applied "${chosen.label}".`) + '\n' + describeRules(updated).join('\n');
     },
   },
   {

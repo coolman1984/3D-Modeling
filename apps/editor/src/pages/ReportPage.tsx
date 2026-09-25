@@ -1,5 +1,5 @@
 import { checkProject, type Project } from '@space-planner/core';
-import { containerMetrics, containerType, depotMetrics, factoryMetrics, lineSimulator, SHAPES, shapeOf, stepOf, stopOf, truckOf, warehouseMetrics } from '@space-planner/starter';
+import { containerMetrics, containerType, depotMetrics, restaurantMetrics, factoryMetrics, lineSimulator, SHAPES, shapeOf, stepOf, stopOf, truckOf, warehouseMetrics } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -101,6 +101,7 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const line = report.activity.pack === 'factory' ? factoryMetrics(project, report.activity.style) : null;
   const shift = line ? lineSimulator.run(project, { hours: 8 }) : null;
   const yardFigures = report.activity.pack === 'depot' ? depotMetrics(project) : null;
+  const dining = report.activity.pack === 'restaurant' ? restaurantMetrics(project, report.activity.style) : null;
   const sequence = cargo
     ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
     : [];
@@ -137,7 +138,11 @@ export function ReportPage({ projectId }: { projectId: string }) {
           <div className="cover-kicker">{kicker}</div>
           <h1>{report.name}</h1>
           <p className="cover-lede">
-            {yardFigures ? (
+            {dining ? (
+              <>
+                A restaurant floor of {plural(dining.covers, 'cover')} at {plural(dining.tables, 'table')} in a {roomSize} room, checked for a way out for every guest, a service route from the pass to every table, floor per cover and exits.
+              </>
+            ) : yardFigures ? (
               <>
                 A vehicle yard of {plural(yardFigures.bays, 'bay')} and {plural(yardFigures.gates, 'gate')} ({roomSize}), each bay checked by driving its vehicle in from a gate and out again at its turning circle: {formatCount(yardFigures.accessible)} usable{yardFigures.unknown ? `, ${formatCount(yardFigures.unknown)} not settled` : ''}.
               </>
@@ -203,7 +208,16 @@ export function ReportPage({ projectId }: { projectId: string }) {
               </div>
             </div>
             <div className="cover-metrics">
-              {(yardFigures
+              {(dining
+                ? [
+                    [<span data-testid="report-covers">{formatCount(dining.covers)}</span>, 'Covers'],
+                    [formatCount(dining.tables), 'Tables'],
+                    [dining.floorPerCover === undefined ? '—' : formatSquareMetres(Math.round(dining.floorPerCover * 100) / 100), 'Floor per cover'],
+                    [dining.serviceMax === undefined ? '—' : formatLength(dining.serviceMax), 'Longest walk'],
+                    [formatCount(dining.unreachable), 'Unreachable tables'],
+                    [formatCount(report.room.doors), 'Exits'],
+                  ]
+                : yardFigures
                 ? [
                     [<span data-testid="report-usable">{formatCount(yardFigures.accessible)}</span>, 'Usable bays'],
                     [formatCount(yardFigures.bays), 'Bays drawn'],

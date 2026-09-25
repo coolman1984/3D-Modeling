@@ -168,8 +168,9 @@ function cylinder(r: number, h: number, color: number, x = 0, y = h / 2, z = 0, 
  * A simple model for each shape, in the item's local frame: width along X, depth along Z,
  * front facing -Z (plan north at rotation 0), standing on Y = 0.
  */
-function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: RackSpec): THREE.Group {
+function buildModel(shape: ShapeKey, w: number, d: number, h: number, extra: { rack?: RackSpec | undefined; seats?: number | undefined; round?: boolean } = {}): THREE.Group {
   const g = new THREE.Group();
+  const rack = extra.rack;
   if (shape === 'rack' && rack) {
     // Four uprights, front and back beams under every raised level, and a loaded pallet in every
     // position: what the bay looks like full.
@@ -279,6 +280,38 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: Rac
           g.add(tyre);
         }
       }
+      break;
+    }
+    case 'table-set': {
+    // A table with its chairs drawn in: chairs face the table, spread along the long sides or
+    // round the edge of a round table.
+    const seats = Math.max(0, extra.seats ?? 0);
+    const chair = (x: number, z: number, facing: number) => {
+      const c = new THREE.Group();
+      c.add(box(0.42, 0.05, 0.42, COLORS.fabric, 0, 0.46));
+      c.add(box(0.42, 0.45, 0.05, COLORS.fabric, 0, 0.46 + 0.22, 0.19));
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) c.add(box(0.035, 0.44, 0.035, COLORS.metal, sx * 0.18, 0.22, sz * 0.18));
+      c.position.set(x, 0, z);
+      c.rotation.y = facing;
+      g.add(c);
+    };
+    if (extra.round) {
+      const r = Math.max(0.3, Math.min(w, d) / 2 - 0.4);
+      g.add(cylinder(r, 0.04, COLORS.cloth, 0, h - 0.02));
+      g.add(cylinder(0.05, h - 0.04, COLORS.metal, 0, (h - 0.04) / 2));
+      for (let i = 0; i < seats; i++) {
+        const a = (i / seats) * Math.PI * 2;
+        chair(Math.sin(a) * (r + 0.22), Math.cos(a) * (r + 0.22), a);
+      }
+    } else {
+      const td = Math.max(0.5, d - 0.8);
+      g.add(box(w, 0.04, td, COLORS.cloth, 0, h - 0.02));
+      legs(h - 0.04, COLORS.darkWood, 0.04 + 0.4);
+      const front = Math.ceil(seats / 2);
+      const back = seats - front;
+      for (let i = 0; i < front; i++) chair(-w / 2 + ((i + 0.5) * w) / front, -(td / 2 + 0.22), Math.PI);
+      for (let i = 0; i < back; i++) chair(-w / 2 + ((i + 0.5) * w) / back, td / 2 + 0.22, 0);
+    }
       break;
     }
     case 'plant': {
@@ -489,7 +522,7 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
   const unit = new THREE.Vector3(1, 1, 1);
   for (const { definition, tilt, state, color, items } of batches.values()) {
     const { w, d, h } = definition.size;
-    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), rackOf(definition));
+    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), { rack: rackOf(definition), seats: definition.seats, round: definition.footprint === 'round' });
     // A lying item: turn the upright model about its centre, then stand it on the floor again.
     const placedHeight = tilt === 'x' ? mt(w) : tilt === 'y' ? mt(d) : mt(h);
     const lay = new THREE.Matrix4()

@@ -239,6 +239,22 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'add_bay_row', { project_id: id, vehicle_id: 'chair', x_m: 1, y_m: 1, count: 1 }).isError).toBe(true);
   });
 
+  it('lets an agent lay out a restaurant: layouts compared, one applied, service and exits checked', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'Bistro', activity: 'restaurant' });
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    expect(created.text).toContain('Kitchen pass: pass-1');
+    const offer = runTool(ctx, 'propose_layouts', { project_id: id });
+    expect(offer.text).toContain('1. Most covers: 23 4-top 120 × 80 (92 covers) with 90 cm aisles');
+    expect(offer.text).toContain('3. Spacious: 12 4-top 120 × 80 (48 covers)');
+    expect(store.getProject(id)!.revision).toBe(0);
+    const applied = runTool(ctx, 'propose_layouts', { project_id: id, apply: 'balanced' });
+    expect(applied.text).toContain('Applied "Balanced".');
+    expect(applied.text).toContain('service route from the pass (90 cm aisles): 20 tables reached: pass');
+    expect(applied.text).toContain('exits: 1 door(s) (needs 2): fail');
+    expect(store.history(id)[0]).toMatchObject({ actor: 'agent:test', summary: 'Laid out 20 tables (balanced)' });
+  });
+
   it('variants: an agent proposes in a variant, compares, and the person adopts it as one revision of the base', () => {
     const ctx = { store, actor: 'agent:test' };
     const id = /Created (p-[\w]+)/.exec(runTool(ctx, 'create_project', { name: 'DC', activity: 'warehouse', width_m: 30, depth_m: 20, ceiling_m: 8 }).text)![1]!;

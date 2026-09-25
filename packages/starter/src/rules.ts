@@ -12,7 +12,7 @@ import {
   type Tick,
   type Vec2,
 } from '@space-planner/core';
-import { cellAt, distanceToBlocked, floorGrid, paintPolygon, reachable } from '@space-planner/industry';
+import { cellAt, distanceToBlocked, floorGrid, paintPolygon, reachable, travelField, type FloorGrid } from '@space-planner/industry';
 
 /**
  * Rules shared by every activity pack: walkways to the doors, exits and door width, floor per
@@ -49,7 +49,9 @@ export type RuleCode =
   | 'bay-access'
   | 'bay-size'
   | 'vehicle-headroom'
-  | 'gates';
+  | 'gates'
+  | 'service-route'
+  | 'floor-per-cover';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -101,6 +103,8 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'bay-size': { kind: 'common-guidance', title: 'Bay at least the vehicle width plus 30 cm each side for doors, and its length plus 25 cm', ruleSet: 'starter.depot.v1' },
   'vehicle-headroom': { kind: 'common-guidance', title: 'Ceiling at least 20 cm above the tallest vehicle', ruleSet: 'starter.depot.v1' },
   gates: { kind: 'engineering', title: 'At least one gate for vehicles to enter and leave', ruleSet: 'starter.depot.v1' },
+  'service-route': { kind: 'common-guidance', title: 'A service aisle of the style’s width from the kitchen pass to every table (restaurant planning guidance)', ruleSet: 'starter.restaurant.v1' },
+  'floor-per-cover': { kind: 'common-guidance', title: 'Guest floor per cover by service style (restaurant planning guidance); a local code may ask for more', ruleSet: 'starter.restaurant.v1' },
   'flow-crossings': { kind: 'company-policy', title: 'Lean layout practice: material flows do not cross', ruleSet: 'starter.factory.v1' },
 };
 
@@ -114,7 +118,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'no-ceiling' | 'no-docks' | 'no-stations' | 'no-flows' | 'no-maintenance-data' | 'no-bays' | 'no-gates' | 'no-vehicle-data' | 'search-budget';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'no-ceiling' | 'no-docks' | 'no-stations' | 'no-flows' | 'no-maintenance-data' | 'no-bays' | 'no-gates' | 'no-vehicle-data' | 'search-budget' | 'no-pass';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }
@@ -193,17 +197,14 @@ export function exitRules(project: Project): [RuleResult, RuleResult] {
  * (big seats such as a sofa or the kosha are reached from any side).
  */
 export function seatsWithoutWayOut(project: Project, width: Tick, seatIds: readonly Id[]): Id[] {
-  const grid = floorGrid(project.space.boundary, cm(5));
-  const { room, cell, nx, ny } = grid;
-  for (const o of project.space.obstacles) paintPolygon(grid, o.polygon, 1);
-  for (const item of Object.values(project.items)) {
-    const definition = project.catalog[item.definitionId];
-    if (definition && (item.elevation ?? 0) < HEAD_ROOM) paintPolygon(grid, itemPolygon(item, definition), 1);
-  }
-  const clearance = distanceToBlocked(grid.blocked, nx, ny); // in cells
+  const found = routesToItems(project, width, seatIds, (grid) => doorStarts(project, grid, width));
+  return seatIds.filter((id) => project.items[id] && project.catalog[project.items[id]!.definitionId] && found.get(id) === undefined);
+}
 
-  // Doorways: the cells just inside each door opening, as deep as half the walkway plus a cell.
+/** The cells just inside each door opening, as deep as half the walkway plus a cell. */
+export function doorStarts(project: Project, grid: FloorGrid, width: Tick): number[] {
   const starts: number[] = [];
+  const { cell } = grid;
   for (const door of project.space.doors) {
     const along = rotate({ x: 1, y: 0 }, door.angle);
     const inward = rotate(along, door.swing === 'left' ? 90_000 : -90_000);
@@ -213,35 +214,57 @@ export function seatsWithoutWayOut(project: Project, width: Tick, seatIds: reado
       }
     }
   }
-  const reached = reachable(grid, clearance, starts, width);
+  return starts;
+}
+
+/**
+ * For each of `ids`, how far a walkway `width` wide runs from the start cells to within reach of
+ * the item (half the walkway plus SEAT_REACH from its outline), or undefined when it cannot get
+ * there. Walls, columns, blocked zones and items below head room block the floor. With
+ * `measure: false` only reachability is worked out (a flood, faster) and every reached item gets 0.
+ */
+export function routesToItems(project: Project, width: Tick, ids: readonly Id[], startsFor: (grid: FloorGrid) => number[], measure = false): Map<Id, number | undefined> {
+  const grid = floorGrid(project.space.boundary, cm(5));
+  const { room, cell, nx, ny } = grid;
+  for (const o of project.space.obstacles) paintPolygon(grid, o.polygon, 1);
+  for (const item of Object.values(project.items)) {
+    const definition = project.catalog[item.definitionId];
+    if (definition && (item.elevation ?? 0) < HEAD_ROOM) paintPolygon(grid, itemPolygon(item, definition), 1);
+  }
+  const clearance = distanceToBlocked(grid.blocked, nx, ny); // in cells
+  const starts = startsFor(grid);
+  const distance = measure ? travelField(grid, clearance, starts, width).distance : undefined;
+  const reached = measure ? undefined : reachable(grid, clearance, starts, width);
   const index = (i: number, j: number) => j * nx + i;
 
   const reach = width / 2 + SEAT_REACH;
-  const cutOff: Id[] = [];
-  for (const id of seatIds) {
+  const out = new Map<Id, number | undefined>();
+  for (const id of ids) {
     const item = project.items[id];
     const definition = item && project.catalog[item.definitionId];
     if (!item || !definition) continue;
     const body = itemPolygon(item, definition);
     const b = boundsOf(body);
-    let found = false;
+    let best: number | undefined;
     const j0 = Math.max(0, Math.floor((b.minY - reach - room.minY) / cell));
     const j1 = Math.min(ny - 1, Math.ceil((b.maxY + reach - room.minY) / cell) + 1);
     const i0 = Math.max(0, Math.floor((b.minX - reach - room.minX) / cell));
     const i1 = Math.min(nx - 1, Math.ceil((b.maxX + reach - room.minX) / cell) + 1);
-    for (let j = j0; j <= j1 && !found; j++) {
+    for (let j = j0; j <= j1 && (measure || best === undefined); j++) {
       for (let i = i0; i <= i1; i++) {
-        if (!reached[index(i, j)]) continue;
+        const k = index(i, j);
+        const d = distance ? distance[k]! : reached![k] ? 0 : Infinity;
+        if (!Number.isFinite(d) || (best !== undefined && d >= best)) continue;
         const p = { x: room.minX + (i - 0.5) * cell, y: room.minY + (j - 0.5) * cell };
         if (distanceToOutline(body, p) <= reach) {
-          found = true;
-          break;
+          best = d;
+          if (!measure) break;
         }
       }
     }
-    if (!found) cutOff.push(id);
+    out.set(id, best);
   }
-  return cutOff;
+  return out;
 }
 
 /** Distance from a point to a polygon's outline (0 inside). */
