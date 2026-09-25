@@ -2,3 +2,6 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+e2e-results/
+test-results/
+playwright-report/

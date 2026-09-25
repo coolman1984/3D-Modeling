@@ -17,3 +17,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm --filter @space-planner/editor exec playwright install --with-deps chromium
+      - run: pnpm e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editor-screenshots
+          path: |
+            apps/editor/e2e-results/
+            apps/editor/test-results/
+          if-no-files-found: ignore

@@ -6,8 +6,10 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm --filter @space-planner/editor dev",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "check": "pnpm typecheck && pnpm test"
+    "e2e": "pnpm --filter @space-planner/editor e2e",
+    "check": "pnpm typecheck && pnpm test && pnpm e2e"
   }
 }
