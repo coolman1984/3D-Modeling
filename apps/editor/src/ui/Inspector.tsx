@@ -370,12 +370,12 @@ function RackGroup({ project, item, dispatch }: { project: Project; item: Projec
   return <Group title="Rack capacity" hint="Each edited row gets its own rack type. The saved plan holds one row, not each structural piece.">
     <div className="facts"><div className="fact"><span>Rack row</span><span>{item.id}</span></div><div className="fact"><span>Total positions</span><span>{capacity}</span></div></div>
     <div className="grid-2">
-      <CommitField label="Bays" ariaLabel="Rack bays" unit="" value={spec.bays} digits={0} onCommit={(n) => change('bays', n)} readOnly={item.locked} />
-      <CommitField label="Levels" ariaLabel="Rack levels" unit="" value={spec.levels} digits={0} onCommit={(n) => change('levels', n)} readOnly={item.locked} />
-      <CommitField label="Positions" ariaLabel="Pallets per level per bay" unit="" value={spec.positionsPerLevel} digits={0} onCommit={(n) => change('positionsPerLevel', n)} readOnly={item.locked} />
-      <CommitField label="Bay width" ariaLabel="Rack bay width" unit="cm" value={toUnit(spec.bayWidth, 'cm')} onCommit={(n) => change('bayWidth', n)} readOnly={item.locked} />
-      <CommitField label="Depth" ariaLabel="Rack depth" unit="cm" value={toUnit(spec.depth, 'cm')} onCommit={(n) => change('depth', n)} readOnly={item.locked} />
-      <CommitField label="Height" ariaLabel="Rack height" unit="cm" value={toUnit(spec.height, 'cm')} onCommit={(n) => change('height', n)} readOnly={item.locked} />
+      <span className="span-all"><CommitField label="Bays" wideKey ariaLabel="Rack bays" unit="" value={spec.bays} digits={0} onCommit={(n) => change('bays', n)} readOnly={item.locked} /></span>
+      <span className="span-all"><CommitField label="Levels" wideKey ariaLabel="Rack levels" unit="" value={spec.levels} digits={0} onCommit={(n) => change('levels', n)} readOnly={item.locked} /></span>
+      <span className="span-all"><CommitField label="Positions" wideKey ariaLabel="Pallets per level per bay" unit="" value={spec.positionsPerLevel} digits={0} onCommit={(n) => change('positionsPerLevel', n)} readOnly={item.locked} /></span>
+      <span className="span-all"><CommitField label="Bay w." wideKey ariaLabel="Rack bay width" unit="cm" value={toUnit(spec.bayWidth, 'cm')} onCommit={(n) => change('bayWidth', n)} readOnly={item.locked} /></span>
+      <span className="span-all"><CommitField label="Depth" wideKey ariaLabel="Rack depth" unit="cm" value={toUnit(spec.depth, 'cm')} onCommit={(n) => change('depth', n)} readOnly={item.locked} /></span>
+      <span className="span-all"><CommitField label="Height" wideKey ariaLabel="Rack height" unit="cm" value={toUnit(spec.height, 'cm')} onCommit={(n) => change('height', n)} readOnly={item.locked} /></span>
     </div>
   </Group>;
 }
