@@ -16,14 +16,14 @@ const fail = (text) => {
 
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 22 || (major === 22 && minor < 13)) {
-  fail(`محتاج Node.js إصدار 22.13 أو أحدث (عندك ${process.versions.node}).\n  نزّله من https://nodejs.org (اختار LTS) وبعدين شغّل ملف البداية تاني.`);
+  fail(`Atrium needs Node.js 22.13 or newer (you have ${process.versions.node}).\n  Download it from https://nodejs.org (choose LTS), then run the start file again.`);
 }
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 function pnpm(args, label) {
   say(label);
   const result = spawnSync(npx, ['--yes', PNPM, ...args], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
-  if (result.status !== 0) fail(`${label}: حصلت مشكلة (شوف الرسائل اللي فوق).`);
+  if (result.status !== 0) fail(`${label}: something went wrong (see the messages above).`);
 }
 
 function newest(dir) {
@@ -42,7 +42,7 @@ const mtime = (path) => (existsSync(path) ? statSync(path).mtimeMs : 0);
 // 1. Dependencies: install when missing or when the lockfile changed.
 const installMarker = join(root, 'node_modules', '.modules.yaml');
 if (!existsSync(installMarker) || mtime(join(root, 'pnpm-lock.yaml')) > mtime(installMarker)) {
-  pnpm(['install', '--frozen-lockfile'], 'بيثبّت المكونات (أول مرة بس، ممكن تاخد دقيقتين)');
+  pnpm(['install', '--frozen-lockfile'], 'Installing components (first time only, may take two minutes)');
 }
 
 // 2. Build: when anything in the sources is newer than the last build.
@@ -50,12 +50,12 @@ const builtEditor = join(root, 'apps', 'editor', 'dist', 'index.html');
 const builtServer = join(root, 'apps', 'server', 'dist', 'server.mjs');
 const sources = Math.max(newest(join(root, 'packages')), newest(join(root, 'apps', 'editor')), newest(join(root, 'apps', 'server')));
 if (sources > Math.min(mtime(builtEditor), mtime(builtServer))) {
-  pnpm(['--filter', '@space-planner/editor', 'build'], 'بيجهّز الواجهة');
-  pnpm(['--filter', '@space-planner/server', 'build'], 'بيجهّز الخادم');
+  pnpm(['--filter', '@space-planner/editor', 'build'], 'Building the interface');
+  pnpm(['--filter', '@space-planner/server', 'build'], 'Building the server');
 }
 
 // 3. Run.
-say('بيشغّل البرنامج');
+say('Starting Atrium');
 const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', builtServer, '--open', ...process.argv.slice(2)], {
   cwd: root,
   stdio: 'inherit',

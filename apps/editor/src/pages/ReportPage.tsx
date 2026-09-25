@@ -1,33 +1,46 @@
 import { checkProject, type Project } from '@space-planner/core';
+import { SHAPES, shapeOf } from '@space-planner/starter';
+import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { formatArea, formatCount, formatLength, formatPercent } from '../logic/format.js';
 import { loadActivity } from '../logic/activity.js';
+import { formatCentimetres, formatCount, formatLength, formatMetres, formatPercent, formatSquareMetres, plural } from '../logic/format.js';
 import { buildReport } from '../logic/report.js';
+import { RULE_STATUS_WORD, SEVERITY_WORD } from '../logic/messages.js';
 import { PlanDrawing } from '../ui/PlanDrawing.js';
 import { renderSnapshot } from '../ui/View3D.js';
 
 const VERDICT = {
-  ready: { text: 'التصميم سليم: مفيش تداخل ولا باب مسدود ولا عنصر برّه الحدود.', className: 'ok' },
-  check: { text: 'مفيش أخطاء، بس فيه ملاحظات أو قواعد محتاجة مراجعة (تحت).', className: 'warning' },
-  problems: { text: 'فيه أخطاء لازم تتصلّح قبل التنفيذ (تحت).', className: 'error' },
+  ready: { tone: 'ok', title: 'Ready to approve', text: 'Nothing overlaps, no door is blocked, nothing is outside the room, and every planning rule passes.' },
+  check: { tone: 'warning', title: 'Check before approval', text: 'There are no errors, but some notes or planning rules need a look (page 4).' },
+  problems: { tone: 'error', title: 'Needs attention', text: 'Some errors must be fixed before this plan is set up (page 4).' },
 } as const;
 
-const RULE_WORD = { pass: 'تمام', fail: 'محتاج مراجعة', unknown: 'مش معروف' } as const;
+const SHAPE_LABEL = new Map(SHAPES.map((s) => [s.key as string, s.label]));
+const PAGES = 4;
 
-const SEVERITY_WORD = { error: 'خطأ', warning: 'تنبيه', info: 'ملاحظة' } as const;
-
-/** Square metres with Arabic digits, e.g. "٨٠ م²". */
-const squareMetres = (value: number) => formatArea(value * 100_000_000);
+function Foot({ name, revision, page }: { name: string; revision: number; page: number }) {
+  return (
+    <div className="sheet-foot">
+      <span>
+        {name} · Revision {revision}
+      </span>
+      <span>
+        {page} / {PAGES}
+      </span>
+    </div>
+  );
+}
 
 /**
- * The client report for one saved revision: plan, 3D picture, numbers, bill of materials and
- * issues, laid out for A4 paper. Printing uses the browser (save as PDF works too).
+ * The client report for one saved revision: cover, plan, 3D picture with the bill of materials,
+ * and the rules and issues, laid out as A4 pages. Printing uses the browser (save as PDF works too).
  */
 export function ReportPage({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [missing, setMissing] = useState(false);
   const [picture, setPicture] = useState<string | null | 'pending'>('pending');
+  const [showIssues, setShowIssues] = useState(true);
   useEffect(() => {
     api
       .getProject(projectId)
@@ -39,190 +52,325 @@ export function ReportPage({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!project) return;
     // Let the page paint first; drawing the 3D picture takes a moment on slow machines.
-    const timer = setTimeout(() => setPicture(renderSnapshot(project, issues, 900, 520)), 30);
+    const timer = setTimeout(() => setPicture(renderSnapshot(project, issues, 1200, 640)), 30);
     return () => clearTimeout(timer);
   }, [project, issues]);
   useEffect(() => {
-    if (report) document.title = `تقرير - ${report.name}`;
+    if (report) document.title = `Client report · ${report.name}`;
     return () => {
-      document.title = 'مخطط المساحات';
+      document.title = 'Atrium';
     };
   }, [report]);
 
   if (missing) {
     return (
-      <div className="page">
-        <p>المشروع ده مش موجود.</p>
-        <a href="#/" className="button">رجوع للمشاريع</a>
+      <div className="site">
+        <div className="center-empty">
+          <div className="serif">This project does not exist</div>
+          <p>It may have been deleted.</p>
+          <a href="#/" className="btn">
+            Back to projects
+          </a>
+        </div>
       </div>
     );
   }
-  if (!project || !report) return <div className="page"><p className="muted">بيحمّل…</p></div>;
+  if (!project || !report) {
+    return (
+      <div className="report">
+        <div className="center-empty muted">Preparing report…</div>
+      </div>
+    );
+  }
 
-  const today = new Intl.DateTimeFormat('ar-EG', { dateStyle: 'long' }).format(new Date());
+  const today = new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' }).format(new Date());
   const verdict = VERDICT[report.verdict];
+  const doorWidth = project.space.doors.reduce((n, d) => n + d.width, 0);
+  const problems = report.issues.filter((i) => i.severity !== 'info');
+  const unknown = report.issues.filter((i) => i.severity === 'info');
+  const roomSize = `${formatMetres(report.room.width)} × ${formatMetres(report.room.depth)} m`;
+  const kicker = `${report.activity.label} · ${report.activity.styleLabel}`;
+  const seatsLine = report.totals.seats > 0 ? `A plan for ${plural(report.totals.seats, 'seat')}` : 'A plan';
   return (
     <div className="report" data-testid="report">
-      <nav className="report-tools">
-        <a href={`#/p/${project.id}`} className="button">رجوع للتصميم</a>
-        <button type="button" className="primary" onClick={() => window.print()}>
-          اطبع التقرير
+      <nav className="report-bar">
+        <a href={`#/p/${project.id}`}>
+          <CaretLeft size={16} />
+          Back to plan
+        </a>
+        <span style={{ color: '#c9c5bc' }}>/</span>
+        <span style={{ fontWeight: 500 }}>Client report</span>
+        <span className="muted" style={{ fontSize: 13 }}>
+          · Revision {report.revision} · {PAGES} pages · A4
+        </span>
+        <span className="spacer" />
+        <label className="check">
+          <input type="checkbox" checked={showIssues} onChange={(e) => setShowIssues(e.target.checked)} />
+          Include issues
+        </label>
+        <button type="button" className="btn primary" onClick={() => window.print()}>
+          <Printer size={15} />
+          Print or save PDF
         </button>
-        <span className="muted">عشان تحفظه ملف: من شاشة الطباعة اختار الحفظ كملف بدل الطابعة.</span>
       </nav>
 
-      <article className="sheet">
-        <header className="report-head">
-          <div>
-            <h1>{report.name}</h1>
-            <p className="muted">تقرير تجهيز المكان</p>
+      <div className="sheets">
+        <article className="sheet cover" aria-label="Cover">
+          <div className="sheet-top">
+            <span className="brand-mark" />
+            <span className="brand-name">Atrium</span>
+            <span className="date">Client report · {today}</span>
           </div>
-          <dl className="report-meta">
-            <div>
-              <dt>التاريخ</dt>
-              <dd>{today}</dd>
-            </div>
-            <div>
-              <dt>رقم النسخة</dt>
-              <dd data-testid="report-revision">{formatCount(report.revision)}</dd>
-            </div>
-          </dl>
-        </header>
-
-        <p className={`verdict ${verdict.className}`} data-testid="report-verdict">
-          {verdict.text}
-        </p>
-
-        <section className="report-numbers" aria-label="الأرقام">
-          <div>
-            <span>الكراسي</span>
-            <strong data-testid="report-seats">{formatCount(report.totals.seats)}</strong>
-          </div>
-          <div>
-            <span>العناصر</span>
-            <strong>{formatCount(report.totals.items)}</strong>
-          </div>
-          <div>
-            <span>مساحة الأرض</span>
-            <strong>{squareMetres(report.room.floorArea)}</strong>
-          </div>
-          <div>
-            <span>المشغول بالعفش</span>
-            <strong>
-              {squareMetres(report.totals.occupiedArea)} ({formatPercent(report.totals.occupancy)})
-            </strong>
-          </div>
-          <div>
-            <span>نصيب الكرسي من الأرض</span>
-            <strong>{report.totals.areaPerSeat === undefined ? '—' : squareMetres(report.totals.areaPerSeat)}</strong>
-          </div>
-        </section>
-
-        <section className="report-section" aria-label="المخطط">
-          <h2>المخطط من فوق</h2>
-          <PlanDrawing project={project} issues={issues} keyOf={report.keyOf} width={900} height={560} />
-          <p className="muted" data-testid="report-room">
-            {[
-              `القاعة ${formatLength(report.room.width)} × ${formatLength(report.room.depth)}`,
-              report.room.ceiling === undefined ? 'ارتفاع السقف مش مكتوب' : `السقف ${formatLength(report.room.ceiling)}`,
-              `الأبواب: ${formatCount(report.room.doors)}`,
-              `الأعمدة: ${formatCount(report.room.columns)}`,
-            ].join('، ')}
-            . الأرقام على العناصر هي رقم الصنف في الجدول.
+          <div className="cover-kicker">{kicker}</div>
+          <h1>{report.name}</h1>
+          <p className="cover-lede">
+            {seatsLine} in a {roomSize} room with {plural(report.room.doors, 'door')} and {plural(report.room.columns, 'column')}, checked item by item for fit, clearance and safe ways out.
           </p>
-        </section>
+          <div className="info-grid">
+            {[
+              ['Room', roomSize],
+              ['Ceiling', report.room.ceiling === undefined ? 'Not set' : `${formatMetres(report.room.ceiling)} m`],
+              ['Revision', <span data-testid="report-revision">{formatCount(report.revision)}</span>],
+              ['Floor area', formatSquareMetres(report.room.floorArea)],
+              ['Doors', formatCount(report.room.doors)],
+              ['Columns', formatCount(report.room.columns)],
+            ].map(([k, v]) => (
+              <div key={String(k)}>
+                <div className="k">{k}</div>
+                <div className="v">{v}</div>
+              </div>
+            ))}
+          </div>
+          <div className="contents">
+            {[
+              ['Plan', 'Layout seen from above', 2],
+              ['3D view', 'The room in perspective', 3],
+              ['Quantities', 'Bill of materials', 3],
+              ['Rules & issues', 'What to check before approval', 4],
+            ].map(([t, d, p]) => (
+              <div key={String(t)}>
+                <div className="t">{t}</div>
+                <div className="d">{d}</div>
+                <div className="p">Page {p}</div>
+              </div>
+            ))}
+          </div>
+          <span className="fill" />
+          <div className="cover-status">
+            <div>
+              <div className="k">Overall status</div>
+              <div className={`title ${verdict.tone}`} data-testid="report-verdict">
+                {verdict.tone === 'ok' ? <CheckCircle size={22} /> : verdict.tone === 'warning' ? <Warning size={22} /> : <XCircle size={22} />}
+                {verdict.title}
+              </div>
+              <div className="text">
+                {verdict.text} {report.counts.error > 0 || report.counts.warning > 0 ? `${plural(report.counts.error, 'error')} · ${plural(report.counts.warning, 'warning')}.` : ''}
+                {report.rules.some((r) => r.status === 'fail') ? ` ${plural(report.rules.filter((r) => r.status === 'fail').length, 'planning rule')} not met.` : ''}
+              </div>
+            </div>
+            <div className="cover-metrics">
+              {[
+                [<span data-testid="report-seats">{formatCount(report.totals.seats)}</span>, 'Seats'],
+                [formatCount(report.totals.items), 'Items'],
+                [formatSquareMetres(Math.round(report.room.floorArea)), 'Floor area'],
+                [report.totals.areaPerSeat === undefined ? '—' : formatSquareMetres(Math.round(report.totals.areaPerSeat * 100) / 100), 'Area per seat'],
+                [formatCount(report.room.doors), 'Exits'],
+                [formatLength(doorWidth), 'Door width'],
+              ].map(([v, k]) => (
+                <div key={String(k)}>
+                  <div className="v">{v}</div>
+                  <div className="k">{k}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="sheet-foot">
+            <span>Prepared with Atrium · {today}</span>
+            <span>1 / {PAGES}</span>
+          </div>
+        </article>
 
-        <section className="report-section" aria-label="الشكل المجسم">
-          <h2>الشكل المجسم</h2>
+        <article className="sheet" aria-label="Plan">
+          <div className="sheet-h">
+            <h2>Plan</h2>
+            <span>{roomSize} · north up</span>
+          </div>
+          <PlanDrawing project={project} issues={issues} keyOf={report.keyOf} width={900} height={620} />
+          <div className="legend">
+            <span>
+              <span className="sw" style={{ background: 'var(--ink)' }} />
+              Column
+            </span>
+            <span>
+              <span className="sw" style={{ border: '1px solid var(--ink)', borderRadius: '0 100% 0 0', borderLeft: 0, borderBottom: 0 }} />
+              Door swing
+            </span>
+            <span>
+              <span className="sw" style={{ border: '1.2px dashed var(--error)' }} />
+              Needs attention
+            </span>
+            <span>Numbers on items are their line in the bill of materials</span>
+          </div>
+          <span className="fill" />
+          <div className="keyline">
+            {[
+              ['Seats', formatCount(report.totals.seats)],
+              ['Items', formatCount(report.totals.items)],
+              ['Occupied floor', `${formatSquareMetres(Math.round(report.totals.occupiedArea * 100) / 100)} · ${formatPercent(report.totals.occupancy)}`],
+              ['Doors · columns', `${formatCount(report.room.doors)} · ${formatCount(report.room.columns)}`],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div className="k">{k}</div>
+                <div className="v">{v}</div>
+              </div>
+            ))}
+          </div>
+          <p className="muted" data-testid="report-room" style={{ marginTop: '4mm', fontSize: '9pt' }}>
+            Room {roomSize}; {report.room.ceiling === undefined ? 'ceiling height not given' : `ceiling ${formatMetres(report.room.ceiling)} m`}; {plural(report.room.doors, 'door')}; {plural(report.room.columns, 'column')}.
+          </p>
+          <Foot name={report.name} revision={report.revision} page={2} />
+        </article>
+
+        <article className="sheet" aria-label="3D view and quantities">
+          <div className="sheet-h">
+            <h2>3D view</h2>
+            <span>Perspective from the south · walls cut at 1.10 m</span>
+          </div>
           {picture === 'pending' ? (
-            <p className="muted">بيجهّز الصورة…</p>
+            <p className="muted" style={{ marginTop: '6mm' }}>
+              Drawing the picture…
+            </p>
           ) : picture ? (
-            <img src={picture} alt="صورة مجسمة للقاعة" className="report-picture" data-testid="report-picture" />
+            <img src={picture} alt="The room in 3D" className="report-picture" data-testid="report-picture" />
           ) : (
-            <p className="muted">المتصفح ده مش بيرسم مجسم؛ التقرير كامل من غير الصورة.</p>
+            <p className="muted" style={{ marginTop: '6mm' }}>
+              This browser cannot draw 3D; the rest of the report is complete.
+            </p>
           )}
-        </section>
-
-        <section className="report-section" aria-label="قائمة الكميات">
-          <h2>قائمة الكميات</h2>
+          <div className="sheet-h later">
+            <h2>Bill of materials</h2>
+            <span>
+              {plural(report.totals.items, 'piece')} · {plural(report.lines.length, 'type')}
+            </span>
+          </div>
           {report.lines.length === 0 ? (
-            <p className="muted">مفيش عناصر في التصميم لسه.</p>
+            <p className="muted" style={{ marginTop: '4mm' }}>
+              No items in the plan yet.
+            </p>
           ) : (
-            <table className="report-table" data-testid="report-bom">
+            <table className="bom-table" data-testid="report-bom">
               <thead>
                 <tr>
-                  <th>رقم</th>
-                  <th>الصنف</th>
-                  <th>المقاس (عرض × عمق × ارتفاع)</th>
-                  <th>العدد</th>
-                  <th>كراسي</th>
+                  <th>#</th>
+                  <th>Item</th>
+                  <th>Size (W × D × H)</th>
+                  <th className="r">Seats</th>
+                  <th className="r">Qty</th>
                 </tr>
               </thead>
               <tbody>
-                {report.lines.map((line) => (
-                  <tr key={line.definitionId}>
-                    <td>{formatCount(line.key)}</td>
-                    <td>{line.name}</td>
-                    <td>
-                      {formatLength(line.size.w)} × {formatLength(line.size.d)} × {formatLength(line.size.h)}
-                    </td>
-                    <td>{formatCount(line.count)}</td>
-                    <td>{line.seats > 0 ? formatCount(line.seats) : '—'}</td>
-                  </tr>
-                ))}
+                {report.lines.map((line) => {
+                  const category = project.catalog[line.definitionId]?.category;
+                  return (
+                    <tr key={line.definitionId}>
+                      <td className="key">{formatCount(line.key)}</td>
+                      <td>
+                        {line.name}
+                        {category && <span style={{ color: 'var(--ink-2)', fontSize: '9pt' }}> · {SHAPE_LABEL.get(shapeOf(category))}</span>}
+                      </td>
+                      <td className="size">
+                        {formatCentimetres(line.size.w)} × {formatCentimetres(line.size.d)} × {formatCentimetres(line.size.h)} cm
+                      </td>
+                      <td className="r">{line.seats > 0 ? formatCount(line.seats) : '—'}</td>
+                      <td className="r">{formatCount(line.count)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr>
                   <td />
-                  <td>الإجمالي</td>
+                  <td>Total</td>
                   <td />
-                  <td>{formatCount(report.totals.items)}</td>
-                  <td>{formatCount(report.totals.seats)}</td>
+                  <td className="r">{formatCount(report.totals.seats)}</td>
+                  <td className="r">{formatCount(report.totals.items)}</td>
                 </tr>
               </tfoot>
             </table>
           )}
-        </section>
+          <span className="fill" />
+          <Foot name={report.name} revision={report.revision} page={3} />
+        </article>
 
-        <section className="report-section" aria-label="المراجعة">
-          <h2>المراجعة</h2>
-          {report.issues.length === 0 ? (
-            <p>مفيش مشاكل.</p>
-          ) : (
-            <ul className="report-issues" data-testid="report-issues">
-              {report.issues.map((issue, i) => (
-                <li key={i} className={issue.severity}>
-                  <strong>
-                    {SEVERITY_WORD[issue.severity]}: {issue.title}
-                  </strong>{' '}
-                  {issue.text}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="report-section" aria-label="قواعد النشاط">
-          <h2>
-            قواعد {report.activity.label}: {report.activity.styleLabel}
-          </h2>
-          <ul className="report-issues" data-testid="report-rules">
+        <article className="sheet" aria-label="Rules and issues">
+          <div className="sheet-h">
+            <h2>Planning rules</h2>
+            <span>{kicker}</span>
+          </div>
+          <div data-testid="report-rules">
             {report.rules.map((rule) => (
-              <li key={rule.code} className={rule.status === 'fail' ? 'warning' : rule.status === 'pass' ? 'ok' : 'info'} data-rule={rule.code} data-status={rule.status}>
-                <strong>
-                  {rule.title}: {RULE_WORD[rule.status]}
-                </strong>{' '}
-                {rule.text}
-              </li>
+              <div key={rule.code} className={`report-rule ${rule.status}`} data-rule={rule.code} data-status={rule.status}>
+                {rule.status === 'pass' ? <Check size={15} /> : rule.status === 'fail' ? <XCircle size={15} /> : <Question size={15} />}
+                <span className="nm">
+                  {rule.title}
+                  {rule.status !== 'pass' && <span className="note">{rule.text}</span>}
+                </span>
+                <span className="sm">
+                  <span>Measured</span>
+                  {rule.measured}
+                </span>
+                <span className="sm">
+                  <span>Required</span>
+                  {rule.required}
+                </span>
+                <span className="st">{RULE_STATUS_WORD[rule.status]}</span>
+              </div>
             ))}
-          </ul>
-        </section>
-
-        <footer className="report-foot">
-          الفحص مبني على المقاسات المكتوبة في التصميم: التداخل، الحدود، فتحات الأبواب، الأعمدة، مساحة الاستخدام حوالين كل عنصر، وارتفاع السقف. قواعد النشاط
-          إرشادات تخطيط شائعة (الممرات بدقة ٥ سم). ده كله مش بديل عن اشتراطات الدفاع المدني أو مراجعة مهندس.
-        </footer>
-      </article>
+          </div>
+          {showIssues && (
+            <>
+              <div className="sheet-h later">
+                <h2>Issues requiring attention</h2>
+                <span>
+                  {plural(report.counts.error, 'error')} · {plural(report.counts.warning, 'warning')}
+                  {report.counts.info ? ` · ${formatCount(report.counts.info)} unknown` : ''}
+                </span>
+              </div>
+              {report.issues.length === 0 ? (
+                <p style={{ marginTop: '4mm' }}>No issues found.</p>
+              ) : (
+                <div data-testid="report-issues">
+                  {[...problems, ...unknown].map((issue, i) => (
+                    <div key={i} className={`report-issue ${issue.severity}`}>
+                      {issue.severity === 'error' ? <XCircle size={15} /> : issue.severity === 'warning' ? <Warning size={15} /> : <Question size={15} />}
+                      <div>
+                        <div className="t">{issue.headline}</div>
+                        <div className="w">
+                          {SEVERITY_WORD[issue.severity]} · {issue.title}
+                          {issue.where ? ` · ${issue.where}` : ''}
+                        </div>
+                        <div className="w" style={{ color: '#3d3a35' }}>
+                          {issue.text}
+                        </div>
+                      </div>
+                      <div className="amt">
+                        {issue.gap && <div className="gap">{issue.gap}</div>}
+                        {issue.need && <div style={{ color: 'var(--ink-2)', marginTop: '1mm' }}>Required: {issue.need.toLowerCase()}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          <span className="fill" />
+          <p className="report-note">
+            Checks use the sizes written in the plan: overlaps, the room's walls, door swings, columns, the free space each item needs, and the ceiling height. Planning rules follow the {report.activity.label.toLowerCase()} pack
+            (walkways measured to 5 cm). Missing data is reported as unknown, never as a pass. This is not a replacement for civil-defence approval or an engineer's review.
+          </p>
+          <Foot name={report.name} revision={report.revision} page={4} />
+        </article>
+      </div>
     </div>
   );
 }

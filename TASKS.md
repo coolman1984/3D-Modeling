@@ -1,5 +1,35 @@
 # TASKS
 
+## Done: R1 — Atrium redesign of the existing app (English UI)
+
+**Done means:**
+1. Every screen (editor shell, library, objects, space, precision, plan, 3D, split, inspector,
+   review + rules, history, AI Planner, status bar, projects, new-project flow, report, settings)
+   follows `design-reference/Atrium * v2.dc.html` closely: warm-neutral shell, serif headings,
+   thin borders, one blue accent, Phosphor light icons.
+2. All user-facing text is English (editor, starter packs, server summaries and agent messages).
+3. `packages/core` is untouched; commands, undo/redo, store, revisions and agent tools unchanged.
+4. Every existing function has a place (see `docs/redesign-audit.md`); nothing removed.
+5. `pnpm check` passes; browser journeys cover create, room, add, move/rotate, multi-select,
+   snapping, undo/redo, 2D/3D/split, review, rules, history + restore, AI planner, report, settings.
+6. Decision record 0007, README status, CLAUDE.md UI section updated.
+
+- [x] Audit + mapping (`docs/redesign-audit.md`)
+- [x] Dependencies: bundled fonts + Phosphor icons (decision 0007)
+- [x] Design tokens and base styles
+- [x] Editor shell: top bar, rail, left panels, workspace, inspector, status bar, toasts
+- [x] Plan canvas restyle (walls, doors with swing, columns, items, rulers, zoom control)
+- [x] 3D restyle + camera toolbar (orbit, top view, section, image)
+- [x] Review, rules, history (preview + restore), AI Planner
+- [x] Item type dialog
+- [x] Projects page + create dialog
+- [x] Report
+- [x] Settings
+- [x] English: editor messages, starter packs, server, launcher
+- [x] Tests updated (unit, server, browser) + new journeys; `pnpm check`
+- [x] Screenshots compared with the design; refine
+- [x] Docs: decision 0007, README, CLAUDE.md, commit, push
+
 ## Done: T4 — office pack, with no change to the core
 
 **Done means:**

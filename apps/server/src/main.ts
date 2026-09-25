@@ -46,8 +46,8 @@ async function main(): Promise<void> {
   }
   const url = `http://127.0.0.1:${port}`;
   writeFileSync(join(dataDir, 'server.json'), JSON.stringify({ url, pid: process.pid, startedAt: new Date().toISOString() }, null, 2));
-  console.log(`\n  مخطط المساحات شغّال: ${url}\n  البيانات محفوظة في: ${dataDir}\n  اقفل الشباك ده عشان توقف البرنامج.\n`);
-  if (!existsSync(staticDir)) console.log('  (الواجهة مش متبنية؛ شغّل ملف البداية أو pnpm build)');
+  console.log(`\n  Atrium is running: ${url}\n  Data is kept in: ${dataDir}\n  Close this window to stop the program.\n`);
+  if (!existsSync(staticDir)) console.log('  (The interface is not built; run the start file or pnpm build)');
   if (process.argv.includes('--open')) openBrowser(url);
 
   const shutdown = () => {

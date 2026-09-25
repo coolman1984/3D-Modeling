@@ -20,9 +20,9 @@ export interface HallStyleSpec {
 const cm = (v: number) => fromUnit(v, 'cm');
 
 export const HALL_STYLES: readonly HallStyleSpec[] = [
-  { id: 'banquet', label: 'عشاء أو فرح (ترابيزات)', areaPerGuest: 1.2, walkway: cm(90) },
-  { id: 'theatre', label: 'مسرح أو محاضرة (صفوف)', areaPerGuest: 0.7, walkway: cm(100) },
-  { id: 'classroom', label: 'فصل أو ورشة (ترابيزات صغيرة)', areaPerGuest: 1.6, walkway: cm(90) },
+  { id: 'banquet', label: 'Banquet · round tables', areaPerGuest: 1.2, walkway: cm(90) },
+  { id: 'theatre', label: 'Theatre · rows of chairs', areaPerGuest: 0.7, walkway: cm(100) },
+  { id: 'classroom', label: 'Classroom · workshop tables', areaPerGuest: 1.6, walkway: cm(90) },
 ];
 
 export function hallStyle(id: string | null | undefined): HallStyleSpec {

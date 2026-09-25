@@ -102,10 +102,13 @@ export function subscribe(handlers: LiveEvents): () => void {
 
 /** Who made a change, in words. */
 export function actorName(actor: string): string {
-  if (actor === 'human') return 'إنت';
+  if (actor === 'human') return 'You';
   if (actor === 'agent:claude-code') return 'Claude Code';
   if (actor === 'agent:codex') return 'Codex';
-  if (actor.startsWith('agent:api:')) return `واجهة ${actor.slice('agent:api:'.length)}`;
-  if (actor.startsWith('agent:')) return `وكيل (${actor.slice('agent:'.length)})`;
+  if (actor.startsWith('agent:api:')) return `${actor.slice('agent:api:'.length)} API`;
+  if (actor.startsWith('agent:')) return `Agent ${actor.slice('agent:'.length)}`;
   return actor;
 }
+
+/** True for changes made by an AI agent rather than a person. */
+export const isAgent = (actor: string) => actor.startsWith('agent:');

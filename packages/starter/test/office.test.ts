@@ -5,7 +5,7 @@ import { checkOffice, checkPack, detectPack, missingPackItems, newHall, newRoom,
 const m = (v: number) => fromUnit(v, 'm');
 
 /** An 8 × 6 m office (48 m²) with one 90 cm door centred on the south wall. */
-const office = () => newRoom('مكتب', 8, 6, 3, 'office');
+const office = () => newRoom('Office', 8, 6, 3, 'office');
 
 function place(project: Project, id: string, definitionId: string, x: number, y: number, rotation = 0): Project {
   const command: Command = { type: 'item.add', item: { id, definitionId, position: { x: m(x), y: m(y) }, rotation, locked: false } };
@@ -27,11 +27,11 @@ describe('office pack', () => {
     expect(Object.keys(p.catalog).sort()).toEqual(OFFICE_CATALOG.map((d) => d.id).sort());
     expect(validateProject(p)).toEqual([]);
     expect(detectPack(p)).toBe('office');
-    expect(detectPack(newHall('قاعة', 10, 8))).toBe('hall');
+    expect(detectPack(newHall('Hall', 10, 8))).toBe('hall');
     // A hall that also brought in the office items is still mostly a hall.
-    const both = { ...newHall('قاعة', 10, 8), catalog: { ...newHall('قاعة', 10, 8).catalog, ...office().catalog } };
+    const both = { ...newHall('Hall', 10, 8), catalog: { ...newHall('Hall', 10, 8).catalog, ...office().catalog } };
     expect(detectPack(both)).toBe('hall');
-    expect(missingPackItems(newHall('قاعة', 10, 8), 'office').map((d) => d.id)).not.toContain('sofa'); // shared item
+    expect(missingPackItems(newHall('Hall', 10, 8), 'office').map((d) => d.id)).not.toContain('sofa'); // shared item
   });
 
   it('every desk has a chair: 30 cm in front counts, 70 cm does not', () => {

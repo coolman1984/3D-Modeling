@@ -68,7 +68,7 @@ export class AgentRunner {
         label: agent.label,
         kind: 'cli' as const,
         available: Boolean(found),
-        detail: found ?? `مش لاقي البرنامج "${program}" على الجهاز`,
+        detail: found ?? `"${program}" is not installed on this computer`,
       };
     });
     const api = settings.api;
@@ -77,10 +77,10 @@ export class AgentRunner {
       ...cli,
       {
         id: 'api',
-        label: api.provider === 'anthropic' ? `واجهة Claude (${api.model})` : `واجهة متوافقة (${api.model})`,
+        label: api.provider === 'anthropic' ? `Anthropic API (${api.model})` : `Compatible API (${api.model})`,
         kind: 'api',
         available: configured,
-        detail: configured ? 'جاهز' : 'محتاج مفتاح أو عنوان في الإعدادات',
+        detail: configured ? 'Ready' : 'Needs a key or an address in Settings',
       },
     ];
   }
@@ -96,7 +96,7 @@ export class AgentRunner {
     const run = store.createRun(projectId, agentId, specification);
     const log = (line: string) => store.appendRunLog(run.id, line);
     const timeout = setTimeout(() => {
-      log(`اتوقف بعد ${settings.timeoutMinutes} دقيقة.`);
+      log(`Stopped after ${settings.timeoutMinutes} minutes.`);
       this.stop(run.id);
     }, settings.timeoutMinutes * 60_000);
     const finish = (status: 'done' | 'failed' | 'stopped') => {
@@ -125,7 +125,7 @@ export class AgentRunner {
       })
         .then((status) => finish(stopped ? 'stopped' : status))
         .catch((error: unknown) => {
-          log(`خطأ: ${error instanceof Error ? error.message : String(error)}`);
+          log(`Error: ${error instanceof Error ? error.message : String(error)}`);
           finish(stopped ? 'stopped' : 'failed');
         });
       return run;
@@ -133,7 +133,7 @@ export class AgentRunner {
 
     const agent: CliAgentSettings | undefined = settings.agents[agentId];
     if (!agent || agent.command.length === 0) {
-      log(`الوكيل "${agentId}" مش متعرّف في الإعدادات.`);
+      log(`The agent "${agentId}" is not set up in Settings.`);
       finish('failed');
       return store.getRun(run.id) ?? run;
     }
@@ -165,7 +165,7 @@ export class AgentRunner {
     const [program, ...rawArgs] = agent.command.map(fill);
     const resolved = findProgram(program!);
     if (!resolved) {
-      log(`مش لاقي "${program}" على الجهاز. ثبّته أو عدّل الأمر في الإعدادات.`);
+      log(`"${program}" is not installed on this computer. Install it or change the command in Settings.`);
       finish('failed');
       return store.getRun(run.id) ?? run;
     }
@@ -181,7 +181,7 @@ export class AgentRunner {
         windowsHide: true,
       });
     } catch (error) {
-      log(`تعذر التشغيل: ${error instanceof Error ? error.message : String(error)}`);
+      log(`Could not start: ${error instanceof Error ? error.message : String(error)}`);
       finish('failed');
       return store.getRun(run.id) ?? run;
     }
@@ -213,7 +213,7 @@ export class AgentRunner {
       if (readable) log(readable);
     });
     lines(child.stderr, (line) => log(`⚠ ${line}`));
-    child.on('error', (error) => log(`تعذر التشغيل: ${error.message}`));
+    child.on('error', (error) => log(`Could not start: ${error.message}`));
     child.on('close', (code) => finish(stopped ? 'stopped' : code === 0 ? 'done' : 'failed'));
     child.stdin?.on('error', () => undefined);
     if (agent.promptOnStdin) child.stdin?.end(prompt);
@@ -251,6 +251,6 @@ export function readableAgentLine(line: string): string | null {
     );
     return parts.filter(Boolean).join('\n') || null;
   }
-  if (event.type === 'result') return event.subtype === 'success' ? '✔ خلص' : `✖ ${event.subtype ?? 'انتهى'}`;
+  if (event.type === 'result') return event.subtype === 'success' ? '✔ Done' : `✖ ${event.subtype ?? 'ended'}`;
   return null;
 }

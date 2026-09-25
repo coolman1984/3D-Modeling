@@ -32,8 +32,8 @@ describe('client report', () => {
       [2, 'table-180', 1, 0],
     ]);
     expect(r.rules.map((x) => `${x.code} ${x.status}`)).toEqual(['walkway pass', 'area-per-guest pass', 'exits pass', 'door-width pass']);
-    expect(r.rules[1]!.text).toBe('نصيب الضيف ١٩٫٩٦ م² من الأرض، والمطلوب ١٫٢ م² على الأقل.');
-    expect(buildReport(p, { pack: 'hall', style: 'theatre' }).activity.styleLabel).toBe('مسرح أو محاضرة (صفوف)');
+    expect(r.rules[1]!.text).toBe('Each guest has 19.96 m² of floor; at least 1.2 m² is needed.');
+    expect(buildReport(p, { pack: 'hall', style: 'theatre' }).activity.styleLabel).toBe('Theatre · rows of chairs');
         expect(r.keyOf).toEqual({ 'table-1': 2, 'chair-1': 1, 'chair-2': 1, 'chair-3': 1, 'chair-4': 1 });
   });
 
@@ -41,8 +41,16 @@ describe('client report', () => {
     const blocked = place(demoHall(), 'chair-1', 'chair', 5, 3.7); // on the column
     const r = buildReport(blocked);
     expect(r.verdict).toBe('problems');
-    expect(r.issues[0]).toEqual({ severity: 'error', title: 'فوق عمود أو منطقة ممنوعة', text: 'كرسي (chair-1) فوق العمود (column-1) بمقدار ١٢٫٥ سم.' });
-    const noCeiling = place(newHall('بدون سقف', 10, 8), 'chair-1', 'chair', 5, 5);
+    expect(r.issues[0]).toEqual({
+      severity: 'error',
+      title: 'On a column or blocked zone',
+      text: 'Banquet chair (chair-1) sits on Column (column-1) by 12.5 cm. Move it clear.',
+      headline: 'Banquet chair sits on column',
+      where: 'chair-1, column-1',
+      gap: '12.5 cm over it',
+      need: 'Clear of columns',
+    });
+    const noCeiling = place(newHall('No ceiling', 10, 8), 'chair-1', 'chair', 5, 5);
     expect(buildReport(noCeiling).verdict).toBe('check');
     expect(buildReport(noCeiling).counts).toEqual({ error: 0, warning: 0, info: 1 });
     expect(buildReport(noCeiling).totals.areaPerSeat).toBe(80);
@@ -60,7 +68,7 @@ describe('client report', () => {
     const r = buildReport(p);
     expect(r.counts.error).toBe(0);
     expect(r.rules[0]).toMatchObject({ code: 'walkway', status: 'fail', severity: 'warning' });
-    expect(r.rules[0]!.text).toBe('١ مالهمش ممر عرضه ٩٠ سم لباب: كرسي (chair-1). وسّع الممر أو شيل اللي سادده.');
+    expect(r.rules[0]!.text).toBe('1 seat has no 90 cm walkway to a door: Banquet chair (chair-1). Widen the walkway or move what blocks it.');
   });
 });
 
@@ -68,7 +76,7 @@ describe('activity of a project', () => {
   it('is read from the catalog when none was chosen, and a style must belong to its pack', async () => {
     const { activityOf, loadActivity } = await import('../src/logic/activity.js');
     const { newRoom } = await import('@space-planner/starter');
-    expect(loadActivity(newRoom('مكتب', 8, 6, 3, 'office'))).toEqual({ pack: 'office', style: 'open-plan' });
+    expect(loadActivity(newRoom('Office', 8, 6, 3, 'office'))).toEqual({ pack: 'office', style: 'open-plan' });
     expect(loadActivity(demoHall())).toEqual({ pack: 'hall', style: 'banquet' });
     expect(activityOf('office', 'theatre')).toEqual({ pack: 'office', style: 'open-plan' });
     expect(activityOf('mall', 'meeting')).toEqual({ pack: 'hall', style: 'banquet' });
@@ -76,12 +84,12 @@ describe('activity of a project', () => {
 
   it('an office report checks desks and names the pack and style', async () => {
     const { newRoom } = await import('@space-planner/starter');
-    let p = place(newRoom('مكتب', 8, 6, 3, 'office'), 'desk-140-1', 'desk-140', 2, 3);
+    let p = place(newRoom('Office', 8, 6, 3, 'office'), 'desk-140-1', 'desk-140', 2, 3);
     const r = buildReport(p, { pack: 'office', style: 'meeting' });
-    expect(r.activity).toEqual({ pack: 'office', label: 'مكتب', style: 'meeting', styleLabel: 'غرفة اجتماعات' });
+    expect(r.activity).toEqual({ pack: 'office', label: 'Office', style: 'meeting', styleLabel: 'Meeting room' });
     expect(r.rules.map((x) => `${x.code} ${x.status}`)).toEqual(['walkway unknown', 'area-per-person unknown', 'workstations fail', 'exits unknown', 'door-width unknown']);
-    expect(r.rules[2]!.text).toBe('١ من ١ مكتب من غير كرسي قريب: مكتب ١٤٠×٧٠ (desk-140-1).');
+    expect(r.rules[2]!.text).toBe('The desk has no chair nearby: Desk 140 × 70 (desk-140-1).');
     p = place(p, 'office-chair-1', 'office-chair', 2, 3.65, 180_000);
-    expect(buildReport(p, { pack: 'office', style: 'meeting' }).rules[2]!.text).toBe('كل المكاتب (١) ليها كرسي قدامها.');
+    expect(buildReport(p, { pack: 'office', style: 'meeting' }).rules[2]!.text).toBe('The desk has a chair.');
   });
 });

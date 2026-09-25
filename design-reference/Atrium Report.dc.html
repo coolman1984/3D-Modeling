@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Newsreader:opsz,wght@6..72,300..600&display=swap" rel="stylesheet">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+html,body{margin:0;background:#e9e7e1}*{box-sizing:border-box}
+a{color:#2b54d0;text-decoration:none}a:hover{color:#1d3c9e}
+button{font:inherit;cursor:pointer}
+@page{size:A4;margin:0}
+@media print{html,body{background:#fff}[data-noprint]{display:none!important}[data-page]{margin:0!important;box-shadow:none!important;break-after:page}[data-sheets]{padding:0!important;gap:0!important}}
+</style>
+</helmet>
+<div style="min-height:100vh;color:#1a1917;font-family:Geist,'Helvetica Neue',Helvetica,sans-serif;-webkit-font-smoothing:antialiased;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+  <div data-noprint="1" style="position:sticky;top:0;z-index:5;height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:#fbfaf8;border-bottom:1px solid #e6e3dc;font-size:13px">
+    <a href="Atrium%20Editor.dc.html" style="display:flex;align-items:center;gap:6px;color:#1a1917"><iconify-icon icon="lucide:chevron-left" width="16"></iconify-icon>Back to plan</a>
+    <span style="color:#c9c5bc">/</span>
+    <span style="font-weight:500">Client report</span>
+    <span style="color:#5e5a52">· Revision 42 · 4 pages · A4</span>
+    <span style="flex:1"></span>
+    <label style="display:flex;align-items:center;gap:8px;color:#5e5a52"><input type="checkbox" checked="{{ showIssues }}" onChange="{{ toggleIssues }}">Include issues</label>
+    <button onClick="{{ print }}" style="height:34px;padding:0 14px;border:0;background:#1a1917;color:#fff;border-radius:4px;font-size:13px;display:flex;align-items:center;gap:8px"><iconify-icon icon="lucide:printer" width="15"></iconify-icon>Print or save PDF</button>
+  </div>
+
+  <div data-sheets="1" style="display:flex;flex-direction:column;align-items:center;gap:28px;padding:36px 20px 60px">
+
+    <!-- Page 1 -->
+    <section data-page="1" data-screen-label="01 Cover" style="width:210mm;height:297mm;background:#fff;box-shadow:0 1px 3px rgba(26,25,23,.08),0 10px 30px rgba(26,25,23,.06);padding:22mm 20mm 16mm;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;font-size:10pt">
+        <span style="width:16px;height:16px;border:1.4px solid #1a1917;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#1a1917"></span></span>
+        <span style="font-family:Newsreader,Georgia,serif;font-size:14pt">Atrium</span>
+        <span style="flex:1"></span><span style="color:#5e5a52">Client report · 25 September 2026</span>
+      </div>
+      <div style="margin-top:42mm;font-size:9pt;letter-spacing:.12em;text-transform:uppercase;color:#5e5a52">Event hall · Wedding banquet</div>
+      <h1 style="margin:5mm 0 0;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:44pt;line-height:1.02;letter-spacing:-.02em">Al Noor Wedding<br>Grand Hall</h1>
+      <p style="margin:7mm 0 0;max-width:120mm;font-size:12pt;line-height:1.5;color:#3d3a35;text-wrap:pretty">A seated plan for 120 guests around a central dance floor, with the stage on the north wall and the buffet along the south wall.</p>
+      <div style="margin-top:14mm;display:grid;grid-template-columns:repeat(3,1fr);border-top:1.2px solid #1a1917">
+        <sc-for list="{{ info }}" as="i"><div style="padding:4mm 0 4mm;border-bottom:1px solid #e3e0d8"><div style="font-size:8.5pt;color:#5e5a52;letter-spacing:.06em;text-transform:uppercase">{{ i.k }}</div><div style="font-size:11.5pt;margin-top:1.5mm">{{ i.v }}</div></div></sc-for>
+      </div>
+      <span style="flex:1"></span>
+      <div style="display:grid;grid-template-columns:62mm 1fr;gap:10mm;padding:7mm 0;border-top:1.2px solid #1a1917;border-bottom:1px solid #e3e0d8">
+        <div>
+          <div style="font-size:8.5pt;letter-spacing:.06em;text-transform:uppercase;color:#5e5a52">Overall status</div>
+          <div style="display:flex;align-items:center;gap:2.5mm;margin-top:3mm;font-family:Newsreader,Georgia,serif;font-size:20pt;color:{{ status.fg }}"><iconify-icon icon="{{ status.icon }}" style="font-size:16pt"></iconify-icon>{{ status.title }}</div>
+          <div style="margin-top:2mm;font-size:10pt;line-height:1.45;color:#3d3a35">{{ status.text }}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6mm 4mm">
+          <sc-for list="{{ metrics }}" as="m"><div><div style="font-family:Newsreader,Georgia,serif;font-size:22pt;line-height:1">{{ m.v }}</div><div style="font-size:9pt;color:#5e5a52;margin-top:1.5mm">{{ m.k }}</div></div></sc-for>
+        </div>
+      </div>
+      <div style="display:flex;margin-top:5mm;font-size:8.5pt;color:#8b867c"><span style="flex:1">Prepared by Karim Hassan · Al Noor Events</span><span>1 / 4</span></div>
+    </section>
+
+    <!-- Page 2: plan -->
+    <section data-page="2" data-screen-label="02 Plan" style="width:210mm;height:297mm;background:#fff;box-shadow:0 1px 3px rgba(26,25,23,.08),0 10px 30px rgba(26,25,23,.06);padding:18mm 20mm 16mm;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:baseline;border-bottom:1.2px solid #1a1917;padding-bottom:3mm"><h2 style="margin:0;flex:1;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:24pt">Plan</h2><span style="font-size:9.5pt;color:#5e5a52">Scale 1:150 · Level 0 · 24.00 × 16.00 m</span></div>
+      <div style="margin:16mm 6mm 0;position:relative;aspect-ratio:3/2;container-type:inline-size;background:#fff;background-image:linear-gradient(to right, rgba(26,25,23,.06) 1px, transparent 1px),linear-gradient(to bottom, rgba(26,25,23,.06) 1px, transparent 1px);background-size:calc(100% / 24) calc(100% / 16)">
+        <sc-for list="{{ pl.clears }}" as="c"><div style="position:absolute;left:{{ c.l }}%;top:{{ c.t }}%;width:{{ c.w }}%;height:{{ c.h }}%;background-image:repeating-linear-gradient(45deg, rgba(26,25,23,.08) 0 1px, transparent 1px 5px)"></div></sc-for>
+        <div style="position:absolute;left:-.9cqw;right:-.9cqw;top:-.9cqw;height:.9cqw;background:#1a1917"></div>
+        <div style="position:absolute;left:-.9cqw;right:-.9cqw;bottom:-.9cqw;height:.9cqw;background:#1a1917"></div>
+        <div style="position:absolute;left:-.9cqw;top:0;bottom:0;width:.9cqw;background:#1a1917"></div>
+        <div style="position:absolute;right:-.9cqw;top:0;bottom:0;width:.9cqw;background:#1a1917"></div>
+        <sc-for list="{{ pl.doors }}" as="d">
+          <div style="position:absolute;left:{{ d.glS }};top:{{ d.gtS }};width:{{ d.gwS }};height:{{ d.ghS }};background:#fff"></div>
+          <div style="position:absolute;left:{{ d.l }}%;top:{{ d.t }}%;width:{{ d.w }}%;height:{{ d.h }}%;border-left:{{ d.leafL }};border-top:{{ d.leafT }};border-right:{{ d.arcR }};border-bottom:{{ d.arcB }};border-radius:{{ d.rad }}"></div>
+        </sc-for>
+        <sc-for list="{{ pl.cols }}" as="c"><div style="position:absolute;left:{{ c.l }}%;top:{{ c.t }}%;width:{{ c.w }}%;height:{{ c.h }}%;background:#1a1917"></div></sc-for>
+        <sc-for list="{{ pl.seats }}" as="s"><div style="position:absolute;left:{{ s.l }}%;top:{{ s.t }}%;width:{{ s.w }}%;height:{{ s.h }}%;border:{{ s.bd }};background:{{ s.bg }};border-radius:2px 2px 30% 30%;transform:rotate({{ s.a }}deg)"></div></sc-for>
+        <sc-for list="{{ pl.shapes }}" as="it"><div style="position:absolute;left:{{ it.l }}%;top:{{ it.t }}%;width:{{ it.w }}%;height:{{ it.h }}%;background:{{ it.bg }};border:{{ it.bd }};border-radius:{{ it.r }};display:flex;align-items:center;justify-content:center;color:{{ it.fg }};font-size:1.1cqw">{{ it.label }}</div></sc-for>
+        <sc-for list="{{ pl.badges }}" as="b"><span style="position:absolute;left:{{ b.l }}%;top:{{ b.t }}%;transform:translate(-40%,-60%);width:1.7cqw;height:1.7cqw;border-radius:50%;background:{{ b.bg }};border:1.2px solid {{ b.bd }};color:{{ b.fg }};display:flex;align-items:center;justify-content:center"><iconify-icon icon="{{ b.icon }}" style="font-size:1.1cqw"></iconify-icon></span></sc-for>
+      </div>
+      <div style="margin:12mm 6mm 0;display:flex;align-items:center;gap:8mm;font-size:9pt;color:#3d3a35;flex-wrap:wrap">
+        <span style="display:flex;align-items:center;gap:2mm"><span style="width:14mm;height:2mm;border:1px solid #1a1917;border-top:0"></span>2 m</span>
+        <span style="display:flex;align-items:center;gap:2mm"><span style="width:4mm;height:4mm;background:#1a1917"></span>Column</span>
+        <span style="display:flex;align-items:center;gap:2mm"><span style="width:5mm;height:4mm;background-image:repeating-linear-gradient(45deg, rgba(26,25,23,.3) 0 1px, transparent 1px 3px)"></span>Clearance zone</span>
+        <span style="display:flex;align-items:center;gap:2mm"><span style="width:4mm;height:4mm;border:1.2px dashed #b93a2e"></span>Needs attention</span>
+        <span>N ↑</span>
+      </div>
+      <span style="flex:1"></span>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;border-top:1px solid #e3e0d8;padding-top:4mm">
+        <sc-for list="{{ keyline }}" as="k"><div><div style="font-size:8.5pt;color:#5e5a52">{{ k.k }}</div><div style="font-size:11pt;margin-top:1mm">{{ k.v }}</div></div></sc-for>
+      </div>
+      <div style="display:flex;margin-top:5mm;font-size:8.5pt;color:#8b867c"><span style="flex:1">Al Noor Wedding · Grand Hall · Revision 42</span><span>2 / 4</span></div>
+    </section>
+
+    <!-- Page 3: 3D + BOM -->
+    <section data-page="3" data-screen-label="03 3D and quantities" style="width:210mm;height:297mm;background:#fff;box-shadow:0 1px 3px rgba(26,25,23,.08),0 10px 30px rgba(26,25,23,.06);padding:18mm 20mm 16mm;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:baseline;border-bottom:1.2px solid #1a1917;padding-bottom:3mm"><h2 style="margin:0;flex:1;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:24pt">3D view</h2><span style="font-size:9.5pt;color:#5e5a52">Perspective from the south-west · section at 1.20 m</span></div>
+      <div style="position:relative;height:98mm;margin-top:6mm;background:linear-gradient(#f7f6f2,#ebe9e3);overflow:hidden">
+        <div style="position:absolute;inset:0;perspective:3400px;perspective-origin:50% 30%">
+          <div style="position:absolute;left:50%;top:52%;width:960px;height:640px;margin:-320px 0 0 -480px;transform-style:preserve-3d;transform:scale(.5) rotateX(58deg) rotateZ(-38deg)">
+            <div style="position:absolute;inset:0;background:#f7f6f2;box-shadow:0 0 0 1px #d9d5cc"></div>
+            <sc-for list="{{ sc.discs }}" as="c"><div style="position:absolute;left:{{ c.l }}px;top:{{ c.t }}px;width:{{ c.w }}px;height:{{ c.w }}px;border-radius:50%;background:rgba(26,25,23,.10);transform-style:preserve-3d"><div style="position:absolute;inset:0;border-radius:50%;background:{{ c.top }};border:{{ c.bd }};transform:{{ c.zt }}"></div></div></sc-for>
+            <sc-for list="{{ sc.boxes }}" as="b"><div style="position:absolute;left:{{ b.l }}px;top:{{ b.t }}px;width:{{ b.w }}px;height:{{ b.h }}px;transform-style:preserve-3d"><div style="position:absolute;inset:0;background:{{ b.top }};transform:{{ b.zt }}"></div><div style="position:absolute;left:0;top:100%;width:100%;height:{{ b.z }}px;background:{{ b.frontC }};transform-origin:top center;transform:rotateX(90deg)"></div><div style="position:absolute;left:{{ b.sl }};right:{{ b.sr }};top:0;width:{{ b.z }}px;height:100%;background:{{ b.sideC }};transform-origin:{{ b.so }};transform:{{ b.st }}"></div></div></sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:baseline;border-bottom:1.2px solid #1a1917;padding-bottom:3mm;margin-top:12mm"><h2 style="margin:0;flex:1;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:24pt">Bill of materials</h2><span style="font-size:9.5pt;color:#5e5a52">{{ bomTotal }}</span></div>
+      <div style="display:grid;grid-template-columns:1fr 34mm 18mm;font-size:8.5pt;letter-spacing:.06em;text-transform:uppercase;color:#5e5a52;padding:3mm 0 2mm;border-bottom:1px solid #e3e0d8"><span>Item</span><span>Size</span><span style="text-align:right">Qty</span></div>
+      <sc-for list="{{ bom }}" as="b"><div style="display:grid;grid-template-columns:1fr 34mm 18mm;font-size:10.5pt;padding:2.6mm 0;border-bottom:1px solid #efece6"><span>{{ b.name }}<span style="color:#5e5a52;font-size:9pt"> · {{ b.cat }}</span></span><span style="color:#3d3a35;font-variant-numeric:tabular-nums">{{ b.size }}</span><span style="text-align:right;font-variant-numeric:tabular-nums">{{ b.n }}</span></div></sc-for>
+      <span style="flex:1"></span>
+      <div style="display:flex;margin-top:5mm;font-size:8.5pt;color:#8b867c"><span style="flex:1">Al Noor Wedding · Grand Hall · Revision 42</span><span>3 / 4</span></div>
+    </section>
+
+    <!-- Page 4: rules + issues -->
+    <section data-page="4" data-screen-label="04 Rules and issues" style="width:210mm;height:297mm;background:#fff;box-shadow:0 1px 3px rgba(26,25,23,.08),0 10px 30px rgba(26,25,23,.06);padding:18mm 20mm 16mm;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:baseline;border-bottom:1.2px solid #1a1917;padding-bottom:3mm"><h2 style="margin:0;flex:1;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:24pt">Planning rules</h2><span style="font-size:9.5pt;color:#5e5a52">Event hall · Wedding banquet</span></div>
+      <sc-for list="{{ rules }}" as="r">
+        <div style="display:grid;grid-template-columns:6mm 1fr 30mm 30mm 20mm;gap:3mm;align-items:baseline;padding:3.4mm 0;border-bottom:1px solid #efece6;font-size:10.5pt">
+          <iconify-icon icon="{{ r.icon }}" style="color:{{ r.fg }};font-size:11pt"></iconify-icon>
+          <span style="font-weight:{{ r.fw }}">{{ r.name }}</span>
+          <span style="color:#3d3a35;font-size:9.5pt"><span style="display:block;color:#8b867c;font-size:8pt">Measured</span>{{ r.measured }}</span>
+          <span style="color:#3d3a35;font-size:9.5pt"><span style="display:block;color:#8b867c;font-size:8pt">Required</span>{{ r.required }}</span>
+          <span style="text-align:right;color:{{ r.fg }};font-size:9.5pt;font-weight:500">{{ r.status }}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ showIssues }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:baseline;border-bottom:1.2px solid #1a1917;padding-bottom:3mm;margin-top:14mm"><h2 style="margin:0;flex:1;font-family:Newsreader,Georgia,serif;font-weight:400;font-size:24pt">Issues requiring attention</h2><span style="font-size:9.5pt;color:#5e5a52">{{ issueCount }}</span></div>
+        <sc-for list="{{ issues }}" as="f">
+          <div style="display:grid;grid-template-columns:6mm 1fr 44mm;gap:3mm;padding:4mm 0;border-bottom:1px solid #efece6;break-inside:avoid">
+            <iconify-icon icon="{{ f.icon }}" style="color:{{ f.fg }};font-size:11pt;margin-top:.6mm"></iconify-icon>
+            <div>
+              <div style="font-size:11pt;font-weight:500">{{ f.title }}</div>
+              <div style="font-size:9.5pt;color:#5e5a52;margin-top:1mm">{{ f.sevLabel }} · {{ f.where }}</div>
+              <div style="font-size:9.5pt;color:#3d3a35;margin-top:1.5mm">{{ f.fix }}</div>
+            </div>
+            <div style="font-size:9.5pt;text-align:right"><div style="color:{{ f.fg }};font-weight:500">{{ f.gap }}</div><div style="color:#5e5a52;margin-top:1mm">Required {{ f.need }}</div></div>
+          </div>
+        </sc-for>
+      </sc-if>
+      <span style="flex:1"></span>
+      <p style="font-size:8.5pt;color:#8b867c;line-height:1.5;margin:0 0 4mm;max-width:140mm">Checks follow the Event hall rule pack. Missing data is reported as unknown, never as a pass. Measurements are taken from the saved revision shown in the footer.</p>
+      <div style="display:flex;font-size:8.5pt;color:#8b867c"><span style="flex:1">Al Noor Wedding · Grand Hall · Revision 42</span><span>4 / 4</span></div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const ERR = '#b93a2e', WARN = '#9a6400', OK = '#2d7446';
+class Component extends DCLogic {
+  state = { lib: null, showIssues: true };
+  componentDidMount() { import(new URL('./atrium-data.js', document.baseURI).href).then((lib) => this.setState({ lib })); }
+  renderVals() {
+    const { lib } = this.state;
+    const items = lib ? lib.ITEMS : [];
+    const findings = lib ? lib.check(items) : [];
+    const errors = findings.filter((f) => f.sev === 'error');
+    const pl = lib ? lib.plan(items, [], findings) : { clears: [], doors: [], cols: [], seats: [], shapes: [], badges: [] };
+    const sc = lib ? lib.scene(items, [], [], -38) : { boxes: [], discs: [] };
+    const bm = {};
+    items.forEach((i) => { const t = lib.TYPES[i.t]; bm[t.name] = bm[t.name] || { name: t.name, cat: t.cat, size: `${t.w} × ${t.d} cm`, n: 0 }; bm[t.name].n++; });
+    const seats = items.filter((i) => i.t === 'rt180').length * 10;
+    const bom = lib ? [...Object.values(bm).slice(0, 3), { name: 'Banquet chair', cat: 'Seating', size: '44 × 44 cm', n: seats }, ...Object.values(bm).slice(3)] : [];
+    return {
+      info: [['Client', 'Al Noor Events'], ['Venue', 'Grand Hall, level 0'], ['Event date', '14 November 2026'], ['Room', '24.00 × 16.00 m'], ['Ceiling', '4.50 m'], ['Revision', '42 · today 08:02']].map(([k, v]) => ({ k, v })),
+      status: errors.length ? { fg: ERR, icon: 'lucide:circle-x', title: 'Needs attention', text: `${errors.length} errors must be fixed before approval. ${findings.length - errors.length} warnings are listed on page 4.` } : { fg: OK, icon: 'lucide:circle-check', title: 'Ready to approve', text: 'All checks pass.' },
+      metrics: [['120', 'Guests'], ['12', 'Tables'], ['384 m²', 'Floor area'], ['3.20 m²', 'Area per guest'], ['3', 'Exits'], ['5.60 m', 'Door width']].map(([v, k]) => ({ v, k })),
+      pl, sc, bom, bomTotal: `${bom.reduce((a, b) => a + b.n, 0)} pieces · ${bom.length} types`,
+      keyline: [['Seats', '120'], ['Walkway, narrowest', '96 cm'], ['Stage', '9 × 3 m, north wall'], ['Dance floor', '5 × 5 m, centred']].map(([k, v]) => ({ k, v })),
+      rules: [
+        { name: 'Walkway from every seat to an exit', measured: '96 cm', required: '120 cm', pass: false },
+        { name: 'Floor area per guest', measured: '3.20 m²', required: '1.40 m²', pass: true },
+        { name: 'Number of exits', measured: '3', required: '2', pass: true },
+        { name: 'Total door width', measured: '5.60 m', required: '2.40 m', pass: true },
+        { name: 'Items fit under the ceiling', measured: '1.10 m tallest', required: '4.50 m', pass: true },
+      ].map((r) => ({ ...r, icon: r.pass ? 'lucide:check' : 'lucide:circle-x', fg: r.pass ? OK : ERR, status: r.pass ? 'Passes' : 'Fails', fw: r.pass ? 400 : 500 })),
+      issues: findings.map((f) => ({ ...f, icon: f.sev === 'error' ? 'lucide:circle-x' : 'lucide:triangle-alert', fg: f.sev === 'error' ? ERR : WARN, sevLabel: f.sev === 'error' ? 'Error' : 'Warning' })),
+      issueCount: `${errors.length} errors · ${findings.length - errors.length} warnings`,
+      showIssues: this.state.showIssues, toggleIssues: () => this.setState({ showIssues: !this.state.showIssues }), print: () => window.print(),
+    };
+  }
+}
+</script>
+</body>
+</html>

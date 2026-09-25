@@ -20,7 +20,7 @@ export interface ApiAgentRun {
 /** Runs a tool-use loop against the configured API until the model stops calling tools. */
 export async function runApiAgent(run: ApiAgentRun): Promise<'done' | 'failed'> {
   if (!run.settings.apiKey && run.settings.provider === 'anthropic' && !process.env.ANTHROPIC_API_KEY) {
-    run.log('لم يتم ضبط مفتاح الخدمة. افتح الإعدادات وأضف المفتاح.');
+    run.log('No API key is set. Open Settings and add the key.');
     return 'failed';
   }
   return run.settings.provider === 'anthropic' ? runAnthropic(run) : runOpenAiCompatible(run);
@@ -61,10 +61,10 @@ async function runAnthropic(run: ApiAgentRun): Promise<'done' | 'failed'> {
       );
     } catch (error) {
       if (run.signal.aborted) return 'failed';
-      if (error instanceof Anthropic.AuthenticationError) run.log('المفتاح مرفوض من الخدمة (تأكد منه في الإعدادات).');
-      else if (error instanceof Anthropic.RateLimitError) run.log('الخدمة مشغولة أو الحد اتخطى؛ جرّب بعد شوية.');
-      else if (error instanceof Anthropic.APIError) run.log(`خطأ من الخدمة ${error.status ?? ''}: ${error.message}`);
-      else run.log(`تعذر الاتصال بالخدمة: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof Anthropic.AuthenticationError) run.log('The service rejected the key (check it in Settings).');
+      else if (error instanceof Anthropic.RateLimitError) run.log('The service is busy or the limit was reached; try again shortly.');
+      else if (error instanceof Anthropic.APIError) run.log(`Service error ${error.status ?? ''}: ${error.message}`);
+      else run.log(`Could not reach the service: ${error instanceof Error ? error.message : String(error)}`);
       return 'failed';
     }
 
@@ -73,11 +73,11 @@ async function runAnthropic(run: ApiAgentRun): Promise<'done' | 'failed'> {
     }
 
     if (response.stop_reason === 'refusal') {
-      run.log('النموذج رفض يكمل الطلب ده.');
+      run.log('The model declined this request.');
       return 'failed';
     }
     if (response.stop_reason === 'max_tokens') {
-      run.log('الرد وقف لأنه طويل جدًا.');
+      run.log('The reply stopped because it was too long.');
       return 'failed';
     }
     if (response.stop_reason === 'pause_turn') {
@@ -96,7 +96,7 @@ async function runAnthropic(run: ApiAgentRun): Promise<'done' | 'failed'> {
     });
     messages.push({ role: 'user', content: results });
   }
-  run.log('وصل لأقصى عدد خطوات ووقف.');
+  run.log('Reached the step limit and stopped.');
   return 'failed';
 }
 
@@ -111,7 +111,7 @@ interface ChatMessage {
 async function runOpenAiCompatible(run: ApiAgentRun): Promise<'done' | 'failed'> {
   const { settings } = run;
   if (!settings.baseUrl) {
-    run.log('اكتب عنوان الخدمة في الإعدادات (مثال: http://localhost:11434/v1).');
+    run.log('Enter the service address in Settings (for example http://localhost:11434/v1).');
     return 'failed';
   }
   const url = `${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -129,17 +129,17 @@ async function runOpenAiCompatible(run: ApiAgentRun): Promise<'done' | 'failed'>
       });
       body = (await response.json()) as typeof body;
       if (!response.ok) {
-        run.log(`خطأ من الخدمة ${response.status}: ${body.error?.message ?? ''}`);
+        run.log(`Service error ${response.status}: ${body.error?.message ?? ''}`);
         return 'failed';
       }
     } catch (error) {
       if (run.signal.aborted) return 'failed';
-      run.log(`تعذر الاتصال بالخدمة: ${error instanceof Error ? error.message : String(error)}`);
+      run.log(`Could not reach the service: ${error instanceof Error ? error.message : String(error)}`);
       return 'failed';
     }
     const message = body.choices?.[0]?.message;
     if (!message) {
-      run.log('رد غير مفهوم من الخدمة.');
+      run.log('The service sent a reply that could not be read.');
       return 'failed';
     }
     if (message.content?.trim()) run.log(message.content.trim());
@@ -160,6 +160,6 @@ async function runOpenAiCompatible(run: ApiAgentRun): Promise<'done' | 'failed'>
       messages.push({ role: 'tool', tool_call_id: call.id, content: result.text });
     }
   }
-  run.log('وصل لأقصى عدد خطوات ووقف.');
+  run.log('Reached the step limit and stopped.');
   return 'failed';
 }
