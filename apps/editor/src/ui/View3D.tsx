@@ -57,6 +57,10 @@ const COLORS = {
   palletB: 0x8fa3b0,
   palletC: 0xb7c19a,
   palletWrap: 0xe8e4da,
+  carBody: 0x3b5b8c,
+  carGlass: 0x2a2e33,
+  tyre: 0x1f1e1c,
+  bayLine: 0xd8d3c6,
   column: 0x3a3834,
   blocked: 0xb93a2e,
   selected: 0x2b54d0,
@@ -256,6 +260,15 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: Rac
       g.add(foliage);
       break;
     }
+    case 'car': {
+      const bodyH = h * 0.55;
+      g.add(box(w, bodyH, d, COLORS.carBody, 0, bodyH / 2));
+      g.add(box(w * 0.82, h - bodyH, d * 0.5, COLORS.carGlass, 0, bodyH + (h - bodyH) / 2, -d * 0.08));
+      const wheelH = Math.min(0.18, h * 0.15);
+      const wheelZ = d / 2 - wheelH * 1.4;
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(0.08, wheelH * 2, wheelH * 2, COLORS.tyre, sx * (w / 2 + 0.02), wheelH, sz * wheelZ));
+      break;
+    }
     case 'dance-floor': {
       // Checkered tiles of about 60 cm, alternating two woods.
       const nx = Math.max(1, Math.round(w / 0.6));
@@ -363,7 +376,7 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
 
   for (const zone of project.space.zones ?? []) {
     const kind = zone.kind;
-    const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind.includes('aisle') ? 0x7bb198 : 0x829fc3;
+    const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind === 'bay' ? COLORS.bayLine : kind.includes('aisle') ? 0x7bb198 : 0x829fc3;
     const region = new THREE.Shape(zone.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
     const overlay = new THREE.Mesh(new THREE.ShapeGeometry(region), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.12 : 0.23, side: THREE.DoubleSide, depthWrite: false }));
     overlay.rotation.x = -Math.PI / 2;

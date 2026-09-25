@@ -9,12 +9,16 @@ the planner tools.
 | Tool | What it does |
 |---|---|
 | `list_projects` | All projects with id, name, revision, item count |
-| `create_project` | New hall, office, container, warehouse or production line (`activity`); `warehouse` or `production` with `reference: true` creates the measured sample |
+| `create_project` | New hall, office, container, warehouse, production line or vehicle depot (`activity`); `warehouse`, `production` or `depot` with `reference: true` creates the measured sample |
 | `add_warehouse_rack` | One parametric rack row through one revision; centre in metres, bays, levels and positions |
 | `add_warehouse_zone` | Named polygon (3–32 metre-coordinate vertices) through one revision |
 | `warehouse_metrics` | Storage positions, usable positions, rack/zone areas and docks |
 | `find_warehouse_route` | Dock to rack, mover body width and side clearance, reachability and sampled distance |
 | `production_metrics` | Station/machine/buffer counts, buffer capacity, flow length and segment reachability |
+| `add_depot_bay` | One parking bay zone through one revision; centre in metres, bay type and facing direction |
+| `add_depot_zone` | Named lane or no-go polygon (3–32 metre-coordinate vertices), a lane carries a travel direction |
+| `depot_metrics` | Bay counts by type, occupied and usable bay counts, vehicle count |
+| `bay_entry_check` | Whether a named vehicle type can turn from the nearest lane into a named bay, swept-body checked |
 | `get_project` | Room, doors, columns, item types, every item, issues, metrics |
 | `set_room` | Size, ceiling, doors on walls, columns |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
@@ -101,3 +105,16 @@ item's clearance, nothing warehouse- or production-specific). Give the placed it
 buffer capacity and flow length, and `check_project` reports whether every consecutive pair is
 reachable for the default material handler. This stage is spatial feasibility only — no
 throughput, WIP or blocking simulation.
+
+## Vehicle depot planning
+
+Use `create_project` with `activity: "depot", reference: true` for the measured example (a
+two-way lane and six parking bays, two already occupied). A vehicle is placed with the ordinary
+`define_item` / `place_items` tools, `category: "car"`; a bay is not an item — it is a floor
+marking, so it is added with `add_depot_bay` (parametric: centre, bay type, facing direction) and
+lives in `Space.zones` with `kind: "bay"`, the same way a warehouse aisle is a zone rather than an
+item. A lane is added with `add_depot_zone` and a travel `direction_deg`; `bay_entry_check` and
+`check_project`'s `bay-entry` rule drive a minimum-turning-radius (Dubins) path from the nearest
+lane into a bay and sample its swept body every 20 cm against the walls, columns, other parked
+vehicles and no-go zones — a planning estimate, not a site's turning-circle approval. No reverse
+maneuvers, no articulated (trailer) kinematics, no throughput or dwell-time simulation.

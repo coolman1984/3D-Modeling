@@ -46,6 +46,11 @@ const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
     'Move the buffer so it sits evenly between the two machines.',
     'Read the flow length and station counts for this line.',
   ],
+  depot: [
+    'Check whether a sedan can turn from the lane into every empty bay.',
+    'Add two more perpendicular bays at the end of the row and check them.',
+    'Read the bay counts and how many are occupied.',
+  ],
 };
 
 interface Step {

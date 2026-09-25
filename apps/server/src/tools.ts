@@ -20,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRoom, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceWarehouse, ROUND_SHAPES, SHAPES, stepOf, stopOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceVehicleDepot, referenceWarehouse, ROUND_SHAPES, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -175,7 +175,7 @@ export function describeProject(project: Project): string {
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot' };
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -284,7 +284,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a hall, office, container, warehouse or production-line project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Returns the project id.',
+    description: 'Create a hall, office, container, warehouse, production-line or vehicle-depot project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Depot reference layout: activity depot, reference true (30 × 18 m, a two-way lane and six parking bays, two occupied). Returns the project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -294,7 +294,7 @@ export const TOOLS: readonly ToolDef[] = [
         ceiling_m: { type: 'number', description: 'Ceiling height in metres, if known.' },
         activity: { type: 'string', enum: PACKS.map((p) => p.id) },
         container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'For activity "container".' },
-        reference: { type: 'boolean', description: 'For activity warehouse: the reference 30 × 20 m layout. For activity production: the reference 30 × 8 m line.' },
+        reference: { type: 'boolean', description: 'For activity warehouse: the reference 30 × 20 m layout. For activity production: the reference 30 × 8 m line. For activity depot: the reference 30 × 18 m depot.' },
       },
       required: ['name'],
       additionalProperties: false,
@@ -317,6 +317,13 @@ export const TOOLS: readonly ToolDef[] = [
           : newProductionLine(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
         const created = ctx.store.createProject(project, ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}\nProduction line: ${productionMetrics(created).stations} stations, ${(productionMetrics(created).flowLength / 10_000).toFixed(1)} m flow length.`;
+      }
+      if (str(input, 'activity', true) === 'depot') {
+        const project = input.reference === true
+          ? referenceVehicleDepot(str(input, 'name'))
+          : newVehicleDepot(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
+        const created = ctx.store.createProject(project, ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}\nDepot: ${depotMetrics(created).bays} bays, ${depotMetrics(created).vehicles} vehicles.`;
       }
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
@@ -388,6 +395,73 @@ export const TOOLS: readonly ToolDef[] = [
       const project = load(ctx, input);
       if (detectPack(project) !== 'production') throw new ToolError('This project is not a production line.');
       return JSON.stringify(productionMetrics(project));
+    },
+  },
+  {
+    name: 'add_depot_bay',
+    description: 'Add one parking bay zone to a vehicle depot. Give its centre X/Y in metres, a bay type and the direction (degrees, 0 = north) a nose-in parked vehicle faces once inside.',
+    inputSchema: { type: 'object', properties: {
+      project_id: projectId, x_m: { type: 'number' }, y_m: { type: 'number' },
+      bay_type: { type: 'string', enum: BAY_TYPES }, direction_deg: { type: 'number' },
+    }, required: ['project_id', 'x_m', 'y_m', 'bay_type'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'depot') throw new ToolError('This project is not a vehicle depot.');
+      const bayType = str(input, 'bay_type') as BayType;
+      if (!BAY_TYPES.includes(bayType)) throw new ToolError('Unknown bay type.');
+      const id = nextId('bay', takenIds(project));
+      const zone = bayZone(id, { x: metres(num(input, 'x_m')), y: metres(num(input, 'y_m')) }, bayType, num(input, 'direction_deg', true) ?? 0);
+      if (!containsPolygon(project.space.boundary, zone.polygon)) throw new ToolError('Bay must fit inside the depot boundary.');
+      const updated = commit(ctx, project, [{ type: 'space.set', space: { ...project.space, zones: [...(project.space.zones ?? []), zone] } }], `Added ${bayType} bay ${id}`);
+      return `Added bay ${id}. Total bays: ${depotMetrics(updated).bays}. Revision ${updated.revision}.`;
+    },
+  },
+  {
+    name: 'add_depot_zone',
+    description: 'Add a named polygonal zone to a vehicle depot — a lane (one-way or two-way, with a travel direction in degrees) or a no-go area. Vertices are metre coordinates in plan order; a valid polygon must stay within the depot.',
+    inputSchema: { type: 'object', properties: {
+      project_id: projectId, kind: { type: 'string', enum: DEPOT_ZONE_KINDS.filter((k) => k !== 'bay') },
+      direction_deg: { type: 'number', description: 'For a lane: the travel direction, 0 = north.' },
+      vertices: { type: 'array', items: { type: 'object', properties: { x_m: { type: 'number' }, y_m: { type: 'number' } }, required: ['x_m', 'y_m'] } },
+    }, required: ['project_id', 'kind', 'vertices'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'depot') throw new ToolError('This project is not a vehicle depot.');
+      const kind = str(input, 'kind');
+      if (kind === 'bay' || !DEPOT_ZONE_KINDS.some((k) => k === kind)) throw new ToolError('Unknown depot zone kind.');
+      const vertices = list(input, 'vertices');
+      if (vertices.length < 3 || vertices.length > 32) throw new ToolError('A zone needs 3 to 32 vertices.');
+      const polygon = toCounterClockwise(vertices.map((p) => ({ x: metres(num(p, 'x_m')), y: metres(num(p, 'y_m')) })));
+      if (!containsPolygon(project.space.boundary, polygon)) throw new ToolError('Zone must fit inside the depot boundary.');
+      const id = nextId(kind, takenIds(project));
+      const direction = num(input, 'direction_deg', true);
+      const zone = { id, kind, polygon, ...(direction === undefined ? {} : { meta: { direction } }) };
+      const updated = commit(ctx, project, [{ type: 'space.set', space: { ...project.space, zones: [...(project.space.zones ?? []), zone] } }], `Added ${kind} zone ${id}`);
+      return `Added ${kind} zone ${id}, revision ${updated.revision}.`;
+    },
+  },
+  {
+    name: 'depot_metrics',
+    description: 'Read bay counts by type, occupied and usable bay counts, and vehicle count of a vehicle depot.',
+    inputSchema: { type: 'object', properties: { project_id: projectId }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'depot') throw new ToolError('This project is not a vehicle depot.');
+      return JSON.stringify(depotMetrics(project));
+    },
+  },
+  {
+    name: 'bay_entry_check',
+    description: 'Check whether a vehicle can drive a minimum-turning-radius path from the nearest lane into a named parking bay without its swept body leaving the floor or touching a wall, column, other vehicle or no-go zone. Optionally name a vehicle type id from the catalog (default: sedan).',
+    inputSchema: { type: 'object', properties: { project_id: projectId, bay_id: { type: 'string' }, vehicle_type: { type: 'string' } }, required: ['project_id', 'bay_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'depot') throw new ToolError('This project is not a vehicle depot.');
+      const vehicleType = str(input, 'vehicle_type', true);
+      const profile = vehicleType ? vehicleProfileOf(project.catalog[vehicleType]) : DEFAULT_VEHICLE;
+      if (!profile) throw new ToolError('Unknown vehicle type.');
+      const result = bayEntry(project, str(input, 'bay_id'), profile);
+      return result.clear ? `Clear: ${profile.name} can enter ${result.bayId}.` : `Not clear: ${result.reason}.`;
     },
   },
   {

@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
-import { demoHall, newContainer, newProductionLine, newRoom, newWarehouse, packOf, referenceProductionLine, referenceWarehouse } from '@space-planner/starter';
+import { demoHall, newContainer, newProductionLine, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceVehicleDepot, referenceWarehouse } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
 import type { Store } from './store.js';
@@ -120,6 +120,7 @@ export function createApp(options: AppOptions): App {
     if (body.template === 'demo') project = { ...demoHall(), name };
     else if (body.template === 'warehouse-reference') project = referenceWarehouse(name);
     else if (body.template === 'production-reference') project = referenceProductionLine(name);
+    else if (body.template === 'depot-reference') project = referenceVehicleDepot(name);
     else if (typeof body.file === 'string') {
       const opened = deserializeProject(body.file);
       if (!opened.ok) throw new HttpError(422, `This file is not a valid plan: ${opened.problems[0]?.path ?? ''}`);
@@ -138,6 +139,10 @@ export function createApp(options: AppOptions): App {
       }
       if (activity === 'production') {
         send(res, 201, store.createProject(newProductionLine(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling ?? 4), 'human'));
+        return;
+      }
+      if (activity === 'depot') {
+        send(res, 201, store.createProject(newVehicleDepot(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling ?? 4), 'human'));
         return;
       }
       project = newRoom(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling, activity);

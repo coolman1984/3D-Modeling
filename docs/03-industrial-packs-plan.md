@@ -212,6 +212,16 @@ allowed), bays (90°, angled, parallel, maintenance, wash, charge), lanes (one /
 Dubins / Reeds-Shepp paths, swept body envelope checked against walls, columns, parked vehicles and
 zones. A bay is usable only if the vehicle can enter and leave.
 
+**Implementation checkpoint (done — see decision 0013):** the depot pack, reference depot, a
+clean-room Dubins path planner (`packages/industry/dubins.ts`, CSC family only — LSL/RSR/LSR/RSL,
+verified by forward-simulating the returned path back to its goal pose), the swept-body entry
+check, both rules, the editor panel with a visible entry path in 2D/3D, agent tools, report and
+tests are implemented, browser-tested and pass with `pnpm check`. Reeds-Shepp (reverse maneuvers)
+and articulated (trailer) kinematics are out of scope for this stage. A bay is a zone
+(`Space.zones`), not an item: the first version as an item made every parked vehicle "overlap"
+its own bay, since the core's overlap check compares vertical extent and a floor marking and a
+car both start at the floor.
+
 ### T10 — Restaurant MVP
 Table families (2/4/6-top, round, booth, banquette, communal), dining / bar / terrace / private
 zones, covers, floor per cover, service routes from pass to tables (shared routing), unreachable

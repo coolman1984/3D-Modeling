@@ -1,5 +1,5 @@
 import { apply, boundsOf, fromUnit, toSquareMetres, toUnit, type Command, type Id, type Issue, type Metrics, type Project } from '@space-planner/core';
-import { packOf, PACKS, productionMetrics, rackDefinition, rackSpecOf, SHAPES, shapeOf, stationKindOf, stepOf, warehouseMetrics, type RackSpec, type RuleResult } from '@space-planner/starter';
+import { packOf, PACKS, productionMetrics, rackDefinition, rackSpecOf, SHAPES, shapeOf, stationKindOf, stepOf, vehicleProfileOf, warehouseMetrics, type RackSpec, type RuleResult } from '@space-planner/starter';
 import {
   AlignBottom,
   AlignCenterHorizontal,
@@ -328,6 +328,7 @@ function OneItem({
       {cargo && <CargoGroup project={project} item={item} dispatch={dispatch} />}
       {rackSpecOf(definition) && <RackGroup project={project} item={item} dispatch={dispatch} />}
       {production && stationKindOf(definition) && <FlowGroup project={project} item={item} dispatch={dispatch} />}
+      {vehicleProfileOf(definition) && <DepotGroup project={project} item={item} />}
       <Group title="Dimensions" hint="Set by the item type.">
         <div className="grid-3">
           <CommitField label="W" ariaLabel="Width" unit="cm" value={cm(definition.size.w)} readOnly />
@@ -379,6 +380,17 @@ function RackGroup({ project, item, dispatch }: { project: Project; item: Projec
       <span className="span-all"><CommitField label="Bay w." wideKey ariaLabel="Rack bay width" unit="cm" value={toUnit(spec.bayWidth, 'cm')} onCommit={(n) => change('bayWidth', n)} readOnly={item.locked} /></span>
       <span className="span-all"><CommitField label="Depth" wideKey ariaLabel="Rack depth" unit="cm" value={toUnit(spec.depth, 'cm')} onCommit={(n) => change('depth', n)} readOnly={item.locked} /></span>
       <span className="span-all"><CommitField label="Height" wideKey ariaLabel="Rack height" unit="cm" value={toUnit(spec.height, 'cm')} onCommit={(n) => change('height', n)} readOnly={item.locked} /></span>
+    </div>
+  </Group>;
+}
+
+function DepotGroup({ project, item }: { project: Project; item: Project['items'][string] }) {
+  const vehicle = vehicleProfileOf(project.catalog[item.definitionId]);
+  if (!vehicle) return null;
+  return <Group title="Vehicle" hint="Fixed by the vehicle type; edit the item type to change it.">
+    <div className="facts">
+      <div className="fact"><span>Turning radius</span><span>{toUnit(vehicle.minTurningRadius, 'cm') / 100} m</span></div>
+      <div className="fact"><span>Rear overhang</span><span>{toUnit(vehicle.rearOverhang, 'cm')} cm</span></div>
     </div>
   </Group>;
 }
