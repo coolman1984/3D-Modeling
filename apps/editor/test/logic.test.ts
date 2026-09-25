@@ -1,6 +1,6 @@
 import { checkProject, fromUnit, measureProject, validateProject } from '@space-planner/core';
 import { describe, expect, it } from 'vitest';
-import { demoHall, newHall } from '../src/logic/demo.js';
+import { demoHall, newHall } from '@space-planner/starter';
 import { formatLength } from '../src/logic/format.js';
 import { nextId } from '../src/logic/ids.js';
 import { describeIssue } from '../src/logic/messages.js';
@@ -61,7 +61,7 @@ describe('helpers', () => {
 
 describe('demo data', () => {
   it('is valid and clean', () => {
-    for (const project of [demoHall(), newHall(12, 9, 3), newHall(6, 4)]) {
+    for (const project of [demoHall(), newHall('a', 12, 9, 3), newHall('b', 6, 4)]) {
       expect(validateProject(project)).toEqual([]);
       expect(checkProject(project)).toEqual([]);
     }
@@ -141,5 +141,31 @@ describe('placing new items', () => {
       project = { ...project, items: { ...project.items, [item.id]: { ...item, position } } };
     }
     expect(checkProject(project)).toEqual([]);
+  });
+});
+
+describe('saving to the server', () => {
+  it('queues every applied change, undo included, in order, and clears what the server saved', () => {
+    let s = startSession(demoHall());
+    s = reduce(s, { type: 'command', command: { type: 'item.add', item: { id: 'chair-1', definitionId: 'chair', position: { x: m(7), y: m(6) }, rotation: 0, locked: false } } });
+    s = reduce(s, { type: 'command', command: { type: 'item.move', id: 'chair-1', to: { x: m(8), y: m(6) } } });
+    s = reduce(s, { type: 'undo' });
+    expect(s.outbox.map((e) => [e.revision, e.command.type])).toEqual([
+      [1, 'item.add'],
+      [2, 'item.move'],
+      [3, 'item.move'],
+    ]);
+    expect(s.outbox[2]?.command).toEqual({ type: 'item.move', id: 'chair-1', to: { x: m(7), y: m(6) } });
+    s = reduce(s, { type: 'saved', revision: 2 });
+    expect(s.outbox.map((e) => e.revision)).toEqual([3]);
+  });
+
+  it('does not queue refused commands, and a load from the server starts fresh', () => {
+    let s = startSession(demoHall());
+    s = reduce(s, { type: 'command', command: { type: 'item.remove', id: 'ghost' } });
+    expect(s.outbox).toEqual([]);
+    s = reduce(s, { type: 'load', project: { ...demoHall(), revision: 9 } });
+    expect(s.history.project.revision).toBe(9);
+    expect(s.history.undoStack).toEqual([]);
   });
 });

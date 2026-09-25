@@ -3,7 +3,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5173, strictPort: true },
-  preview: { port: 4173, strictPort: true },
+  // During development the editor talks to a running app server.
+  server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:4600' } },
   test: { include: ['test/**/*.test.ts'] },
+  build: { chunkSizeWarningLimit: 1500 },
 });

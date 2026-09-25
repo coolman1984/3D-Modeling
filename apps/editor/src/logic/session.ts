@@ -20,6 +20,8 @@ export interface Session {
   readonly drag: { readonly id: Id; readonly to: Vec2 } | null;
   /** Why the last action was refused, for the status line. */
   readonly rejection: Rejection | null;
+  /** Commands applied here but not yet saved on the server, each with the revision it produced. */
+  readonly outbox: readonly { readonly revision: number; readonly command: Command }[];
 }
 
 export type Action =
@@ -30,10 +32,11 @@ export type Action =
   | { readonly type: 'drag-move'; readonly id: Id; readonly to: Vec2 }
   | { readonly type: 'drag-end' }
   | { readonly type: 'drag-cancel' }
-  | { readonly type: 'load'; readonly project: Project };
+  | { readonly type: 'load'; readonly project: Project }
+  | { readonly type: 'saved'; readonly revision: number };
 
 export function startSession(project: Project): Session {
-  return { history: startHistory(project), selectedId: null, drag: null, rejection: null };
+  return { history: startHistory(project), selectedId: null, drag: null, rejection: null, outbox: [] };
 }
 
 export function reduce(session: Session, action: Action): Session {
@@ -42,14 +45,23 @@ export function reduce(session: Session, action: Action): Session {
       const step = execute(session.history, action.command);
       if (!step.ok) return { ...session, rejection: step.outcome?.rejection ?? null };
       const selectedId = action.select === undefined ? session.selectedId : action.select;
-      return { ...session, history: step.history, selectedId: keep(step.history.project, selectedId), rejection: null };
+      return {
+        ...session,
+        history: step.history,
+        selectedId: keep(step.history.project, selectedId),
+        rejection: null,
+        outbox: [...session.outbox, { revision: step.history.project.revision, command: action.command }],
+      };
     }
     case 'undo':
     case 'redo': {
+      const stack = action.type === 'undo' ? session.history.undoStack : session.history.redoStack;
+      const command = stack.at(-1);
       const step = action.type === 'undo' ? undo(session.history) : redo(session.history);
-      if (!step.ok) return session;
+      if (!step.ok || !command) return session;
       return {
         ...session,
+        outbox: [...session.outbox, { revision: step.history.project.revision, command }],
         history: step.history,
         selectedId: keep(step.history.project, session.selectedId),
         drag: null,
@@ -71,7 +83,9 @@ export function reduce(session: Session, action: Action): Session {
     case 'drag-cancel':
       return { ...session, drag: null };
     case 'load':
-      return startSession(action.project);
+      return { ...startSession(action.project), selectedId: keep(action.project, session.selectedId) };
+    case 'saved':
+      return { ...session, outbox: session.outbox.filter((entry) => entry.revision > action.revision) };
   }
 }
 

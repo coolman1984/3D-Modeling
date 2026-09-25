@@ -5,3 +5,4 @@ coverage/
 e2e-results/
 test-results/
 playwright-report/
+data/

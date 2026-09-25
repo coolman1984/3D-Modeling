@@ -18,6 +18,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter @space-planner/editor exec playwright install --with-deps chromium
+      - run: pnpm --filter @space-planner/server build
       - run: pnpm e2e
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "planner": {
+      "command": "node",
+      "args": ["apps/server/dist/mcp.mjs"]
+    }
+  }
+}

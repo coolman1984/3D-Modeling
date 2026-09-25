@@ -13,6 +13,7 @@ export type Command =
   | { readonly type: 'catalog.define'; readonly definition: ItemDefinition }
   | { readonly type: 'catalog.remove'; readonly id: Id }
   | { readonly type: 'space.set'; readonly space: Space }
+  | { readonly type: 'project.rename'; readonly name: string }
   | { readonly type: 'batch'; readonly commands: readonly Command[] };
 
 export type RejectCode =

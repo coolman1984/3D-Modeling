@@ -46,8 +46,15 @@ export function PlanCanvas({ project, issues, selectedId, snapStep, viewport, on
     return () => observer.disconnect();
   }, []);
 
+  // Fit when there is no view yet, and again whenever the room itself changes size.
+  const fittedRoom = useRef<string | null>(null);
   useEffect(() => {
-    if (!viewport && size.width > 0) onViewport(fitViewport(roomBounds, size.width, size.height));
+    if (size.width === 0) return;
+    const key = `${roomBounds.minX},${roomBounds.minY},${roomBounds.maxX},${roomBounds.maxY}`;
+    if (!viewport || fittedRoom.current !== key) {
+      fittedRoom.current = key;
+      onViewport(fitViewport(roomBounds, size.width, size.height));
+    }
   }, [viewport, size, roomBounds, onViewport]);
 
   useEffect(() => {

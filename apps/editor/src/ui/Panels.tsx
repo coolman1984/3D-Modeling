@@ -4,7 +4,6 @@ import {
   toUnit,
   type Id,
   type Issue,
-  type ItemDefinition,
   type Metrics,
   type Project,
 } from '@space-planner/core';
@@ -13,28 +12,8 @@ import { formatArea, formatCount, formatDegrees, formatLength, formatPercent } f
 import { describeIssue, ISSUE_TITLES } from '../logic/messages.js';
 import type { Action } from '../logic/session.js';
 
-export function CatalogPanel({ catalog, onAdd }: { catalog: Project['catalog']; onAdd: (d: ItemDefinition) => void }) {
-  return (
-    <section className="panel" aria-label="الكتالوج">
-      <h2>الكتالوج</h2>
-      <ul className="catalog">
-        {Object.values(catalog).map((d) => (
-          <li key={d.id}>
-            <button type="button" onClick={() => onAdd(d)} data-add={d.id}>
-              <span className="catalog-name">{d.name}</span>
-              <span className="muted">
-                {formatLength(d.size.w)} × {formatLength(d.size.d)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 /** A number field in centimetres that commits on Enter or when it loses focus. */
-function CentimetreField({ label, value, onCommit }: { label: string; value: number; onCommit: (ticks: number) => void }) {
+export function CentimetreField({ label, value, onCommit }: { label: string; value: number; onCommit: (ticks: number) => void }) {
   const shown = String(toUnit(value, 'cm'));
   const [text, setText] = useState(shown);
   useEffect(() => setText(shown), [shown]);
@@ -58,7 +37,7 @@ function CentimetreField({ label, value, onCommit }: { label: string; value: num
   );
 }
 
-export function Inspector({ project, selectedId, dispatch }: { project: Project; selectedId: Id | null; dispatch: (a: Action) => void }) {
+export function Inspector({ project, selectedId, dispatch, onEditType }: { project: Project; selectedId: Id | null; dispatch: (a: Action) => void; onEditType: (id: Id) => void }) {
   const item = selectedId ? project.items[selectedId] : undefined;
   const definition = item ? project.catalog[item.definitionId] : undefined;
   if (!item || !definition) {
@@ -98,6 +77,9 @@ export function Inspector({ project, selectedId, dispatch }: { project: Project;
         </button>
         <button type="button" className="danger" onClick={() => dispatch({ type: 'command', command: { type: 'item.remove', id: item.id }, select: null })} disabled={item.locked}>
           امسح
+        </button>
+        <button type="button" onClick={() => onEditType(definition.id)}>
+          عدّل مقاسات الصنف
         </button>
       </div>
     </section>
@@ -178,49 +160,3 @@ export function MetricsPanel({ metrics }: { metrics: Metrics }) {
     </section>
   );
 }
-
-export function NewHallForm({ onCreate, onCancel }: { onCreate: (w: number, d: number, h: number | undefined) => void; onCancel: () => void }) {
-  const [w, setW] = useState('12');
-  const [d, setD] = useState('9');
-  const [h, setH] = useState('3');
-  const parse = (s: string) => Number(s.replace(',', '.'));
-  const valid = [w, d].every((s) => parse(s) >= 1 && parse(s) <= 500) && (h.trim() === '' || (parse(h) > 0 && parse(h) <= 50));
-  return (
-    <div className="dialog-backdrop" role="dialog" aria-label="قاعة جديدة">
-      <form
-        className="dialog"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (valid) onCreate(parse(w), parse(d), h.trim() === '' ? undefined : parse(h));
-        }}
-      >
-        <h2>قاعة جديدة مستطيلة</h2>
-        <label className="field">
-          <span>العرض</span>
-          <input name="width" value={w} onChange={(e) => setW(e.target.value)} inputMode="decimal" />
-          <span className="muted">م</span>
-        </label>
-        <label className="field">
-          <span>الطول</span>
-          <input name="depth" value={d} onChange={(e) => setD(e.target.value)} inputMode="decimal" />
-          <span className="muted">م</span>
-        </label>
-        <label className="field">
-          <span>ارتفاع السقف</span>
-          <input name="ceiling" value={h} onChange={(e) => setH(e.target.value)} inputMode="decimal" placeholder="مش معروف" />
-          <span className="muted">م</span>
-        </label>
-        <p className="muted">المخطط الحالي هيتقفل. احفظه الأول لو محتاجه.</p>
-        <div className="row">
-          <button type="submit" className="primary" disabled={!valid}>
-            اعمل القاعة
-          </button>
-          <button type="button" onClick={onCancel}>
-            إلغاء
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-

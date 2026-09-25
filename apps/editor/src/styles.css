@@ -132,3 +132,82 @@ input { width: 80px; }
 
 .dialog-backdrop { position: fixed; inset: 0; background: rgba(28, 36, 48, 0.35); display: grid; place-items: center; }
 .dialog { background: var(--bg); padding: 20px; border-radius: 6px; display: grid; gap: 10px; min-width: 320px; border: 1px solid var(--line); }
+
+/* ---------- pages ---------- */
+a { color: var(--accent); }
+a.button {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 5px 10px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--bg);
+}
+a.button:hover { border-color: var(--accent); }
+.page { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 16px; }
+.page-head { display: flex; align-items: center; justify-content: space-between; }
+.page .panel { border: 1px solid var(--line); border-radius: 6px; }
+.row.wrap { flex-wrap: wrap; gap: 10px; }
+.projects { width: 100%; border-collapse: collapse; }
+.projects th, .projects td { text-align: start; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+.projects th { color: var(--muted); font-weight: 500; font-size: 13px; }
+.projects .actions { display: flex; gap: 6px; justify-content: flex-end; }
+.error-text { color: var(--error); }
+code { background: var(--panel); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+
+/* ---------- controls ---------- */
+button.small { padding: 2px 8px; font-size: 12px; }
+button.icon { padding: 2px 7px; }
+h2 button.small, h3 button.small { margin-inline-start: auto; }
+h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; display: flex; align-items: center; gap: 8px; }
+textarea { font: inherit; color: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; width: 100%; resize: vertical; }
+.field.invalid input { border-color: var(--error); }
+.field.block { display: grid; gap: 4px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+.grid3, .grid4 { display: grid; gap: 6px; }
+.grid3 .field > span:first-child, .grid4 .field > span:first-child, .subrow .field > span:first-child { min-width: 52px; }
+.subrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.subrow input { width: 64px; }
+.problems { color: var(--error); font-size: 12px; margin: 8px 0 0; padding-inline-start: 18px; }
+.type-form { display: grid; gap: 6px; padding: 10px; margin-bottom: 10px; background: var(--panel); border-radius: 4px; }
+.type-form input[name='type-name'] { width: 100%; }
+.catalog li { display: flex; gap: 4px; }
+.catalog li > button:first-child { flex: 1; min-width: 0; }
+.catalog li > button.icon { width: auto; flex: none; }
+
+.tabs { display: flex; background: var(--bg); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; }
+.tabs button { flex: 1; border: none; border-radius: 0; border-bottom: 2px solid transparent; background: none; padding: 9px 6px; color: var(--muted); }
+.tabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.segmented { gap: 0; }
+.segmented button { border-radius: 0; margin-inline-start: -1px; }
+.segmented button:first-child { border-start-start-radius: 4px; border-end-start-radius: 4px; }
+.segmented button:last-child { border-start-end-radius: 4px; border-end-end-radius: 4px; }
+.segmented button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.save-state { font-size: 12px; color: var(--muted); }
+.save-state.busy { color: var(--warning); }
+.toolbar h1 { cursor: text; }
+.toolbar form input { width: 220px; }
+
+/* ---------- views ---------- */
+.canvas { display: flex; }
+.canvas .pane { position: relative; flex: 1; min-width: 0; }
+.canvas.view-split .pane + .pane { border-inline-start: 1px solid var(--line); }
+.view3d { position: absolute; inset: 0; }
+.view3d canvas { display: block; }
+.view3d-tools { position: absolute; top: 8px; inset-inline-start: 8px; display: flex; gap: 6px; }
+.view3d-error { padding: 20px; color: var(--muted); }
+
+/* ---------- history and agent ---------- */
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.history li { padding: 8px 0; border-bottom: 1px solid var(--line); display: grid; gap: 3px; font-size: 13px; }
+.history li.current { border-inline-start: 3px solid var(--accent); padding-inline-start: 8px; }
+.history li button { justify-self: start; }
+.run { margin-top: 10px; border: 1px solid var(--line); border-radius: 4px; }
+.run-head { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.run[data-run-status='running'] .run-head strong { color: var(--warning); }
+.run[data-run-status='done'] .run-head strong { color: var(--accent); }
+.run[data-run-status='failed'] .run-head strong { color: var(--error); }
+.run-log { margin: 0; padding: 8px; max-height: 320px; overflow: auto; white-space: pre-wrap; font: inherit; font-size: 12px; background: var(--panel); }
+.agent-setting { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.agent-setting textarea { font-size: 12px; }

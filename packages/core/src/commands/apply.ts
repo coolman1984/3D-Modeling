@@ -133,6 +133,17 @@ function applyInner(project: Project, command: Command): Outcome {
       };
     }
 
+    case 'project.rename': {
+      if (typeof command.name !== 'string' || command.name.trim() === '' || command.name.length > 200) {
+        return reject('invalid-payload', 'name must be 1 to 200 characters');
+      }
+      return {
+        ok: true,
+        project: { ...project, name: command.name },
+        inverse: { type: 'project.rename', name: project.name },
+      };
+    }
+
     case 'batch': {
       if (!Array.isArray(command.commands) || command.commands.length === 0) {
         return reject('empty-batch', 'a batch needs at least one command');

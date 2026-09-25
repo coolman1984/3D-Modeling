@@ -9,14 +9,26 @@ place items with real dimensions, and learn whether things fit and work before s
 Read `docs/02-core-plan.md` first (what we are building now), then `docs/01-master-plan.md`
 only for long-term direction. Recorded decisions live in `docs/decisions/`.
 
-Current focus: `packages/core`, a pure TypeScript library. No UI, server or database yet.
+Layout:
+
+| Path | What |
+|---|---|
+| `packages/core` | Pure TypeScript: units, geometry, model, commands, checks, metrics, save format |
+| `packages/starter` | Starter catalog, 3D shape keys, room templates (activity knowledge lives here, not in core) |
+| `apps/server` | Local server: SQLite store (projects, revisions, settings, agent runs), HTTP API, live events, agent tools, MCP bridge, agent runner |
+| `apps/editor` | React editor: projects page, 2D plan, 3D view, room and item-type editors, history, agent panel, settings |
+| `scripts/start.mjs` + `start.*` | One-click launcher |
+
+Agents that design spaces (not code) use the planner tools: see `docs/agents.md`.
 
 ## Commands
 
 ```bash
 pnpm install
-pnpm check                         # typecheck + all tests; must pass before every commit
+pnpm check                         # typecheck + unit tests + browser tests; must pass before every commit
+pnpm dev                           # editor with hot reload (needs the server: node apps/server/dist/server.mjs)
 pnpm --filter @space-planner/core test -- test/checks.test.ts   # one file
+./start.sh                         # what the owner runs (start.bat on Windows)
 ```
 
 ## Core invariants (never break these)
@@ -94,6 +106,8 @@ didn't create, force-pushing, rewriting history, or changing anything outside th
   shadows. Prefer dense, calm panels, one accent colour, and red, amber and blue reserved for
   error, warning and info.
 - Every UI change goes through core commands; the UI never edits a project directly.
+- Agents and people share one path: server tools → core commands → one revision with the actor's name.
+  Never add a way to change a project that skips the store.
 
 ## Talking to the project owner
 

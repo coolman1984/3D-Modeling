@@ -1,0 +1,17 @@
+{
+  "name": "@space-planner/starter",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Starter catalog, item shapes and room templates. Activity knowledge lives here, not in the core.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'starter: covered by server and editor tests'"
+  },
+  "dependencies": {
+    "@space-planner/core": "workspace:*"
+  }
+}
