@@ -47,10 +47,10 @@ describe('derived shapes', () => {
     const item = furnishedHall().items.t1!;
     expect(area(itemPolygon(item, table))).toBe(cm(180) * cm(80));
     expect(boundsOf(itemClearancePolygon(item, table))).toEqual({
-      minX: m(2.1),
-      minY: m(5),
-      maxX: m(3.9),
-      maxY: m(7),
+      minX: m(1.5),
+      minY: m(5.6),
+      maxX: m(4.5),
+      maxY: m(6.4),
     });
   });
 

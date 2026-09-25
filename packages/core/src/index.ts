@@ -4,3 +4,4 @@ export * from './units/index.js';
 export * from './geometry/index.js';
 export * from './model/index.js';
 export * from './commands/index.js';
+export * from './checks/index.js';

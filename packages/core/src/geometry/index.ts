@@ -4,3 +4,4 @@ export * from './aabb.js';
 export * from './polygon.js';
 export * from './sat.js';
 export * from './shapes.js';
+export * from './clip.js';

@@ -16,7 +16,8 @@ export const table: ItemDefinition = {
   name: 'Banquet table 180 × 80',
   category: 'table',
   size: { w: cm(180), d: cm(80), h: cm(75) },
-  clearance: { front: cm(60), back: cm(60), left: 0, right: 0 },
+  // Walking space at both ends; the long sides are where chairs go.
+  clearance: { front: 0, back: 0, left: cm(60), right: cm(60) },
 };
 
 export const chair: ItemDefinition = {
@@ -60,7 +61,7 @@ export function referenceHall(): Project {
   );
 }
 
-/** Reference hall with a table and four chairs around it. */
+/** Reference hall with a table and four chairs around it. Designed to have no design issues. */
 export function furnishedHall(): Project {
   const hall = referenceHall();
   return {
