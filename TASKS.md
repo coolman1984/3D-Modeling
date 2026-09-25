@@ -30,7 +30,7 @@
 - [x] Live updates: re-check the project whenever the live connection (re)opens (race found by the browser tests)
 - [x] Tests: reference cases, property test, server tools, browser journey, planted bug; `pnpm check`
 
-## In progress: T7 — warehouse MVP (plan §7)
+## Done: T7 — warehouse MVP (plan §7)
 
 **Finish line:** A person can create, edit, check, route, inspect in 2D/3D and report a realistic warehouse in Atrium; agents share the command path; browser journeys and full `pnpm check` pass before calling T7 done. T8 begins only afterward.
 
@@ -42,11 +42,12 @@
 - [x] Checks for aisle gap, rack reachability, dock route, dock approach, restricted-zone conflict and rack boundary, with rule provenance; unknown for missing data.
 - [x] Agent tools to create, add rack/zone, read metrics and find a route; project check uses the warehouse pack.
 - [x] Hand-calculated 240-position reference, blocked location and route tests; 110-rack/5,280-position scale case; diagonal-corner planted bug caught and restored.
-- [ ] Browser journey and full `pnpm check`: browser binary is missing in this workspace; Playwright download returned a truncated archive. Journey test is written but not verified.
-- [ ] Usability and visual review in a real browser, including report layout, rack editing and 3D at 5,000+ repeated elements.
-- [ ] Extend pallet occupancy visualization and dock/zone editing where needed; audit 100-rack interactions and 3D performance before declaring MVP complete.
-- [ ] Recheck all prior hall/office/container browser journeys and save compatibility end to end; review and fix any regressions.
-- [ ] Finish T7 decision evidence and mark T7 done only after the unchecked gates pass. Then plan T8 using one source → machine A → buffer → machine B → inspection → finished goods line.
+- [x] Browser journey and full `pnpm check`: Chromium is available in this workspace now; `warehouse.spec.ts` and all 14 journeys pass. Found and fixed a corrupted `styles.css` (binary garbage committed in the T7 foundation commit) that had silently broken the editor build.
+- [x] Usability and visual review in a real browser: plan, split, 3D, rack inspector, report and a 100-rack/4,800-position scale project all reviewed with screenshots. Found and fixed a real layout bug (rack-capacity fields overlapping their labels) and a severe performance bug (see below). Decision 0011 has the details.
+- [x] Audited 100-rack interactions and performance: found `checkWarehouse` running up to `docks × racks × 4` full-grid Dijkstra searches (24–39 s at 100 racks); fixed with a one-flood-per-dock reachability search in `packages/industry` (now ~380 ms). Regression test added that fails without the fix. 3D renders 100 rack rows (600 bays) smoothly; 2D interaction and one rack edit are both well under 100 ms.
+- [x] Recheck all prior hall/office/container browser journeys and save compatibility end to end: all pass, no regressions.
+- [x] Pallet occupancy visualization is structural only (rack levels/positions shown as dividers, not per-pallet placement) — acceptable for spatial planning per the plan; revisit only if the owner asks for live occupancy.
+- [x] T7 decision evidence finished (decision 0011). All gates pass: `pnpm check` green (typecheck, all unit suites, all 14 browser journeys), save compatibility confirmed, planted-bug verification done for the routing fix (reverted it, confirmed the new test fails at ~24 s, restored it, confirmed it passes at ~380 ms).
 
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)

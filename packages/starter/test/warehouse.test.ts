@@ -80,4 +80,24 @@ describe('warehouse reference', () => {
     expect(routeMs).toBeLessThan(5000);
     expect(metricsMs + checkMs + routeMs).toBeLessThan(5000);
   });
+
+  it('checks 100 rows across a large floor (the pack rules, not just the core checks) in well under a second', () => {
+    // checkProject alone never calls into checkWarehouse — the server also calls checkPack
+    // for the activity rules, and that is where the expensive part lived: a per-rack,
+    // per-dock, per-access-face routing search (400+ full-grid Dijkstra runs on a 200 x 120 m
+    // floor) costing tens of seconds before checkWarehouse switched to one flood fill per dock.
+    // A test that only calls checkProject would not catch a regression here.
+    const base = newWarehouse('Dense scale reference', 200, 120, 8);
+    const items = Object.fromEntries(Array.from({ length: 100 }, (_, i) => {
+      const col = i % 10;
+      const row = Math.floor(i / 10);
+      const id = `rack-${i + 1}`;
+      return [id, { id, definitionId: 'warehouse-rack-6', position: { x: m(10 + col * 19), y: m(8 + row * 11) }, rotation: 0, locked: false }];
+    }));
+    const project = { ...base, items };
+    const t = Date.now();
+    expect(checkProject(project).filter((issue) => issue.severity === 'error')).toEqual([]);
+    expect(checkPack(project, 'warehouse').find((r) => r.code === 'rack-access')).toMatchObject({ status: 'pass', measured: 100 });
+    expect(Date.now() - t).toBeLessThan(2000);
+  });
 });

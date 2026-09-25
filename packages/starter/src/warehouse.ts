@@ -1,5 +1,5 @@
-import { area, boundsOf, containsPolygon, convexOverlap, createProject, edges, fromUnit, isConvex, itemPolygon, locatePoint, roomSpace, rotate, segmentsCrossProperly, toSquareMetres, type ItemDefinition, type ItemInstance, type Polygon, type Project, type Zone } from '@space-planner/core';
-import { findRoute, floorRaster, type FloorRaster, type MovementProfile, type RouteResult } from '@space-planner/industry';
+import { area, boundsOf, containsPolygon, convexOverlap, createProject, edges, fromUnit, isConvex, itemPolygon, locatePoint, roomSpace, rotate, segmentsCrossProperly, toSquareMetres, type ItemDefinition, type ItemInstance, type Polygon, type Project, type Vec2, type Zone } from '@space-planner/core';
+import { distanceAt, findRoute, floorRaster, reachabilityFrom, type FloorRaster, type MovementProfile, type RouteResult } from '@space-planner/industry';
 import type { RuleResult } from './rules.js';
 export type { RouteResult, MovementProfile } from '@space-planner/industry';
 
@@ -135,6 +135,17 @@ function dockApproach(dock: Project['space']['doors'][number], mover: MovementPr
   return { x: dock.hinge.x + along.x + inward.x, y: dock.hinge.y + along.y + inward.y };
 }
 
+/** The four points just clear of each face of a rack row, where a mover could stand to load or unload it. */
+function rackAccessPoints(rack: ItemInstance, definition: ItemDefinition, mover: MovementProfile): Vec2[] {
+  const box = boundsOf(itemPolygon(rack, definition));
+  return [
+    { x: rack.position.x, y: box.minY - mover.effectiveWidth / 2 - cm(10) },
+    { x: rack.position.x, y: box.maxY + mover.effectiveWidth / 2 + cm(10) },
+    { x: box.minX - mover.effectiveWidth / 2 - cm(10), y: rack.position.y },
+    { x: box.maxX + mover.effectiveWidth / 2 + cm(10), y: rack.position.y },
+  ];
+}
+
 /** Route from a dock opening to the centre of an accessible rack face. */
 export function warehouseRoute(project: Project, dockId: string, rackId: string, mover: MovementProfile = DEFAULT_FORKLIFT, raster?: FloorRaster): RouteResult {
   const dock = project.space.doors.find((d) => d.id === dockId);
@@ -142,15 +153,11 @@ export function warehouseRoute(project: Project, dockId: string, rackId: string,
   const definition = rack && project.catalog[rack.definitionId];
   if (!dock || !rack || !definition || !rackSpecOf(definition)) return { reachable: false, distance: null, points: [], reason: 'outside' };
   const start = dockApproach(dock, mover);
-  const box = boundsOf(itemPolygon(rack, definition));
   const restricted = (project.space.zones ?? []).filter((z) => z.kind === 'no-go' || z.kind === 'pedestrian').map((z) => z.polygon);
   const grid = raster ?? floorRaster(project, cm(20), restricted);
-  const candidates = [
-    { x: rack.position.x, y: box.minY - mover.effectiveWidth / 2 - cm(10) },
-    { x: rack.position.x, y: box.maxY + mover.effectiveWidth / 2 + cm(10) },
-    { x: box.minX - mover.effectiveWidth / 2 - cm(10), y: rack.position.y },
-    { x: box.maxX + mover.effectiveWidth / 2 + cm(10), y: rack.position.y },
-  ].map((target) => findRoute(grid, start, target, mover)).filter((route): route is Extract<RouteResult, { reachable: true }> => route.reachable);
+  const candidates = rackAccessPoints(rack, definition, mover)
+    .map((target) => findRoute(grid, start, target, mover))
+    .filter((route): route is Extract<RouteResult, { reachable: true }> => route.reachable);
   return candidates.sort((a, b) => a.distance - b.distance)[0] ?? { reachable: false, distance: null, points: [], reason: 'no-path' };
 }
 
@@ -186,8 +193,13 @@ export function checkWarehouse(project: Project): RuleResult[] {
     : unknownDocks.length ? { code: 'dock-approach', unit: 'doors', status: 'unknown', reason: 'no-zones', entityIds: unknownDocks.map((d) => d.id) }
     : { code: 'dock-approach', unit: 'doors', status: 'pass', measured: project.space.doors.length, required: project.space.doors.length, entityIds: [] };
   if (!rows.length || !project.space.doors.length) return [capacity, aisle, boundaryRule, restrictedRule, dockApproachRule, { code: 'rack-access', unit: 'items', status: 'unknown', reason: rows.length ? 'no-doors' : 'no-racks', entityIds: [] }, { code: 'dock-access', unit: 'doors', status: 'unknown', reason: project.space.doors.length ? 'no-racks' : 'no-doors', entityIds: [] }];
-  const grid = floorRaster(project, cm(20), (project.space.zones ?? []).filter((z) => z.kind === 'no-go' || z.kind === 'pedestrian').map((z) => z.polygon));
-  const reachable = new Map(project.space.doors.map((d) => [d.id, rows.map((r) => warehouseRoute(project, d.id, r.id, DEFAULT_FORKLIFT, grid).reachable)]));
+  const grid = floorRaster(project, cm(20), protectedZones.map((z) => z.polygon));
+  // One flood fill per dock answers every rack's reachability, instead of one search per dock/rack/face triple.
+  const reachable = new Map(project.space.doors.map((d) => {
+    const distances = reachabilityFrom(grid, dockApproach(d, DEFAULT_FORKLIFT), DEFAULT_FORKLIFT);
+    const perRack = rows.map((r) => distances !== undefined && rackAccessPoints(r, project.catalog[r.definitionId]!, DEFAULT_FORKLIFT).some((p) => distanceAt(grid, distances, p) !== undefined));
+    return [d.id, perRack];
+  }));
   const inaccessible = rows.filter((_r, i) => [...reachable.values()].every((routes) => !routes[i]));
   const blockedDocks = project.space.doors.filter((d) => !reachable.get(d.id)!.some(Boolean));
   return [capacity, aisle, boundaryRule, restrictedRule, dockApproachRule,
