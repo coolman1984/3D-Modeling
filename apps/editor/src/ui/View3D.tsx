@@ -53,6 +53,10 @@ const COLORS = {
   plantPot: 0x8a5a3c,
   leaves: 0x4f8a4b,
   box: 0xd6d2c9,
+  palletA: 0xc9a06a,
+  palletB: 0x8fa3b0,
+  palletC: 0xb7c19a,
+  palletWrap: 0xe8e4da,
   column: 0x3a3834,
   blocked: 0xb93a2e,
   selected: 0x2b54d0,
@@ -220,13 +224,24 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: Rac
         const x = -w / 2 + upright / 2 + b * (bay + upright);
         for (const z of [-d / 2 + upright / 2, d / 2 - upright / 2]) g.add(box(upright, h, upright, COLORS.metal, x, h / 2, z));
       }
+      const loadColors = [COLORS.palletA, COLORS.palletB, COLORS.palletC];
+      const loadD = Math.max(0.1, d - upright * 2 - 0.04);
+      const loadH = Math.max(0.12, (h / (rack.levels + 0.25)) * 0.55);
+      // Group bays into at most 3 loads per level: distinct pallets on a typical row, capped so
+      // a template's mesh count stays bounded on a very long rack (every rack instance gets its
+      // own template with no cross-rack instancing, so a per-bay count multiplies by rack count).
+      const groups = Math.min(rack.bays, 3);
+      const baysPerGroup = Math.ceil(rack.bays / groups);
       for (let level = 1; level <= rack.levels; level++) {
         const y = (level / (rack.levels + 0.25)) * h;
         for (const z of [-d / 2 + upright / 2, d / 2 - upright / 2]) g.add(box(w - upright, 0.08, 0.07, COLORS.metal, 0, y, z));
-        // Narrow dividers mark each pallet bay without storing each position as a separate item.
-        for (let b = 0; b < rack.bays; b++) {
-          const x = -w / 2 + upright + b * (bay + upright) + bay / 2;
-          g.add(box(Math.max(0.01, bay / rack.positionsPerLevel - 0.03), 0.018, 0.04, COLORS.wood, x, y + 0.055));
+        for (let gStart = 0; gStart < rack.bays; gStart += baysPerGroup) {
+          const gEnd = Math.min(rack.bays, gStart + baysPerGroup);
+          const x0 = -w / 2 + upright + gStart * (bay + upright);
+          const x1 = -w / 2 + upright + (gEnd - 1) * (bay + upright) + bay;
+          const gx = (x0 + x1) / 2;
+          const gw = (x1 - x0) * 0.94;
+          g.add(box(gw, loadH, loadD * 0.9, loadColors[(gStart / baysPerGroup + level) % loadColors.length]!, gx, y + 0.08 + loadH / 2));
         }
       }
       break;
