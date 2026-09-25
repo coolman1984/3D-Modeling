@@ -1,5 +1,5 @@
 import { area, checkProject, toSquareMetres, type Project } from '@space-planner/core';
-import { containerMetrics, containerType, SHAPES, shapeOf, stepOf, stopOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
+import { containerMetrics, containerType, flowOrder, productionMetrics, SHAPES, shapeOf, stationKindOf, stepOf, stopOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -101,6 +101,8 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const warehouse = report.activity.pack === 'warehouse' ? warehouseMetrics(project) : null;
   const firstRack = warehouse ? Object.values(project.items).find((i) => project.catalog[i.definitionId]?.category === 'rack') : undefined;
   const sampleRoute = firstRack && project.space.doors[0] ? warehouseRoute(project, project.space.doors[0].id, firstRack.id) : null;
+  const production = report.activity.pack === 'production' ? productionMetrics(project) : null;
+  const flow = production ? flowOrder(project) : [];
   const box = cargo ? containerType(String(project.space.meta?.containerType ?? '')) : undefined;
   const sequence = cargo
     ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
@@ -140,6 +142,8 @@ export function ReportPage({ projectId }: { projectId: string }) {
           <p className="cover-lede">
             {warehouse ? (
               <>A spatial warehouse plan with {formatCount(warehouse.rackRows)} rack rows and {formatCount(warehouse.positions)} addressable pallet positions, checked for fit and forklift access.</>
+            ) : production ? (
+              <>A production line with {plural(production.stations, 'station')} over {(production.flowLength / 10_000).toFixed(1)} m of material flow, checked for fit and reachability.</>
             ) : cargo && load ? (
               <>
                 A loading plan for {plural(load.pieces, 'piece')} in a {box?.label ?? 'custom container'} ({roomSize} inside), checked for fit, support, load on top, orientation, unloading order and balance.
@@ -201,6 +205,15 @@ export function ReportPage({ projectId }: { projectId: string }) {
                     [formatCount(warehouse.bays), 'Bays'],
                     [`${warehouse.rackArea.toFixed(1)} m²`, 'Rack footprint'],
                     [sampleRoute?.reachable ? `${(sampleRoute.distance / 10_000).toFixed(1)} m` : '—', 'First dock to rack'],
+                  ]
+                : production
+                ? [
+                    [<span data-testid="report-production-stations">{formatCount(production.stations)}</span>, 'Stations'],
+                    [formatCount(production.machines), 'Machines'],
+                    [formatCount(production.buffers), 'Buffers'],
+                    [`${(production.flowLength / 10_000).toFixed(1)} m`, 'Flow length'],
+                    [`${production.reachableSegments} of ${production.totalSegments}`, 'Segments reachable'],
+                    [`${production.floorArea.toFixed(1)} m²`, 'Floor area'],
                   ]
                 : cargo && load
                 ? [
@@ -346,6 +359,13 @@ export function ReportPage({ projectId }: { projectId: string }) {
               <p className="sub">{formatCount(warehouse.positions)} pallet positions, {formatCount(warehouse.usablePositions)} usable · {warehouse.rackArea.toFixed(1)} m² rack footprint of {warehouse.floorArea.toFixed(1)} m² floor · {formatCount(warehouse.docks)} docks.</p>
               <p className="sub">Dock openings: {project.space.doors.map((d) => `${d.id} (${formatMetres(d.width)} m)`).join(' · ') || 'not specified'}. Example route: {sampleRoute?.reachable ? `${project.space.doors[0]?.id} to ${firstRack?.id} · ${(sampleRoute.distance / 10_000).toFixed(1)} m` : 'not available'}.</p>
               <p className="sub">Zones: {(project.space.zones ?? []).map((z) => `${z.kind} (${toSquareMetres(area(z.polygon)).toFixed(1)} m²)`).join(' · ') || 'none defined'}.</p>
+            </div>
+          )}
+          {production && (
+            <div data-testid="report-production-flow">
+              <div className="sheet-h later"><h2>Production flow</h2><span>Spatial planning only · no throughput simulation</span></div>
+              <p className="sub">{formatCount(production.stations)} stations ({formatCount(production.machines)} machines, {formatCount(production.buffers)} buffers, {formatCount(production.bufferCapacity)} buffer capacity) over {(production.flowLength / 10_000).toFixed(1)} m of flow · {production.reachableSegments} of {production.totalSegments} segments reachable for the material handler.</p>
+              <p className="sub">Flow order: {flow.map((i, idx) => `${idx + 1}. ${project.catalog[i.definitionId]?.name ?? i.id} (${stationKindOf(project.catalog[i.definitionId]) ?? '—'})`).join(' · ') || 'no stations in the flow'}.</p>
             </div>
           )}
           {cargo && sequence.length > 0 && (

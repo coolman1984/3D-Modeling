@@ -49,6 +49,49 @@
 - [x] Pallet occupancy visualization is structural only (rack levels/positions shown as dividers, not per-pallet placement) — acceptable for spatial planning per the plan; revisit only if the owner asks for live occupancy.
 - [x] T7 decision evidence finished (decision 0011). All gates pass: `pnpm check` green (typecheck, all unit suites, all 14 browser journeys), save compatibility confirmed, planted-bug verification done for the routing fix (reverted it, confirmed the new test fails at ~24 s, restored it, confirmed it passes at ~380 ms).
 
+## Done: T8 — production line MVP (plan §8 in `docs/03-industrial-packs-plan.md`, decision 0012)
+
+**Finish line:** A person can create, edit, check, inspect in 2D/3D and report a realistic
+production line (source → machine → buffer → machine → inspection → finished goods) in Atrium;
+spatial feasibility only (machine footprint, operating and maintenance clearance, flow
+reachability and length) — no throughput simulation in this stage. Agents share the command
+path; browser journey and full `pnpm check` pass before calling T8 done.
+
+What T7 already gives this for free: `packages/industry` routing (reused as-is for flow
+reachability), the derived-zone/rule-provenance pattern, instanced 3D rendering, the
+report/agent-tool patterns, and the lesson from decision 0011 (bulk reachability must be one
+search per source, not one per pair — apply that from the start here, not after measuring a
+regression).
+
+- [x] Reference production line: Source → Machine A → Buffer → Machine B → Inspection → Finished
+      goods, 30 × 8 m, 8.8 m hand-calculated flow length.
+- [x] Machines reuse the core's existing per-item clearance (front = operating clearance, back =
+      maintenance clearance) rather than inventing new geometry; no core change.
+- [x] Flow order from `item.meta.step` (the same field container pieces already use for loading
+      order, via the existing `stepOf`); flow route between consecutive stations derived via
+      `packages/industry` `findRoute`, one search per consecutive pair — no per-pair fan-out.
+- [x] Rules: `machine-boundary` (station fits inside the floor), `flow-reachability` (a material
+      handler can travel from each station to the next). Unknown for no/one station; rule
+      provenance `engineering` on both.
+- [x] Production metrics: station/machine/buffer counts, buffer capacity, flow length, floor area,
+      reachable/total segments.
+- [x] Editor: production activity card + reference/empty templates in the create dialog, a
+      production panel (flow length, counts, flow order list), a "Production flow" group in the
+      inspector to set a station's order, the flow route always visible in 2D and 3D.
+- [x] Agent tools: `create_project` activity `production` with a `reference` flag,
+      `production_metrics` mirroring `warehouse_metrics`; project check uses the production pack.
+      Stations are placed with the existing generic `define_item`/`place_items` tools — no
+      dedicated add-machine tool, since a station is not parametric like a rack.
+- [x] Report: production-specific cover copy and stats, a "Production flow" section alongside the
+      existing plan/3D/quantities/rules sections.
+- [x] Hand-calculated reference test (exact 2.8 m segment on the 20 cm grid, verified against the
+      real stored flow points), a 20-station scale/performance case, a boundary/unknown-reason
+      case. A real bug (the mover's own half-width missing from the flow-point gap, so every
+      route came back blocked) was caught by the first test run, not planted afterward — see
+      decision 0012.
+- [x] Browser journey (`production.spec.ts`); full `pnpm check` green (typecheck, all unit suites,
+      all 15 browser journeys); recheck of all prior packs' journeys and save compatibility;
+      decision record 0012; TASKS/README/plan doc updated.
 
 ## Done: R1 — Atrium redesign of the existing app (English UI)
 

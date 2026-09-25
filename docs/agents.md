@@ -9,11 +9,12 @@ the planner tools.
 | Tool | What it does |
 |---|---|
 | `list_projects` | All projects with id, name, revision, item count |
-| `create_project` | New hall, office, container or warehouse (`activity`); `warehouse` with `reference: true` creates the 30 × 20 m sample |
+| `create_project` | New hall, office, container, warehouse or production line (`activity`); `warehouse` or `production` with `reference: true` creates the measured sample |
 | `add_warehouse_rack` | One parametric rack row through one revision; centre in metres, bays, levels and positions |
 | `add_warehouse_zone` | Named polygon (3–32 metre-coordinate vertices) through one revision |
 | `warehouse_metrics` | Storage positions, usable positions, rack/zone areas and docks |
 | `find_warehouse_route` | Dock to rack, mover body width and side clearance, reachability and sampled distance |
+| `production_metrics` | Station/machine/buffer counts, buffer capacity, flow length and segment reachability |
 | `get_project` | Room, doors, columns, item types, every item, issues, metrics |
 | `set_room` | Size, ceiling, doors on walls, columns |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
@@ -78,7 +79,7 @@ x from the front wall to the doors at the east end; the roof is the ceiling.
    orientation, stacking groups, unloading order (last in, first out), balance and unplaced pieces,
    each with the source of its threshold.
 
-## Warehouse planning (T7 in progress)
+## Warehouse planning
 
 Use `create_project` with `activity: "warehouse", reference: true` for a measured example. Use
 `get_project` for rack and dock ids; `warehouse_metrics` for structural capacity; and
@@ -87,3 +88,16 @@ level / position addresses such as `R01-B03-L02-P01` are derived. `add_warehouse
 create an arbitrary simple polygon with a warehouse-owned kind (`receiving`, `staging`, `no-go`,
 `pedestrian`, `main-aisle`, etc.). `check_project` reports rule provenance. Distances use a
 20 cm grid without vehicle-turning simulation; they are planning estimates, not site approval.
+
+## Production line planning
+
+Use `create_project` with `activity: "production", reference: true` for the measured example
+(source → machine A → buffer → machine B → inspection → finished goods). A station is placed with
+the ordinary `define_item` / `place_items` tools — it is not parametric like a rack, so there is
+no dedicated add-station tool. Give it a `category: "box"` definition; `clearance.front` is its
+operating clearance and `clearance.back` its maintenance clearance (the core checks these like any
+item's clearance, nothing warehouse- or production-specific). Give the placed item a `step`
+(1 = first) to put it in the flow; `production_metrics` reports station/machine/buffer counts,
+buffer capacity and flow length, and `check_project` reports whether every consecutive pair is
+reachable for the default material handler. This stage is spatial feasibility only — no
+throughput, WIP or blocking simulation.
