@@ -18,7 +18,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { newHall, SHAPES } from '@space-planner/starter';
+import { newHall, ROUND_SHAPES, SHAPES } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -148,10 +148,10 @@ export function describeProject(project: Project): string {
   } else {
     lines.push(`Room outline (m): ${project.space.boundary.map((p) => `(${toUnit(p.x, 'm')}, ${toUnit(p.y, 'm')})`).join(' ')}`);
   }
-  lines.push('Item types (id | name | category | w×d×h cm | clearance front/back/left/right cm | seats):');
+  lines.push('Item types (id | name | category | w×d×h cm | clearance front/back/left/right cm | seats | footprint):');
   for (const d of Object.values(project.catalog)) {
     const c = d.clearance;
-    lines.push(`  ${d.id} | ${d.name} | ${d.category} | ${toUnit(d.size.w, 'cm')}×${toUnit(d.size.d, 'cm')}×${toUnit(d.size.h, 'cm')} | ${[c.front, c.back, c.left, c.right].map((v) => toUnit(v, 'cm')).join('/')} | ${d.seats ?? 0}`);
+    lines.push(`  ${d.id} | ${d.name} | ${d.category} | ${toUnit(d.size.w, 'cm')}×${toUnit(d.size.d, 'cm')}×${toUnit(d.size.h, 'cm')} | ${[c.front, c.back, c.left, c.right].map((v) => toUnit(v, 'cm')).join('/')} | ${d.seats ?? 0} | ${d.footprint ?? 'rect'}`);
   }
   const items = Object.values(project.items);
   lines.push(`Items (${items.length}) (id | type | x m | y m | rotation°${items.some((i) => i.locked) ? ' | locked' : ''}):`);
@@ -324,6 +324,7 @@ export const TOOLS: readonly ToolDef[] = [
           properties: { front: { type: 'number' }, back: { type: 'number' }, left: { type: 'number' }, right: { type: 'number' } },
         },
         seats: { type: 'integer', description: 'Seats this item adds to capacity.' },
+        footprint: { type: 'string', enum: ['rect', 'round'], description: 'Floor outline; "round" for round tables and pots (an ellipse inside width × depth). Defaults to round for round-table and plant.' },
         summary,
       },
       required: ['project_id', 'id', 'name', 'category', 'width_cm', 'depth_cm', 'height_cm'],
@@ -334,13 +335,16 @@ export const TOOLS: readonly ToolDef[] = [
       const c = (typeof input.clearance_cm === 'object' && input.clearance_cm !== null ? input.clearance_cm : {}) as Record<string, unknown>;
       const side = (k: string) => (c[k] === undefined ? 0 : centimetres(num(c, k)));
       const seats = num(input, 'seats', true);
+      const category = str(input, 'category');
+      const footprint = input.footprint === 'round' || input.footprint === 'rect' ? input.footprint : ROUND_SHAPES.includes(category as never) ? 'round' : 'rect';
       const definition = {
         id: str(input, 'id'),
         name: str(input, 'name'),
-        category: str(input, 'category'),
+        category,
         size: { w: centimetres(num(input, 'width_cm')), d: centimetres(num(input, 'depth_cm')), h: centimetres(num(input, 'height_cm')) },
         clearance: { front: side('front'), back: side('back'), left: side('left'), right: side('right') },
         ...(seats === undefined ? {} : { seats }),
+        ...(footprint === 'round' ? { footprint: 'round' as const } : {}),
       };
       const existed = Boolean(project.catalog[definition.id]);
       const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'تعديل' : 'إضافة'} صنف ${definition.name}`);

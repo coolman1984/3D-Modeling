@@ -33,18 +33,43 @@ export function rectangle({ center, width, depth, rotation }: Footprint): Polygo
   ].map((corner) => add(center, rotate(corner, rotation)));
 }
 
+const ELLIPSE_SEGMENTS = 32;
+
+/**
+ * An ellipse inscribed in the footprint, as a convex polygon that fully contains the true
+ * curve (vertices sit on a slightly larger ellipse), so a clash is never missed.
+ */
+export function ellipse({ center, width, depth, rotation }: Footprint): Polygon {
+  const grow = 1 / Math.cos(Math.PI / ELLIPSE_SEGMENTS);
+  const points: Vec2[] = [];
+  for (let i = 0; i < ELLIPSE_SEGMENTS; i++) {
+    const t = (2 * Math.PI * i) / ELLIPSE_SEGMENTS;
+    points.push(add(center, rotate({ x: (width / 2) * grow * Math.cos(t), y: (depth / 2) * grow * Math.sin(t) }, rotation)));
+  }
+  return points;
+}
+
 /** The footprint grown by its clearance on each side; the clearance turns with the item. */
 export function clearanceRectangle(footprint: Footprint, clearance: Clearance): Polygon {
+  return rectangle(grownFootprint(footprint, clearance));
+}
+
+/** Round items keep a round clearance zone: the ellipse grown by the clearance on each side. */
+export function clearanceEllipse(footprint: Footprint, clearance: Clearance): Polygon {
+  return ellipse(grownFootprint(footprint, clearance));
+}
+
+function grownFootprint(footprint: Footprint, clearance: Clearance): Footprint {
   const offset = rotate(
     { x: (clearance.right - clearance.left) / 2, y: (clearance.front - clearance.back) / 2 },
     footprint.rotation,
   );
-  return rectangle({
+  return {
     center: add(footprint.center, offset),
     width: footprint.width + clearance.left + clearance.right,
     depth: footprint.depth + clearance.front + clearance.back,
     rotation: footprint.rotation,
-  });
+  };
 }
 
 export interface DoorSwing {

@@ -1,8 +1,10 @@
 import {
   boundsOf,
   doorPolygon,
+  footprintOf,
   itemClearancePolygon,
   itemPolygon,
+  rectangle,
   type Id,
   type Issue,
   type Project,
@@ -177,10 +179,17 @@ export function PlanCanvas({ project, issues, selectedId, snapStep, viewport, on
         const definition = project.catalog[item.definitionId];
         if (!definition) return null;
         const body = itemPolygon(item, definition);
-        const front = [toScreen(v, body[2]!), toScreen(v, body[3]!)];
+        // The front edge of the bounding rectangle shows which way the item faces, round or not.
+        const outline = rectangle(footprintOf(item, definition));
+        const front = [toScreen(v, outline[2]!), toScreen(v, outline[3]!)];
         const centre = toScreen(v, item.position);
         const classes = ['item', severityOf.get(item.id) ?? '', item.id === selectedId ? 'selected' : '', item.locked ? 'locked' : ''];
-        const showLabel = definition.size.w * v.scale > 44 && definition.size.d * v.scale > 14;
+        // Labels are written horizontally, so they need the item's on-screen width and height.
+        const upright = item.rotation % 180_000 === 0;
+        const across = upright ? definition.size.w : definition.size.d;
+        const tall = upright ? definition.size.d : definition.size.w;
+        const straight = item.rotation % 90_000 === 0;
+        const showLabel = straight && across * v.scale > 7 * definition.name.length + 8 && tall * v.scale > 14;
         return (
           <g key={item.id} data-item-id={item.id} className={classes.join(' ').trim()} onPointerDown={(e) => onItemDown(e, item.id)}>
             <path d={pathOf(v, body)} className="item-body" />

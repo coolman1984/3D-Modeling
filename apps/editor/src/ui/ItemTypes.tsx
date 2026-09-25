@@ -1,5 +1,5 @@
 import { fromUnit, toUnit, type Id, type ItemDefinition, type Project } from '@space-planner/core';
-import { SHAPES, shapeOf } from '@space-planner/starter';
+import { ROUND_SHAPES, SHAPES, shapeOf, type ShapeKey } from '@space-planner/starter';
 import { useState } from 'react';
 import { formatLength } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
@@ -20,6 +20,7 @@ interface Draft {
   left: number;
   right: number;
   seats: number;
+  round: boolean;
 }
 
 function draftOf(definition: ItemDefinition): Draft {
@@ -36,10 +37,11 @@ function draftOf(definition: ItemDefinition): Draft {
     left: c(definition.clearance.left),
     right: c(definition.clearance.right),
     seats: definition.seats ?? 0,
+    round: definition.footprint === 'round',
   };
 }
 
-const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0 };
+const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false };
 
 /** The project's item types: add a copy to the plan, or create and edit types with real sizes. */
 export function ItemTypesPanel({
@@ -127,6 +129,7 @@ function ItemTypeForm({
       size: { w: cm(draft.w), d: cm(draft.d), h: cm(draft.h) },
       clearance: { front: cm(draft.front), back: cm(draft.back), left: cm(draft.left), right: cm(draft.right) },
       ...(draft.seats > 0 ? { seats: Math.round(draft.seats) } : {}),
+      ...(draft.round ? { footprint: 'round' as const } : {}),
     });
   };
   return (
@@ -144,13 +147,27 @@ function ItemTypeForm({
       </label>
       <label className="field">
         <span>الشكل</span>
-        <select name="type-shape" value={draft.category} onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}>
+        <select
+          name="type-shape"
+          value={draft.category}
+          onChange={(e) => {
+            const category = e.target.value;
+            setDraft((d) => ({ ...d, category, round: ROUND_SHAPES.includes(category as ShapeKey) }));
+          }}
+        >
           {SHAPES.map((s) => (
             <option key={s.key} value={s.key}>
               {s.label}
             </option>
           ))}
           {!SHAPES.some((s) => s.key === draft.category) && <option value={draft.category}>{draft.category}</option>}
+        </select>
+      </label>
+      <label className="field">
+        <span>المسقط</span>
+        <select name="type-footprint" value={draft.round ? 'round' : 'rect'} onChange={(e) => setDraft((d) => ({ ...d, round: e.target.value === 'round' }))}>
+          <option value="rect">مستطيل</option>
+          <option value="round">دائري</option>
         </select>
       </label>
       <div className="grid3">

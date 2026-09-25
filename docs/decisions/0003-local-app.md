@@ -22,6 +22,8 @@ own from a written specification. It must start from one file.
 | API agent | Anthropic SDK manual tool loop (`claude-opus-5` by default, adaptive thinking, server-side refusal fallback) or any OpenAI-compatible endpoint | Optional path for people who prefer an API key |
 | Starter catalog | `packages/starter` (catalog, 3D shape keys, room templates) | Keeps activity knowledge out of the core |
 | 3D | three.js, simple procedural models per shape, walls with door gaps, picture export | Good-looking enough for clients; no model files to ship |
+| Security | Loopback only; Host must be loopback, a browser Origin must be the app, changes must be JSON | The API can start programs (agents); other websites and DNS rebinding must not reach it |
+| Round items | Optional `footprint: 'round'` on item types (ellipse polygon that contains the true curve) | Chairs around round tables must not raise false overlaps; optional field keeps old files valid |
 | Launch | `start.bat` / `start.command` / `start.sh` → `scripts/start.mjs` (installs, builds when sources changed, runs, opens the browser) | One click, standard library only |
 
 ## Consequences

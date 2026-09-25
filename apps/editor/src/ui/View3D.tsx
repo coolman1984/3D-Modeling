@@ -368,7 +368,11 @@ export function View3D({ project, issues, selectedId, onSelect, fitToken }: Prop
     if (!t) return;
     const centre = new THREE.Vector3(mt((room.minX + room.maxX) / 2), 0, -mt((room.minY + room.maxY) / 2));
     const size = Math.max(mt(room.maxX - room.minX), mt(room.maxY - room.minY), 2);
-    t.camera.position.set(centre.x + size * 0.15, size * 0.95, centre.z + size * 1.05);
+    // Narrow panes (side-by-side view) need the camera further back to keep the room in frame.
+    const host = hostRef.current;
+    const aspect = host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
+    const back = aspect < 1.2 ? 1.05 / aspect : 1;
+    t.camera.position.set(centre.x + size * 0.15 * back, size * 0.95 * back, centre.z + size * 1.05 * back);
     t.controls.target.copy(centre);
     t.controls.update();
     const sun = t.scene.children.find((c) => (c as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight | undefined;

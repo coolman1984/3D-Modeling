@@ -30,6 +30,9 @@ export const SHAPES = [
 
 export type ShapeKey = (typeof SHAPES)[number]['key'];
 
+/** Shapes whose floor outline is round rather than rectangular. */
+export const ROUND_SHAPES: readonly ShapeKey[] = ['round-table', 'plant'];
+
 export function shapeOf(category: string): ShapeKey {
   return SHAPES.some((s) => s.key === category) ? (category as ShapeKey) : 'box';
 }
@@ -56,6 +59,7 @@ export const STARTER_CATALOG: readonly ItemDefinition[] = [
     category: 'round-table',
     size: { w: cm(150), d: cm(150), h: cm(75) },
     clearance: none,
+    footprint: 'round',
   },
   {
     id: 'chair',
@@ -93,6 +97,7 @@ export const STARTER_CATALOG: readonly ItemDefinition[] = [
     category: 'plant',
     size: { w: cm(50), d: cm(50), h: cm(150) },
     clearance: none,
+    footprint: 'round',
   },
 ];
 

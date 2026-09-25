@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   area,
+  measureProject,
   checkProject,
   clipConvex,
   hasErrors,
@@ -157,5 +158,51 @@ describe('checkProject properties', () => {
         expect(codes).not.toContain('overlap');
       }),
     );
+  });
+});
+
+describe('round items', () => {
+  const round: ItemDefinition = {
+    id: 'def-round',
+    name: 'Round table 150',
+    category: 'round-table',
+    size: { w: cm(150), d: cm(150), h: cm(75) },
+    clearance: { front: 0, back: 0, left: 0, right: 0 },
+    footprint: 'round',
+  };
+
+  function hallWith(...items: ItemInstance[]): Project {
+    const hall = furnishedHall();
+    return { ...hall, catalog: { ...hall.catalog, [round.id]: round }, items: Object.fromEntries(items.map((i) => [i.id, i])) };
+  }
+
+  it('lets eight chairs sit around a round table without false alarms', () => {
+    const items = [place('r1', round.id, m(5), m(6))];
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      items.push(place(`c${k}`, 'def-chair', Math.round(m(5) + m(1.05) * Math.cos(a)), Math.round(m(6) + m(1.05) * Math.sin(a)), Math.round(((a * 180) / Math.PI + 90) * 1000) % 360_000));
+    }
+    const project = hallWith(...items);
+    expect(validateProject(project)).toEqual([]);
+    expect(checkProject(project)).toEqual([]);
+  });
+
+  it('still catches a chair that really touches the round edge', () => {
+    // Chair centre 0.9 m from the table centre on the diagonal: its corner reaches inside the 0.75 m radius.
+    const d = Math.round(m(0.9) / Math.SQRT2);
+    const issues = checkProject(hallWith(place('r1', round.id, m(5), m(6)), place('c1', 'def-chair', m(5) + d, m(6) + d, 135_000)));
+    expect(issues.map((i) => i.code)).toContain('overlap');
+  });
+
+  it('measures a round footprint close to the true circle and never smaller', () => {
+    const area = measureProject(hallWith(place('r1', round.id, m(5), m(6)))).occupiedArea;
+    const circle = Math.PI * cm(75) * cm(75);
+    expect(area).toBeGreaterThanOrEqual(circle);
+    expect(area).toBeLessThan(circle * 1.01);
+  });
+
+  it('rejects an unknown footprint', () => {
+    const bad = { ...hallWith(), catalog: { [round.id]: { ...round, footprint: 'hexagon' } } };
+    expect(validateProject(bad).map((p) => p.path)).toEqual([`catalog.${round.id}.footprint`]);
   });
 });

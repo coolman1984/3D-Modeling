@@ -127,6 +127,19 @@ describe('agent tools', () => {
     expect(store.history(project.id)[0]?.actor).toBe('agent:test');
   });
 
+  it('gives round tables a round footprint, so chairs can circle them', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const project = store.createProject(demoHall(), 'human');
+    runTool(ctx, 'define_item', { project_id: project.id, id: 'round-180', name: 'مدورة ١٨٠', category: 'round-table', width_cm: 180, depth_cm: 180, height_cm: 75 });
+    expect(store.getProject(project.id)!.catalog['round-180']?.footprint).toBe('round');
+    const items: Array<Record<string, unknown>> = [{ definition_id: 'round-180', x_m: 7.5, y_m: 5.5 }];
+    for (let k = 0; k < 10; k++) {
+      const a = (k * Math.PI) / 5;
+      items.push({ definition_id: 'chair', x_m: 7.5 + 1.2 * Math.cos(a), y_m: 5.5 + 1.2 * Math.sin(a), rotation_deg: (a * 180) / Math.PI + 90 });
+    }
+    expect(runTool(ctx, 'place_items', { project_id: project.id, items }).text).toContain('No issues.');
+  });
+
   it('reports mistakes so the agent can correct them', () => {
     const ctx = { store, actor: 'agent:test' };
     const project = store.createProject(demoHall(), 'human');

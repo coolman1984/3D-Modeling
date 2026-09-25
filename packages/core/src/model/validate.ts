@@ -133,7 +133,7 @@ const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'cat
 const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'ceilingHeight'] as const;
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
 const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing'] as const;
-const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats'] as const;
+const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint'] as const;
 const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked'] as const;
 const POINT_FIELDS = ['x', 'y'] as const;
 
@@ -246,6 +246,9 @@ function checkDefinition(c: Collector, value: unknown, path: string, key?: strin
     for (const side of sides) c.length(clearance[side], `${path}.clearance.${side}`);
   }
   if (definition.seats !== undefined) c.integer(definition.seats, `${path}.seats`, 0, 10_000);
+  if (definition.footprint !== undefined && definition.footprint !== 'rect' && definition.footprint !== 'round') {
+    c.add('wrong-type', `${path}.footprint`, 'expected "rect" or "round"');
+  }
 }
 
 function checkItem(c: Collector, value: unknown, path: string, key?: string, definitionIds?: Set<string>): void {

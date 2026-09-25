@@ -226,7 +226,17 @@ function Editor({ initial }: { initial: Project }) {
               ['split', 'الاتنين'],
             ] as const
           ).map(([id, label]) => (
-            <button key={id} type="button" className={view === id ? 'active' : ''} aria-pressed={view === id} onClick={() => setView(id)}>
+            <button
+              key={id}
+              type="button"
+              className={view === id ? 'active' : ''}
+              aria-pressed={view === id}
+              onClick={() => {
+                setView(id);
+                setViewport(null);
+                setFitToken((n) => n + 1);
+              }}
+            >
               {label}
             </button>
           ))}

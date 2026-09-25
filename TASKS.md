@@ -37,6 +37,10 @@
   (fixed with a blob link; the test browser also needs a UTF-8 locale).
 - The plan did not re-fit when an agent resized the room (fixed).
 - Opening the browser could crash the server on machines without an opener (fixed).
+- Round tables were checked as squares, so chairs around them showed false overlaps. Items now
+  have an optional round footprint (core, starter catalog, agent tools, item-type form).
+- Security: any website open in the same browser could have reached the local API and changed
+  the agent command. The API now accepts only the app itself (host, origin and JSON checks).
 - Not confirmed here: the real Claude Code and Codex command lines (not installed in this
   environment; the runner was tested with a stand-in agent) and a real API call (tested against
   a stand-in API server).

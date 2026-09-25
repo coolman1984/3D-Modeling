@@ -72,6 +72,8 @@ export interface ItemDefinition {
   readonly clearance: ItemClearance;
   /** Seats this item contributes to capacity. */
   readonly seats?: number;
+  /** Floor outline: a rectangle (default) or an ellipse inscribed in width × depth (round tables, pots). */
+  readonly footprint?: 'rect' | 'round';
 }
 
 /** Where one copy of an item stands. */
