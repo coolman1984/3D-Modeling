@@ -47,7 +47,9 @@ export type RuleCode =
   | 'machine-boundary'
   | 'flow-reachability'
   | 'bay-boundary'
-  | 'bay-entry';
+  | 'bay-entry'
+  | 'area-per-cover'
+  | 'table-reachability';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -98,6 +100,8 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'flow-reachability': { kind: 'engineering', title: 'A material handler can travel from each station to the next in the line, on the derived floor grid', ruleSet: 'starter.production.v1' },
   'bay-boundary': { kind: 'engineering', title: 'Parking bays must fit within the depot boundary', ruleSet: 'starter.depot.v1' },
   'bay-entry': { kind: 'engineering', title: 'A reference vehicle can drive a minimum-turning-radius path from the nearest lane into each empty bay without its swept body leaving the floor or touching a wall, column, other vehicle or no-go zone', ruleSet: 'starter.depot.v1' },
+  'area-per-cover': { kind: 'common-guidance', title: 'Restaurant planning guidance: floor area per cover by service style', ruleSet: 'starter.restaurant.v1' },
+  'table-reachability': { kind: 'engineering', title: 'Waitstaff can travel from the kitchen pass to every table on the derived floor grid', ruleSet: 'starter.restaurant.v1' },
 };
 
 export interface RuleResult {
@@ -110,7 +114,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station' | 'no-bays' | 'no-lanes' | 'all-occupied';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station' | 'no-bays' | 'no-lanes' | 'all-occupied' | 'no-tables' | 'no-pass';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }
@@ -152,7 +156,7 @@ export function walkwayRule(project: Project, width: Tick): RuleResult {
 }
 
 /** Floor area per person (seat), rounded to hundredths of a square metre, at least `required`. */
-export function areaRule(code: 'area-per-guest' | 'area-per-person', project: Project, required: number): RuleResult {
+export function areaRule(code: 'area-per-guest' | 'area-per-person' | 'area-per-cover', project: Project, required: number): RuleResult {
   const metrics = measureProject(project);
   if (metrics.seats === 0) return { code, unit: 'square-metres', required, ...NO_SEATS };
   const measured = Math.round((toSquareMetres(metrics.floorArea) / metrics.seats) * 100) / 100;

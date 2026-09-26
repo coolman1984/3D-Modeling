@@ -145,6 +145,8 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'flow-reachability': 'Material handler reaches every station',
   'bay-boundary': 'Bays fit inside the depot',
   'bay-entry': 'A vehicle can turn into every empty bay',
+  'area-per-cover': 'Floor area per cover',
+  'table-reachability': 'Waitstaff reaches every table',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -219,6 +221,10 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} inside`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} bays` };
     case 'bay-entry':
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} empty bays` };
+    case 'area-per-cover':
+      return { measured: rule.measured === undefined ? dash : formatSquareMetres(rule.measured), required: rule.required === undefined ? dash : `${formatSquareMetres(rule.required)} or more` };
+    case 'table-reachability':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} tables` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -264,6 +270,10 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'Add a lane zone so a vehicle has somewhere to approach a bay from.';
       case 'all-occupied':
         return 'Every bay already has a vehicle in it; there is nothing empty to check.';
+      case 'no-tables':
+        return 'Add tables to check the restaurant.';
+      case 'no-pass':
+        return 'Add a kitchen pass door (its role set to "pass") so waitstaff have somewhere to start from.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -333,5 +343,9 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass' ? 'Every bay fits inside the depot.' : `Bays outside the depot: ${list(rule.entityIds)}.`;
     case 'bay-entry':
       return rule.status === 'pass' ? 'A vehicle can turn from the lane into every empty bay.' : `No clear turn into: ${list(rule.entityIds)}.`;
+    case 'area-per-cover':
+      return `Each cover has ${formatSquareMetres(rule.measured ?? 0)} of floor; at least ${formatSquareMetres(rule.required ?? 0)} is needed.`;
+    case 'table-reachability':
+      return rule.status === 'pass' ? 'Waitstaff can reach every table from the kitchen pass.' : `No route from the pass to: ${list(rule.entityIds)}.`;
   }
 }

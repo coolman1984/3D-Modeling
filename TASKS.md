@@ -137,6 +137,51 @@ T7/T8, and `packages/industry` as the right home for a new shared vehicle-kinema
 - [x] Browser journey (`depot.spec.ts`); full `pnpm check` green (typecheck, all unit suites, all
       16 browser journeys); decision record 0013; TASKS/README/agents.md updated.
 
+## Done: T10 — restaurant MVP (plan §7 in `docs/03-industrial-packs-plan.md`, decision 0014)
+
+**Finish line:** A person can create, edit, check, inspect in 2D/3D and report a realistic
+restaurant (table families, dining/bar/terrace/private zones, covers, a kitchen-pass service
+route) in Atrium; spatial feasibility only — walkway/area/exit rules and table reachability from
+the kitchen pass. No throughput, reservation or seating-turn simulation, and no automatic
+candidate-layout generation in this stage. Agents share the command path; browser journey and
+full `pnpm check` pass before calling T10 done.
+
+What earlier stages already give this for free: the shared `walkwayRule`/`areaRule`/`exitRules`
+module (T3b, used unmodified — a table's `seats` field makes it a "seat" in the core's own terms,
+the same as a hall chair), the door-role convention from T7 (`Door.meta.role`, reused verbatim
+including its `rotate()`-based approach-point formula), and the one-search-per-source reachability
+shape from decision 0011.
+
+- [x] Reference restaurant: 20 × 14 m, an entrance and a kitchen-pass door, a dining zone, 9
+      tables across four families (4-top, round-6, booth-4, banquette-8) seating 44 covers, zero
+      design issues, every rule passes on the first run.
+- [x] Table families reuse the core's existing `seats` field (no new core concept) and the
+      existing `table`/`round-table` 3D shapes (no new geometry); clearance is uniform on all four
+      sides, since a table has no single "front" the way a machine or rack does.
+- [x] Rules: `area-per-cover` (reuses the shared `areaRule` with a restaurant-specific code and
+      provenance) plus the shared `walkway`/`exits`/`door-width` rules unmodified, and the new
+      `table-reachability` (waitstaff can travel from the kitchen pass to every table, one
+      flood-fill search per pass door). No `table-boundary` rule — the core's own out-of-bounds
+      design issue already covers it, same as hall and office.
+- [x] Restaurant metrics: covers, tables by family, floor per cover, dining/bar/terrace/private
+      zone areas, reachable/total tables.
+- [x] Editor: restaurant activity card + reference/empty templates, a restaurant panel (covers,
+      metrics, a service-route check with the route shown in 2D/3D).
+- [x] Agent tools: `create_project` activity `restaurant`, `restaurant_metrics`, `table_route`;
+      project check uses the restaurant pack. Tables placed with the existing generic
+      `define_item`/`place_items` tools — no dedicated add-table tool, since a table is not
+      parametric like a rack or a bay.
+- [x] Report: restaurant-specific cover copy and stats, a "Restaurant" section.
+- [x] Hand-checked route-distance comparison (a table near the pass is closer than one far from
+      it), unknown-reason cases (no tables, no pass door), an out-of-bounds-table case confirmed
+      as a core design issue rather than a pack rule, a 20-table scale case under a second. A
+      planted-bug run (flipping the door swing-direction sign copied from the warehouse's
+      `dockApproach`) failed four independent tests immediately, confirming the reused formula is
+      exercised, not just present.
+- [x] Browser journey (`restaurant.spec.ts`); full `pnpm check` green (typecheck, all unit suites,
+      all 17 browser journeys); recheck of all prior packs' journeys and save compatibility;
+      decision record 0014; TASKS/README/agents.md/plan doc updated.
+
 ## Done: R1 — Atrium redesign of the existing app (English UI)
 
 **Done means:**
@@ -330,11 +375,10 @@ T7/T8, and `packages/industry` as the right home for a new shared vehicle-kinema
 
 ## Next
 
-- T10: restaurant MVP (table families, dining/bar/terrace/private zones, covers, service routes,
-  candidate layouts) — plan §7 in `docs/03-industrial-packs-plan.md`.
+- T11: shared accounts, companies, collaboration (the master plan's multi-user chapters, designed
+  around the packs built in T6–T10) — plan §7 in `docs/03-industrial-packs-plan.md`.
 
 ## Later
 
-- T11: shared accounts, companies, collaboration (the master plan's multi-user chapters, designed
-  around the packs built in T6–T10).
+- Restaurant candidate-layout generation (max capacity / balanced / spacious), deferred from T10.
 - A proper 3D model for the kosha (platform + couple sofa + backdrop).

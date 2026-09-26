@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Briefcase,
   Car,
+  ForkKnife,
   Package,
   Warehouse,
   Check,
@@ -435,6 +436,8 @@ const TEMPLATES: readonly Template[] = [
   { id: 'production-empty', name: 'Empty production floor', desc: '30 × 8 m · add your own stations', width: 30, depth: 8, ceiling: 4, pack: 'production' },
   { id: 'depot', name: 'Reference depot', desc: '30 × 18 m · a two-way lane · 6 bays, 2 occupied', width: 30, depth: 18, ceiling: 4, pack: 'depot' },
   { id: 'depot-empty', name: 'Empty depot', desc: '30 × 18 m · add your own lanes, bays and vehicles', width: 30, depth: 18, ceiling: 4, pack: 'depot' },
+  { id: 'restaurant', name: 'Reference restaurant', desc: '20 × 14 m · kitchen pass · 9 tables, 44 covers', width: 20, depth: 14, ceiling: 3.2, pack: 'restaurant' },
+  { id: 'restaurant-empty', name: 'Empty restaurant', desc: '20 × 14 m · add your own tables and zones', width: 20, depth: 14, ceiling: 3.2, pack: 'restaurant' },
   { id: 'blank', name: 'Blank', desc: 'Any size · add everything yourself', width: 12, depth: 9, ceiling: 3, pack: 'hall' },
 ];
 
@@ -480,6 +483,8 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
         ? await api.createProject({ name: name.trim() || 'Reference production line', template: 'production-reference' })
         : template.id === 'depot' && activity === 'depot' && width === 30 && depth === 18 && ceiling === 4
         ? await api.createProject({ name: name.trim() || 'Reference depot', template: 'depot-reference' })
+        : template.id === 'restaurant' && activity === 'restaurant' && width === 20 && depth === 14 && ceiling === 3.2
+        ? await api.createProject({ name: name.trim() || 'Reference restaurant', template: 'restaurant-reference' })
         : template.demo
         ? await api.createProject({ name: name.trim() || 'Demo hall 10 × 8 m', template: 'demo' })
         : await api.createProject({ name: name.trim(), width_m: w, depth_m: d, activity, ...(ceiling === undefined ? {} : { ceiling_m: ceiling }) });
@@ -525,6 +530,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 ['warehouse', 'Warehouse', 'Racks, capacity and forklift routes', <Warehouse size={22} />],
                 ['production', 'Production line', 'Machines, buffers and material flow', <Factory size={22} />],
                 ['depot', 'Vehicle depot', 'Parking bays, lanes and turning paths', <Car size={22} />],
+                ['restaurant', 'Restaurant', 'Table families, covers and service routes', <ForkKnife size={22} />],
               ] as const
             ).map(([id, label, hint, icon]) => (
               <button
@@ -538,6 +544,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                   if (id === 'warehouse') choose(TEMPLATES.find((t) => t.id === 'warehouse')!);
                   else if (id === 'production') choose(TEMPLATES.find((t) => t.id === 'production')!);
                   else if (id === 'depot') choose(TEMPLATES.find((t) => t.id === 'depot')!);
+                  else if (id === 'restaurant') choose(TEMPLATES.find((t) => t.id === 'restaurant')!);
                   else setActivity(id);
                   if (id === 'container' && template.demo) setTemplate(TEMPLATES.find((t) => t.id === 'blank')!);
                 }}
