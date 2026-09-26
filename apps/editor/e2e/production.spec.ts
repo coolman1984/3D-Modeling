@@ -11,6 +11,9 @@ test('reference production line: flow length, edit a station order, and print re
   await saved(page);
   const id = /#\/p\/([\w-]+)/.exec(page.url())![1]!;
   await expect(page.getByTestId('production-flow-length')).toContainText('8.8');
+  await expect(page.getByTestId('production-throughput')).toContainText('39.8');
+  await expect(page.getByTestId('production-panel')).toContainText('318');
+  await expect(page.getByTestId('production-panel')).toContainText('S04');
   await expect(page.locator('[data-item-id]')).toHaveCount(6);
   await expect(page.getByTestId('warehouse-route')).toBeVisible();
 
@@ -29,5 +32,7 @@ test('reference production line: flow length, edit a station order, and print re
   await expect(page.getByTestId('view3d').locator('canvas')).toBeVisible();
   await page.getByRole('link', { name: 'Client report' }).click();
   await expect(page.getByTestId('report-production-stations')).toHaveText('6');
+  await expect(page.getByTestId('report-production-simulation')).toContainText('318 finished parts');
+  await expect(page.getByTestId('report-production-simulation')).toContainText('39.8 parts/hour');
   await expect(page.getByTestId('report-picture')).toBeVisible({ timeout: 15_000 });
 });
