@@ -287,7 +287,12 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                     <span className="thumb">{card && <ProjectThumb project={card.project} width={96} height={62} />}</span>
                     <span style={{ minWidth: 0 }}>
                       <span className="proj-name">{p.name}</span>
-                      <span className="proj-sub">Revision {p.revision}</span>
+                      <span className="proj-sub">
+                        Revision {p.revision}
+                        {p.variantOf && (
+                          <span data-variant-of={p.variantOf}> · Variant of {projects?.find((base) => base.id === p.variantOf)?.name ?? 'another plan'}</span>
+                        )}
+                      </span>
                     </span>
                     <span className="opt">
                       {pack?.label ?? '—'}
@@ -325,7 +330,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                     </span>
                   </span>
                   <span className="proj-sub" style={{ fontSize: 13, marginTop: 6 }}>
-                    {[card ? packOf(card.activity.pack).label : null, room ? `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m` : null, plural(p.itemCount, 'item')].filter(Boolean).join(' · ')}
+                    {[p.variantOf ? `Variant of ${projects?.find((base) => base.id === p.variantOf)?.name ?? 'another plan'}` : null, card ? packOf(card.activity.pack).label : null, room ? `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m` : null, plural(p.itemCount, 'item')].filter(Boolean).join(' · ')}
                   </span>
                   <span className={`proj-state state-${state.tone}`} style={{ fontSize: 13, marginTop: 10 }}>
                     {state.icon}
