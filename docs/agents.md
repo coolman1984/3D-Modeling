@@ -135,3 +135,13 @@ Dining / bar / terrace / private zones are named polygons, the same mechanism a 
 uses. No throughput, no reservation or seating-turn simulation, and no automatic candidate-layout
 generation (max-capacity / balanced / spacious) in this stage — tables are placed by a person or
 an agent, the way a hall or office is furnished.
+
+## Design variants
+
+Use variants whenever you are exploring an alternative rather than applying an explicitly requested edit to the approved plan.
+
+1. `create_variant` makes a linked alternative with its own history. Continue editing the returned project id with the ordinary tools.
+2. `compare_variants` measures the approved plan and all alternatives using validation plus the activity pack's relevant figures. It never changes a project.
+3. `adopt_variant` copies the chosen alternative back into the approved base through ordinary core commands as one new revision. **Do not call it unless the person explicitly asked to adopt that alternative.**
+
+AI optimisation should calculate and propose in variants. The approved project stays untouched until adoption. A variant is a full project, so every normal rule still applies: commands only, validation, revisions, save compatibility and deterministic results.
