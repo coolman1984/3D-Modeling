@@ -45,7 +45,9 @@ export type RuleCode =
   | 'rack-boundary'
   | 'dock-approach'
   | 'machine-boundary'
-  | 'flow-reachability';
+  | 'flow-reachability'
+  | 'bay-boundary'
+  | 'bay-entry';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -94,6 +96,8 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'dock-approach': { kind: 'engineering', title: 'Dock approach points must lie in their named receiving or shipping operational zones', ruleSet: 'starter.warehouse.v1' },
   'machine-boundary': { kind: 'engineering', title: 'Stations must fit within the production floor boundary', ruleSet: 'starter.production.v1' },
   'flow-reachability': { kind: 'engineering', title: 'A material handler can travel from each station to the next in the line, on the derived floor grid', ruleSet: 'starter.production.v1' },
+  'bay-boundary': { kind: 'engineering', title: 'Parking bays must fit within the depot boundary', ruleSet: 'starter.depot.v1' },
+  'bay-entry': { kind: 'engineering', title: 'A reference vehicle can drive a minimum-turning-radius path from the nearest lane into each empty bay without its swept body leaving the floor or touching a wall, column, other vehicle or no-go zone', ruleSet: 'starter.depot.v1' },
 };
 
 export interface RuleResult {
@@ -106,7 +110,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station' | 'no-bays' | 'no-lanes' | 'all-occupied';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }

@@ -93,6 +93,50 @@ regression).
       all 15 browser journeys); recheck of all prior packs' journeys and save compatibility;
       decision record 0012; TASKS/README/plan doc updated.
 
+## Done: T9 — vehicle depot / garage MVP (plan §7 in `docs/03-industrial-packs-plan.md`, decision 0013)
+
+**Finish line:** A person can create, edit, check, inspect in 2D/3D and report a realistic vehicle
+depot (parking bays, a travel lane, parked vehicles) in Atrium; spatial feasibility only — a
+minimum-turning-radius (Dubins) path checked from the nearest lane into each empty bay, swept
+body checked against walls, columns, other vehicles and no-go zones. No throughput/dwell-time
+simulation, no reverse maneuvers, no articulated (trailer) kinematics. Agents share the command
+path; browser journey and full `pnpm check` pass before calling T9 done.
+
+What earlier stages already give this for free: the derived-zone/rule-provenance pattern from T7
+(a bay ended up being a zone, exactly like a warehouse aisle), the report/agent-tool patterns from
+T7/T8, and `packages/industry` as the right home for a new shared vehicle-kinematics primitive
+(the plan's own concept-placement table already named "vehicle profile, swept envelope" for
+`packages/industry` at T9).
+
+- [x] New `packages/industry/src/dubins.ts`: a clean-room Dubins path planner (LSL/RSR/LSR/RSL),
+      pose sampling and vehicle-corner geometry. Verified by forward-simulating the returned path
+      back to the goal pose (property test over random poses/radii), plus two hand-derived cases
+      (a straight segment, an exact (π/2)·r quarter-circle turn). A floating-point edge case at a
+      symmetric tangent configuration was found and fixed (tolerance before the p² square root).
+- [x] Reference depot: 30 × 18 m, a two-way lane, six perpendicular bays, two parked vehicles
+      (sedan, van), zero design issues, both rules pass.
+- [x] A bay is a zone (`Space.zones`, kind `bay`), not an item — the first version as an item
+      caused every parked vehicle to be flagged as "overlapping" its own bay, since the core's
+      overlap check only looks at vertical extent and a floor marking and a car both start at
+      elevation zero. Zones and items are never compared for overlap, so this was the correct
+      fix, not a workaround.
+- [x] Rules: `bay-boundary` (bay fits inside the depot), `bay-entry` (a reference vehicle can turn
+      from the lane into every empty bay without its swept body leaving the floor or touching an
+      obstacle). Unknown for no bays, no lanes, or every bay already occupied.
+- [x] Depot metrics: bay counts by type, occupied/usable bays, vehicle count, floor area.
+- [x] Editor: depot activity card + reference/empty templates, a depot panel (metrics, bay-entry
+      check with the swept path shown in 2D/3D, an "add bay" form), a vehicle inspector group.
+- [x] Agent tools: `create_project` activity `depot`, `add_depot_bay`, `add_depot_zone`,
+      `depot_metrics`, `bay_entry_check` (names a vehicle type); project check uses the depot pack.
+- [x] Report: depot-specific cover copy and stats, a "Vehicle depot" section.
+- [x] Hand-calculated entry-scene test (exact lane-approach start point, goal at the bay centre),
+      occupied/blocked/no-lane/unknown-bay cases, a 20-bay scale case under a second. A real
+      geometry issue (a tight turning radius with no lead-in room forcing an unrealistic wide
+      loop) was found and fixed by setting the approach point back one turning radius along the
+      lane before this reached the browser.
+- [x] Browser journey (`depot.spec.ts`); full `pnpm check` green (typecheck, all unit suites, all
+      16 browser journeys); decision record 0013; TASKS/README/agents.md updated.
+
 ## Done: R1 — Atrium redesign of the existing app (English UI)
 
 **Done means:**
@@ -286,9 +330,11 @@ regression).
 
 ## Next
 
-- T5: accounts and a shared server (so the activity choice and projects are shared between devices).
-- A proper 3D model for the kosha (platform + couple sofa + backdrop).
+- T10: restaurant MVP (table families, dining/bar/terrace/private zones, covers, service routes,
+  candidate layouts) — plan §7 in `docs/03-industrial-packs-plan.md`.
 
 ## Later
 
-- T3 hall pack (printable report, rules) · T4 office pack · walls with thickness (C8)
+- T11: shared accounts, companies, collaboration (the master plan's multi-user chapters, designed
+  around the packs built in T6–T10).
+- A proper 3D model for the kosha (platform + couple sofa + backdrop).

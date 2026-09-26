@@ -143,6 +143,8 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'dock-approach': 'Dock approach areas',
   'machine-boundary': 'Stations fit inside the floor',
   'flow-reachability': 'Material handler reaches every station',
+  'bay-boundary': 'Bays fit inside the depot',
+  'bay-entry': 'A vehicle can turn into every empty bay',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -213,6 +215,10 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} inside`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} stations` };
     case 'flow-reachability':
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} segments` };
+    case 'bay-boundary':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} inside`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} bays` };
+    case 'bay-entry':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} empty bays` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -252,6 +258,12 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'Add stations to the production line to check it.';
       case 'one-station':
         return 'Add a second station to check the material flow between them.';
+      case 'no-bays':
+        return 'Add parking bays to check the depot.';
+      case 'no-lanes':
+        return 'Add a lane zone so a vehicle has somewhere to approach a bay from.';
+      case 'all-occupied':
+        return 'Every bay already has a vehicle in it; there is nothing empty to check.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -317,5 +329,9 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass' ? 'Every station fits inside the production floor.' : `Stations outside the floor: ${list(rule.entityIds)}.`;
     case 'flow-reachability':
       return rule.status === 'pass' ? 'The material handler can travel from each station to the next.' : `No route between: ${list(rule.entityIds)}.`;
+    case 'bay-boundary':
+      return rule.status === 'pass' ? 'Every bay fits inside the depot.' : `Bays outside the depot: ${list(rule.entityIds)}.`;
+    case 'bay-entry':
+      return rule.status === 'pass' ? 'A vehicle can turn from the lane into every empty bay.' : `No clear turn into: ${list(rule.entityIds)}.`;
   }
 }

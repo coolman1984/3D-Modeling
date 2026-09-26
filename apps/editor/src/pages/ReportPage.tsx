@@ -1,5 +1,5 @@
 import { area, checkProject, toSquareMetres, type Project } from '@space-planner/core';
-import { containerMetrics, containerType, flowOrder, productionMetrics, SHAPES, shapeOf, stationKindOf, stepOf, stopOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
+import { bayTypeOf, containerMetrics, containerType, depotMetrics, flowOrder, productionMetrics, SHAPES, shapeOf, stationKindOf, stepOf, stopOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -103,6 +103,8 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const sampleRoute = firstRack && project.space.doors[0] ? warehouseRoute(project, project.space.doors[0].id, firstRack.id) : null;
   const production = report.activity.pack === 'production' ? productionMetrics(project) : null;
   const flow = production ? flowOrder(project) : [];
+  const depot = report.activity.pack === 'depot' ? depotMetrics(project) : null;
+  const bays = depot ? (project.space.zones ?? []).filter((z) => bayTypeOf(z)) : [];
   const box = cargo ? containerType(String(project.space.meta?.containerType ?? '')) : undefined;
   const sequence = cargo
     ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
@@ -144,6 +146,8 @@ export function ReportPage({ projectId }: { projectId: string }) {
               <>A spatial warehouse plan with {formatCount(warehouse.rackRows)} rack rows and {formatCount(warehouse.positions)} addressable pallet positions, checked for fit and forklift access.</>
             ) : production ? (
               <>A production line with {plural(production.stations, 'station')} over {(production.flowLength / 10_000).toFixed(1)} m of material flow, checked for fit and reachability.</>
+            ) : depot ? (
+              <>A vehicle depot with {plural(depot.bays, 'parking bay')} and {plural(depot.vehicles, 'vehicle')}, checked for fit and turning clearance from the lane.</>
             ) : cargo && load ? (
               <>
                 A loading plan for {plural(load.pieces, 'piece')} in a {box?.label ?? 'custom container'} ({roomSize} inside), checked for fit, support, load on top, orientation, unloading order and balance.
@@ -214,6 +218,14 @@ export function ReportPage({ projectId }: { projectId: string }) {
                     [`${(production.flowLength / 10_000).toFixed(1)} m`, 'Flow length'],
                     [`${production.reachableSegments} of ${production.totalSegments}`, 'Segments reachable'],
                     [`${production.floorArea.toFixed(1)} m²`, 'Floor area'],
+                  ]
+                : depot
+                ? [
+                    [<span data-testid="report-depot-bays">{formatCount(depot.bays)}</span>, 'Bays'],
+                    [formatCount(depot.occupiedBays), 'Occupied'],
+                    [formatCount(depot.usableBays), 'Usable (empty, reachable)'],
+                    [formatCount(depot.vehicles), 'Vehicles'],
+                    [`${depot.floorArea.toFixed(1)} m²`, 'Floor area'],
                   ]
                 : cargo && load
                 ? [
@@ -366,6 +378,13 @@ export function ReportPage({ projectId }: { projectId: string }) {
               <div className="sheet-h later"><h2>Production flow</h2><span>Spatial planning only · no throughput simulation</span></div>
               <p className="sub">{formatCount(production.stations)} stations ({formatCount(production.machines)} machines, {formatCount(production.buffers)} buffers, {formatCount(production.bufferCapacity)} buffer capacity) over {(production.flowLength / 10_000).toFixed(1)} m of flow · {production.reachableSegments} of {production.totalSegments} segments reachable for the material handler.</p>
               <p className="sub">Flow order: {flow.map((i, idx) => `${idx + 1}. ${project.catalog[i.definitionId]?.name ?? i.id} (${stationKindOf(project.catalog[i.definitionId]) ?? '—'})`).join(' · ') || 'no stations in the flow'}.</p>
+            </div>
+          )}
+          {depot && (
+            <div data-testid="report-depot-detail">
+              <div className="sheet-h later"><h2>Vehicle depot</h2><span>Spatial planning only · minimum-turning-radius entry check</span></div>
+              <p className="sub">{formatCount(depot.bays)} bays ({Object.entries(depot.bayTypes).filter(([, n]) => n > 0).map(([type, n]) => `${formatCount(n)} ${type}`).join(' · ') || 'none'}), {formatCount(depot.occupiedBays)} occupied, {formatCount(depot.usableBays)} usable of the rest · {formatCount(depot.vehicles)} vehicles on {depot.floorArea.toFixed(1)} m² of floor.</p>
+              <p className="sub">Bays: {bays.map((b) => `${b.id} (${bayTypeOf(b)})`).join(' · ') || 'no bays placed'}.</p>
             </div>
           )}
           {cargo && sequence.length > 0 && (
