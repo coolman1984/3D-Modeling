@@ -63,6 +63,7 @@ export const api = {
   listProjects: () => request<ProjectSummary[]>('/api/projects'),
   createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference' | 'production-reference' | 'depot-reference' | 'restaurant-reference'; file?: string }) =>
     post<Project>('/api/projects', body),
+  addSampleCompany: () => post<Array<{ id: string; name: string }>>('/api/samples/nile-gate', {}),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   deleteProject: (id: string) => request<unknown>(`/api/projects/${id}`, { method: 'DELETE' }),
   duplicateProject: (id: string) => post<Project>(`/api/projects/${id}/duplicate`, {}),

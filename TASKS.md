@@ -1,5 +1,33 @@
 # TASKS
 
+## Now: D1 — client demo: "Nile Gate Logistics" sample company + material slotting + visual polish
+
+**Finish line (1–2 day deadline):** from the projects page, one click adds a realistic fictional
+Egyptian logistics company (Nile Gate Logistics): an electronics distribution centre in 10th of
+Ramadan stocked with Samsung-style TVs and appliances, a port warehouse, loaded inbound containers
+(TV cartons upright, palletised appliances), a multi-stop outbound trailer, an empty container to
+pack live, and a truck yard. In a warehouse a person can see which material sits in which rack
+location (3D pallets coloured by material), assign / move / clear material per location, find a
+material, and run a deterministic slotting optimiser that cuts forklift travel (before/after shown).
+The 3D view looks like a real site (industrial racking colours, pallets, printed TV cartons,
+corrugated container shell, better lighting) while staying fast at 100+ racks. Everything goes
+through core commands and the store; `pnpm check` passes; browser-checked with screenshots.
+
+- [x] Starter: stock slotting module (encoding in rack `meta`, locations, metrics, optimiser) + tests
+- [x] Starter: Nile Gate sample company (warehouses, containers, trailer, yard) + tests
+- [x] Server: `POST /api/samples/nile-gate` creates the sample projects through the store; test
+- [x] Editor: "Add sample company" on the projects page
+- [x] Editor: stock panel (occupancy, materials, find, optimise) + rack location grid in the inspector
+- [x] Editor 3D: stock pallets per location (instanced), racking colours, lighting, TV carton print, container shell, forklifts, dock plates, floor lines
+- [x] Agent tools: `warehouse_stock`, `assign_stock`, `optimize_slotting`
+- [x] Decision record 0015, README, agents.md; planted bug caught; browser review with screenshots; `sample.spec.ts`
+- [x] Full `pnpm check` (typecheck, 314 unit tests, 18 browser journeys); commit on a branch and push
+
+Found along the way (D1):
+- The 20′ phone sample was 12.4% front-heavy on the first build (balance limit 10%); fixed the sample load.
+- Stock in a blocked location is allowed and not yet reported by any rule.
+- Playwright's own Chromium was not installed on this machine; installed it for the browser suite.
+
 ## Done: T5 — shared industrial foundation (plan: `docs/03-industrial-packs-plan.md`)
 
 **Done means:**

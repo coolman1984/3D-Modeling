@@ -129,7 +129,8 @@ export function warehouseMetrics(project: Project) {
   return { rackRows: rackRows.length, bays: specs.reduce((n, s) => n + (s?.bays ?? 0), 0), levels: specs.reduce((n, s) => n + (s?.levels ?? 0), 0), positions: capacity, usablePositions: Math.max(0, capacity - blocked), floorArea, rackArea, floorUtilization: floorArea ? rackArea / floorArea : 0, stagingArea: zoneArea('staging'), aisleArea: zoneArea('main-aisle') + zoneArea('rack-aisle') + zoneArea('cross-aisle'), zoneCount: project.space.zones?.length ?? 0, docks: project.space.doors.length };
 }
 
-function dockApproach(dock: Project['space']['doors'][number], mover: MovementProfile) {
+/** Where a mover stands just inside a dock opening, the start of every dock route. */
+export function dockApproach(dock: Project['space']['doors'][number], mover: MovementProfile) {
   const along = rotate({ x: dock.width / 2, y: 0 }, dock.angle);
   const inward = rotate({ x: mover.effectiveWidth / 2 + cm(40), y: 0 }, dock.angle + (dock.swing === 'left' ? 90_000 : -90_000));
   return { x: dock.hinge.x + along.x + inward.x, y: dock.hinge.y + along.y + inward.y };

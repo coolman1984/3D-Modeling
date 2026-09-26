@@ -24,6 +24,7 @@ const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Cu
   shelf: 'Office',
   rack: 'Racks',
   car: 'Vehicles',
+  forklift: 'Vehicles',
   plant: 'Other',
   box: 'Other',
 };

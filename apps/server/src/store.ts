@@ -116,7 +116,7 @@ export class Store extends EventEmitter<StoreEvents> {
 
   listProjects(): ProjectSummary[] {
     const rows = this.db
-      .prepare('SELECT id, name, revision, item_count, created_at, updated_at FROM projects ORDER BY updated_at DESC')
+      .prepare('SELECT id, name, revision, item_count, created_at, updated_at FROM projects ORDER BY updated_at DESC, rowid DESC')
       .all() as Array<Record<string, string | number>>;
     return rows.map((r) => ({
       id: String(r.id),

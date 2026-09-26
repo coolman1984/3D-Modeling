@@ -24,7 +24,7 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   if (route.page === 'report') return <ReportPage projectId={route.id} />;
-  if (route.page === 'editor') return <EditorPage projectId={route.id} />;
+  if (route.page === 'editor') return <EditorPage key={route.id} projectId={route.id} />;
   if (route.page === 'settings') return <SettingsPage />;
   return <ProjectsPage open={(id) => (window.location.hash = `#/p/${id}`)} />;
 }

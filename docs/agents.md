@@ -13,6 +13,7 @@ the planner tools.
 | `add_warehouse_rack` | One parametric rack row through one revision; centre in metres, bays, levels and positions |
 | `add_warehouse_zone` | Named polygon (3–32 metre-coordinate vertices) through one revision |
 | `warehouse_metrics` | Storage positions, usable positions, rack/zone areas and docks |
+| `warehouse_stock` / `assign_stock` / `optimize_slotting` | What each rack location holds; fill or empty locations; re-slot stock to cut forklift travel |
 | `find_warehouse_route` | Dock to rack, mover body width and side clearance, reachability and sampled distance |
 | `production_metrics` | Station/machine/buffer counts, buffer capacity, flow length and segment reachability |
 | `add_depot_bay` | One parking bay zone through one revision; centre in metres, bay type and facing direction |
@@ -94,6 +95,13 @@ level / position addresses such as `R01-B03-L02-P01` are derived. `add_warehouse
 create an arbitrary simple polygon with a warehouse-owned kind (`receiving`, `staging`, `no-go`,
 `pedestrian`, `main-aisle`, etc.). `check_project` reports rule provenance. Distances use a
 20 cm grid without vehicle-turning simulation; they are planning estimates, not site approval.
+
+Stock: a material is an item type holding one loaded pallet (`meta.sku`). `warehouse_stock` reads
+occupancy and pallets per material (give `material_id` for its locations); `assign_stock` fills or
+empties locations such as `W01-B02-L03-P01` (level 1 is the floor) in one revision;
+`optimize_slotting` proposes moving the busiest pallets nearest the shipping dock and reports
+weekly forklift travel before and after (`apply: true` makes it one revision). The sample company
+(projects page, "Add sample company") has fully stocked warehouses to try this on.
 
 ## Production line planning
 

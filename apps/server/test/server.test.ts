@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fromUnit, readRoom, type Project } from '@space-planner/core';
-import { demoHall } from '@space-planner/starter';
+import { demoHall, nileGateRamadanDC } from '@space-planner/starter';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readableAgentLine } from '../src/agents.js';
 import { createApp, type App } from '../src/http.js';
@@ -114,6 +114,23 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'add_warehouse_zone', { project_id: id, kind: 'charging', vertices: [{ x_m: 25, y_m: 15 }, { x_m: 29, y_m: 15 }, { x_m: 29, y_m: 19 }, { x_m: 25, y_m: 19 }] }).isError).toBe(false);
     expect(store.getProject(id)?.space.zones?.some((z) => z.kind === 'charging')).toBe(true);
     expect(runTool(ctx, 'add_warehouse_zone', { project_id: id, kind: 'no-go', vertices: [{ x_m: -1, y_m: 1 }, { x_m: 1, y_m: 1 }, { x_m: 1, y_m: 2 }] }).isError).toBe(true);
+  });
+
+  it('lets an agent read stock, move a pallet and re-slot a stocked warehouse, each as one revision', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const dc = store.createProject(nileGateRamadanDC(), 'Sample data');
+    const stock = JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q60D55' }).text);
+    expect(stock.positions).toBe(1680);
+    const from = stock.locations[0] as string;
+    const moved = runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: from, material_id: null }, { location: 'E04-B02-L03-P01', material_id: 'Q60D55' }] });
+    expect(moved.isError).toBe(false);
+    expect(JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q60D55' }).text).locations).toContain('E04-B02-L03-P01');
+    expect(runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: 'W01-B99-L01-P01', material_id: 'Q60D55' }] }).isError).toBe(true);
+    const proposal = JSON.parse(runTool(ctx, 'optimize_slotting', { project_id: dc.id }).text);
+    expect(proposal.saving).toBeGreaterThan(10);
+    expect(store.getProject(dc.id)?.revision).toBe(1);
+    expect(runTool(ctx, 'optimize_slotting', { project_id: dc.id, apply: true }).text).toMatch(/^Applied, revision 2/);
+    expect(store.history(dc.id)[0]).toMatchObject({ actor: 'agent:test' });
   });
 
   it('lets an agent create a container, plan cargo, compare packing candidates and apply one as one revision', () => {
@@ -277,6 +294,18 @@ describe('HTTP app', () => {
     expect(restored.body.project).toMatchObject({ revision: 2, items: {} });
     expect((await json('/api/projects/nope')).status).toBe(404);
     expect((await json('/api/projects', { method: 'POST', body: JSON.stringify({ width_m: -1, depth_m: 3 }) })).status).toBe(400);
+  });
+
+  it('adds the sample company as ordinary stored projects, main site listed first', async () => {
+    const before = (await json('/api/projects')).body.length as number;
+    const added = await json('/api/samples/nile-gate', { method: 'POST', body: '{}' });
+    expect(added.status).toBe(201);
+    expect(added.body).toHaveLength(9);
+    const list = (await json('/api/projects')).body as Array<{ id: string; name: string }>;
+    expect(list).toHaveLength(before + 9);
+    expect(list[0]!.name).toContain('10th of Ramadan DC');
+    const history = (await json(`/api/projects/${list[0]!.id}/history`)).body as Array<{ actor: string }>;
+    expect(history).toEqual([expect.objectContaining({ actor: 'Sample data', revision: 0 })]);
   });
 
   it('pushes live events when anything changes', async () => {

@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
-import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse } from '@space-planner/starter';
+import { demoHall, nileGateSample, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
 import type { Store } from './store.js';
@@ -153,6 +153,12 @@ export function createApp(options: AppOptions): App {
       project = newRoom(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling, activity);
     }
     send(res, 201, store.createProject(project, 'human'));
+  });
+
+  // The sample company, stored like any other projects. Created last-first so the main site lists on top.
+  route('POST', '/api/samples/nile-gate', (_q, res) => {
+    const created = nileGateSample().reverse().map(({ project, summary }) => store.createProject(project, 'Sample data', summary));
+    send(res, 201, created.reverse().map((p) => ({ id: p.id, name: p.name })));
   });
 
   route('GET', '/api/projects/:id', (_q, res, [id]) => send(res, 200, projectOr404(id!)));

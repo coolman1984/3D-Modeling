@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Briefcase,
+  Buildings,
   Car,
   ForkKnife,
   Package,
@@ -109,6 +110,16 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
   const recent = projects?.[0];
   const recentCard = recent ? cards.get(recent.id) : undefined;
 
+  const [addingSample, setAddingSample] = useState(false);
+  const addSample = () => {
+    setAddingSample(true);
+    void api
+      .addSampleCompany()
+      .then((created) => showToast(`Added Nile Gate Logistics · ${created.length} projects`))
+      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : String(error)))
+      .finally(() => setAddingSample(false));
+  };
+
   const importFile = (file: File) =>
     void file
       .text()
@@ -126,6 +137,10 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             <p className="lede">Measured spaces and the plans inside them. Check that everything fits and works before anything is ordered.</p>
           </div>
           <div className="hero-actions">
+            <button type="button" className="btn" disabled={addingSample} onClick={addSample} data-testid="add-sample">
+              <Buildings size={17} />
+              {addingSample ? 'Adding…' : 'Add sample company'}
+            </button>
             <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
               <FolderOpen size={17} />
               Open file
@@ -241,11 +256,17 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             {projects && projects.length === 0 ? (
               <>
                 <div className="serif">No projects yet</div>
-                <p>Start with the room: its size, then doors, columns and items.</p>
-                <button type="button" className="btn primary" onClick={() => setCreating(true)}>
-                  <Plus size={16} />
-                  Create project
-                </button>
+                <p>Start with the room: its size, then doors, columns and items. Or open a stocked sample company to explore.</p>
+                <div className="hero-actions">
+                  <button type="button" className="btn primary" onClick={() => setCreating(true)}>
+                    <Plus size={16} />
+                    Create project
+                  </button>
+                  <button type="button" className="btn" disabled={addingSample} onClick={addSample}>
+                    <Buildings size={16} />
+                    Add sample company
+                  </button>
+                </div>
               </>
             ) : (
               <>
