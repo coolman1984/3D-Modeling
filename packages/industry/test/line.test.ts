@@ -88,6 +88,8 @@ describe('line simulation', () => {
     expect(simulateLine([{ id: 'in', kind: 'source', next: ['out'] }, { id: 'out', kind: 'sink', next: [] }], HOUR)).toEqual({ ok: false, problem: 'missing-cycle', ids: ['in'] });
     expect(simulateLine([{ id: 'in', kind: 'source', cycle: 1, next: ['b'] }, { id: 'b', kind: 'buffer', next: ['out'] }, { id: 'out', kind: 'sink', next: [] }], HOUR)).toMatchObject({ ok: false, problem: 'missing-capacity' });
     expect(simulateLine([{ id: 'in', kind: 'source', cycle: 1, next: ['gone'] }, { id: 'out', kind: 'sink', next: [] }], HOUR)).toMatchObject({ ok: false, problem: 'unknown-next', ids: ['in'] });
+    // A sink consumes finished parts. Sending them onward would make reported throughput misleading.
+    expect(simulateLine([{ id: 'in', kind: 'source', cycle: 1, next: ['out'] }, { id: 'out', kind: 'sink', next: ['m'] }, { id: 'm', kind: 'machine', cycle: 1, next: [] }], HOUR)).toMatchObject({ ok: false, problem: 'unknown-next', ids: ['out'] }); // sink may not feed another station
     expect(simulateLine([{ id: 'out', kind: 'sink', next: [] }], HOUR)).toMatchObject({ ok: false, problem: 'no-source' });
   });
 
