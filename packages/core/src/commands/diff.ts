@@ -1,4 +1,3 @@
-import { canonicalJson } from '../io/serialize.js';
 import type { Project } from '../model/types.js';
 import type { Command } from './types.js';
 
@@ -12,7 +11,14 @@ import type { Command } from './types.js';
  * Changed items are removed and added again rather than patched field by field: simple and exact.
  */
 export function diffCommands(from: Project, to: Project): Command[] {
-  const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([key, entry]) => [key, canonical(entry)]));
+    }
+    return value;
+  };
+  const same = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
   const sorted = (o: object) => Object.keys(o).sort();
   const commands: Command[] = [];
 
