@@ -1,5 +1,5 @@
 import { area, checkProject, toSquareMetres, type Project } from '@space-planner/core';
-import { bayTypeOf, containerMetrics, containerType, depotMetrics, flowOrder, productionMetrics, SHAPES, shapeOf, stationKindOf, stepOf, stopOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
+import { bayTypeOf, containerMetrics, containerType, depotMetrics, flowOrder, productionMetrics, restaurantMetrics, SHAPES, shapeOf, stationKindOf, stepOf, stopOf, tableFamilyOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -105,6 +105,8 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const flow = production ? flowOrder(project) : [];
   const depot = report.activity.pack === 'depot' ? depotMetrics(project) : null;
   const bays = depot ? (project.space.zones ?? []).filter((z) => bayTypeOf(z)) : [];
+  const restaurant = report.activity.pack === 'restaurant' ? restaurantMetrics(project) : null;
+  const tables = restaurant ? Object.values(project.items).filter((i) => tableFamilyOf(project.catalog[i.definitionId])) : [];
   const box = cargo ? containerType(String(project.space.meta?.containerType ?? '')) : undefined;
   const sequence = cargo
     ? Object.values(project.items).sort((a, b) => (stepOf(a) ?? Infinity) - (stepOf(b) ?? Infinity) || (a.id < b.id ? -1 : 1))
@@ -148,6 +150,8 @@ export function ReportPage({ projectId }: { projectId: string }) {
               <>A production line with {plural(production.stations, 'station')} over {(production.flowLength / 10_000).toFixed(1)} m of material flow, checked for fit and reachability.</>
             ) : depot ? (
               <>A vehicle depot with {plural(depot.bays, 'parking bay')} and {plural(depot.vehicles, 'vehicle')}, checked for fit and turning clearance from the lane.</>
+            ) : restaurant ? (
+              <>A restaurant with {plural(restaurant.tables, 'table')} seating {plural(restaurant.covers, 'cover')}, checked for walkways, exits and service reach from the kitchen pass.</>
             ) : cargo && load ? (
               <>
                 A loading plan for {plural(load.pieces, 'piece')} in a {box?.label ?? 'custom container'} ({roomSize} inside), checked for fit, support, load on top, orientation, unloading order and balance.
@@ -226,6 +230,14 @@ export function ReportPage({ projectId }: { projectId: string }) {
                     [formatCount(depot.usableBays), 'Usable (empty, reachable)'],
                     [formatCount(depot.vehicles), 'Vehicles'],
                     [`${depot.floorArea.toFixed(1)} m²`, 'Floor area'],
+                  ]
+                : restaurant
+                ? [
+                    [<span data-testid="report-restaurant-covers">{formatCount(restaurant.covers)}</span>, 'Covers'],
+                    [formatCount(restaurant.tables), 'Tables'],
+                    [`${restaurant.floorPerCover.toFixed(2)} m²`, 'Floor per cover'],
+                    [`${restaurant.reachableTables} of ${restaurant.totalTables}`, 'Tables reachable'],
+                    [`${restaurant.floorArea.toFixed(1)} m²`, 'Floor area'],
                   ]
                 : cargo && load
                 ? [
@@ -385,6 +397,13 @@ export function ReportPage({ projectId }: { projectId: string }) {
               <div className="sheet-h later"><h2>Vehicle depot</h2><span>Spatial planning only · minimum-turning-radius entry check</span></div>
               <p className="sub">{formatCount(depot.bays)} bays ({Object.entries(depot.bayTypes).filter(([, n]) => n > 0).map(([type, n]) => `${formatCount(n)} ${type}`).join(' · ') || 'none'}), {formatCount(depot.occupiedBays)} occupied, {formatCount(depot.usableBays)} usable of the rest · {formatCount(depot.vehicles)} vehicles on {depot.floorArea.toFixed(1)} m² of floor.</p>
               <p className="sub">Bays: {bays.map((b) => `${b.id} (${bayTypeOf(b)})`).join(' · ') || 'no bays placed'}.</p>
+            </div>
+          )}
+          {restaurant && (
+            <div data-testid="report-restaurant-detail">
+              <div className="sheet-h later"><h2>Restaurant</h2><span>Spatial planning only · no covers-per-turn or reservation simulation</span></div>
+              <p className="sub">{formatCount(restaurant.covers)} covers at {formatCount(restaurant.tables)} tables ({Object.entries(restaurant.tablesByFamily).filter(([, n]) => n > 0).map(([family, n]) => `${formatCount(n)} ${family}`).join(' · ') || 'none'}) · {restaurant.floorPerCover.toFixed(2)} m² per cover · {restaurant.reachableTables} of {restaurant.totalTables} tables reachable from the kitchen pass.</p>
+              <p className="sub">Tables: {tables.map((t) => `${t.id} (${tableFamilyOf(project.catalog[t.definitionId])})`).join(' · ') || 'no tables placed'}.</p>
             </div>
           )}
           {cargo && sequence.length > 0 && (

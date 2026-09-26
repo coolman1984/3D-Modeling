@@ -20,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceVehicleDepot, referenceWarehouse, ROUND_SHAPES, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -175,7 +175,7 @@ export function describeProject(project: Project): string {
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant' };
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -284,7 +284,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a hall, office, container, warehouse, production-line or vehicle-depot project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Depot reference layout: activity depot, reference true (30 × 18 m, a two-way lane and six parking bays, two occupied). Returns the project id.',
+    description: 'Create a hall, office, container, warehouse, production-line, vehicle-depot or restaurant project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Depot reference layout: activity depot, reference true (30 × 18 m, a two-way lane and six parking bays, two occupied). Restaurant reference layout: activity restaurant, reference true (20 × 14 m, a kitchen pass and 9 tables of mixed families seating 44). Returns the project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -294,7 +294,7 @@ export const TOOLS: readonly ToolDef[] = [
         ceiling_m: { type: 'number', description: 'Ceiling height in metres, if known.' },
         activity: { type: 'string', enum: PACKS.map((p) => p.id) },
         container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'For activity "container".' },
-        reference: { type: 'boolean', description: 'For activity warehouse: the reference 30 × 20 m layout. For activity production: the reference 30 × 8 m line. For activity depot: the reference 30 × 18 m depot.' },
+        reference: { type: 'boolean', description: 'For activity warehouse: the reference 30 × 20 m layout. For activity production: the reference 30 × 8 m line. For activity depot: the reference 30 × 18 m depot. For activity restaurant: the reference 20 × 14 m dining room.' },
       },
       required: ['name'],
       additionalProperties: false,
@@ -324,6 +324,13 @@ export const TOOLS: readonly ToolDef[] = [
           : newVehicleDepot(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
         const created = ctx.store.createProject(project, ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}\nDepot: ${depotMetrics(created).bays} bays, ${depotMetrics(created).vehicles} vehicles.`;
+      }
+      if (str(input, 'activity', true) === 'restaurant') {
+        const project = input.reference === true
+          ? referenceRestaurant(str(input, 'name'))
+          : newRestaurant(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 3.2);
+        const created = ctx.store.createProject(project, ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}\nRestaurant: ${restaurantMetrics(created).tables} tables, ${restaurantMetrics(created).covers} covers.`;
       }
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
@@ -462,6 +469,27 @@ export const TOOLS: readonly ToolDef[] = [
       if (!profile) throw new ToolError('Unknown vehicle type.');
       const result = bayEntry(project, str(input, 'bay_id'), profile);
       return result.clear ? `Clear: ${profile.name} can enter ${result.bayId}.` : `Not clear: ${result.reason}.`;
+    },
+  },
+  {
+    name: 'restaurant_metrics',
+    description: 'Read cover count, table counts by family, floor area per cover, zone areas and table reachability of a restaurant.',
+    inputSchema: { type: 'object', properties: { project_id: projectId }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'restaurant') throw new ToolError('This project is not a restaurant.');
+      return JSON.stringify(restaurantMetrics(project));
+    },
+  },
+  {
+    name: 'table_route',
+    description: 'Find a waitstaff route from the kitchen pass to a named table, with reachability and approximate travel distance.',
+    inputSchema: { type: 'object', properties: { project_id: projectId, pass_door_id: { type: 'string' }, table_id: { type: 'string' } }, required: ['project_id', 'pass_door_id', 'table_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'restaurant') throw new ToolError('This project is not a restaurant.');
+      const route = serviceRoute(project, str(input, 'pass_door_id'), str(input, 'table_id'), DEFAULT_SERVER);
+      return route.reachable ? `${(route.distance / 10_000).toFixed(2)} m, reachable; ${route.points.length} grid waypoints (20 cm resolution).` : `Unreachable: ${route.reason}.`;
     },
   },
   {

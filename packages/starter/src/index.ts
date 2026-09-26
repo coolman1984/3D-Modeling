@@ -92,3 +92,4 @@ export * from './packer.js';
 export * from './warehouse.js';
 export * from './production.js';
 export * from './depot.js';
+export * from './restaurant.js';

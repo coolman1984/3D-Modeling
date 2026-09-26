@@ -6,9 +6,10 @@ import { checkContainer, CONTAINER_CATALOG, CONTAINER_STYLES, isContainer } from
 import { checkWarehouse, isWarehouse, WAREHOUSE_CATALOG, WAREHOUSE_STYLES } from './warehouse.js';
 import { checkProduction, isProduction, PRODUCTION_CATALOG, PRODUCTION_STYLES } from './production.js';
 import { checkVehicleDepot, DEPOT_CATALOG, DEPOT_STYLES, isVehicleDepot } from './depot.js';
+import { checkRestaurant, isRestaurant, RESTAURANT_CATALOG, RESTAURANT_STYLES, type RestaurantStyle } from './restaurant.js';
 import { RULE_SOURCES, type RuleResult } from './rules.js';
 
-export type PackId = 'hall' | 'office' | 'container' | 'warehouse' | 'production' | 'depot';
+export type PackId = 'hall' | 'office' | 'container' | 'warehouse' | 'production' | 'depot' | 'restaurant';
 
 /**
  * An activity pack: what a kind of space is furnished with and which rules it is checked
@@ -29,6 +30,7 @@ export const PACKS: readonly Pack[] = [
   { id: 'warehouse', label: 'Warehouse', catalog: WAREHOUSE_CATALOG, styles: WAREHOUSE_STYLES, check: (p) => checkWarehouse(p) },
   { id: 'production', label: 'Production line', catalog: PRODUCTION_CATALOG, styles: PRODUCTION_STYLES, check: (p) => checkProduction(p) },
   { id: 'depot', label: 'Vehicle depot', catalog: DEPOT_CATALOG, styles: DEPOT_STYLES, check: (p) => checkVehicleDepot(p) },
+  { id: 'restaurant', label: 'Restaurant', catalog: RESTAURANT_CATALOG, styles: RESTAURANT_STYLES, check: (p, s) => checkRestaurant(p, s as RestaurantStyle) },
 ];
 
 export function packOf(id: string | null | undefined): Pack {
@@ -44,6 +46,7 @@ export function detectPack(project: Project): PackId {
   if (isWarehouse(project)) return 'warehouse';
   if (isProduction(project)) return 'production';
   if (isVehicleDepot(project)) return 'depot';
+  if (isRestaurant(project)) return 'restaurant';
   const present = (pack: Pack) => pack.catalog.filter((d) => project.catalog[d.id] !== undefined).length;
   let best = PACKS[0]!;
   for (const pack of PACKS) if (present(pack) > present(best)) best = pack;

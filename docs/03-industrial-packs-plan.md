@@ -227,6 +227,28 @@ Table families (2/4/6-top, round, booth, banquette, communal), dining / bar / te
 zones, covers, floor per cover, service routes from pass to tables (shared routing), unreachable
 tables, clearance rules; candidate layouts (max capacity / balanced / spacious).
 
+**Model (smallest correct one, reusing the shared rule module rather than inventing new checks):**
+A table family is a plain item (`category: 'table'` or `'round-table'`, both already known to the
+3D view) whose `seats` is its cover count — the same universal field a hall chair already carries,
+so `measureProject`'s seat count, `seatIdsOf`, `walkwayRule`, `areaRule` and `exitRules` (in
+`rules.ts`, already shared by the hall and office packs) work for restaurant covers with no new
+core or rule-engine code, only a new rule code (`area-per-cover`) for provenance. A diner's pulled-
+back chair needs room on every open side, unlike a machine's single operating face, so a table's
+clearance is set uniformly on all four sides — the core's existing per-item clearance overlap
+check does the rest. Dining/bar/terrace/private zones and a kitchen `Door.meta.role: 'pass'`
+mirror the warehouse's zone and dock-role conventions exactly. The one new capability is
+`table-reachability`: one flood-fill search per pass door (not one per pass/table pair) answers
+every table's reachability for a waitstaff movement profile, the same one-search-per-source shape
+as production's flow reachability and the depot's bay entry check.
+
+**Implementation checkpoint (done — see decision 0014):** the restaurant pack, reference
+restaurant, table catalog, zones, service routing, both new rules (reusing `walkwayRule`,
+`areaRule`, `exitRules` unmodified for the rest), the editor panel with a visible service route in
+2D/3D, agent tools, report and tests are implemented, browser-tested and pass with `pnpm check`.
+Automatic candidate-layout generation (max capacity / balanced / spacious) is deferred, the same
+way T8 deferred throughput simulation and T9 deferred reverse maneuvers: tables are placed by a
+person or an agent, like any hall or office item, not auto-arranged by a solver.
+
 ### T11 — Shared accounts, companies, collaboration
 The master plan's multi-user chapters (§19–§24), now designed around the packs above.
 

@@ -9,7 +9,7 @@ the planner tools.
 | Tool | What it does |
 |---|---|
 | `list_projects` | All projects with id, name, revision, item count |
-| `create_project` | New hall, office, container, warehouse, production line or vehicle depot (`activity`); `warehouse`, `production` or `depot` with `reference: true` creates the measured sample |
+| `create_project` | New hall, office, container, warehouse, production line, vehicle depot or restaurant (`activity`); `warehouse`, `production`, `depot` or `restaurant` with `reference: true` creates the measured sample |
 | `add_warehouse_rack` | One parametric rack row through one revision; centre in metres, bays, levels and positions |
 | `add_warehouse_zone` | Named polygon (3–32 metre-coordinate vertices) through one revision |
 | `warehouse_metrics` | Storage positions, usable positions, rack/zone areas and docks |
@@ -19,6 +19,8 @@ the planner tools.
 | `add_depot_zone` | Named lane or no-go polygon (3–32 metre-coordinate vertices), a lane carries a travel direction |
 | `depot_metrics` | Bay counts by type, occupied and usable bay counts, vehicle count |
 | `bay_entry_check` | Whether a named vehicle type can turn from the nearest lane into a named bay, swept-body checked |
+| `restaurant_metrics` | Cover count, table counts by family, floor area per cover, zone areas, table reachability |
+| `table_route` | Waitstaff route from the kitchen pass door to a table, reachability and sampled distance |
 | `get_project` | Room, doors, columns, item types, every item, issues, metrics |
 | `set_room` | Size, ceiling, doors on walls, columns |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
@@ -118,3 +120,18 @@ item. A lane is added with `add_depot_zone` and a travel `direction_deg`; `bay_e
 lane into a bay and sample its swept body every 20 cm against the walls, columns, other parked
 vehicles and no-go zones — a planning estimate, not a site's turning-circle approval. No reverse
 maneuvers, no articulated (trailer) kinematics, no throughput or dwell-time simulation.
+
+## Restaurant planning
+
+Use `create_project` with `activity: "restaurant", reference: true` for the measured example (a
+kitchen pass and 9 tables of mixed families seating 44). A table is placed with the ordinary
+`define_item` / `place_items` tools, `category: "table"` or `"round-table"` — a family (2/4/6-top,
+round, booth, banquette, communal) is just a size and a `seats` count, the same universal field a
+hall chair already uses, so covers, the walkway-to-a-door rule, floor area per cover and exit
+rules all come from the shared rule module with no restaurant-specific geometry. A door with
+`meta.role: "pass"` is the kitchen service point; `table_route` and the `table-reachability` rule
+drive a waitstaff route from it to each table on the derived floor grid — a planning estimate.
+Dining / bar / terrace / private zones are named polygons, the same mechanism a warehouse aisle
+uses. No throughput, no reservation or seating-turn simulation, and no automatic candidate-layout
+generation (max-capacity / balanced / spacious) in this stage — tables are placed by a person or
+an agent, the way a hall or office is furnished.

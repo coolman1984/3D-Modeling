@@ -51,6 +51,11 @@ const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
     'Add two more perpendicular bays at the end of the row and check them.',
     'Read the bay counts and how many are occupied.',
   ],
+  restaurant: [
+    'Check whether every table can be reached from the kitchen pass.',
+    'Add a 6-top round table in the empty corner of the dining room.',
+    'Read the cover count and floor area per cover.',
+  ],
 };
 
 interface Step {
