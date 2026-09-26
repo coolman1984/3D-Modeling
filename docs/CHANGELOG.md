@@ -6,6 +6,28 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-09
 
+### D2: Samsung Egypt sample, site pack, 3D engine v2, graphics levels, Paradigm design, docs system
+
+`3db5e56` · 2026-09-26
+
+What changed and why:
+- Samsung Electronics Egypt sample company (10 illustrative projects from public figures,
+  decision 0016); site pack with the building-boundary rule; bay-entry fixes (vehicle stops with
+  its body centred, obstacle prefilter, floor-area metrics 100x too small).
+- Server: project collections, GET /api/samples, POST /api/samples/:id.
+- 3D engine v2 (textures, sky/sun, AO still pass, render on demand, static shadows) and graphics
+  levels Fast/Balanced/High with automatic step-down (decision 0018); the owner's laptop lagged.
+- Arrow keys: visible step that follows the zoom; arrows move the view when nothing is selected;
+  a clicked tick box no longer switches the arrows off (planted bug caught).
+- Container colour tools say what they mean (Cargo type / Delivery drop / Weight / Load order).
+- Paradigm visual system (DESIGN.md, decision 0019) across all screens; the new-project dialog's
+  overlapping activity cards fixed.
+- Docs system: generated STATUS/CHANGELOG/index, work log, checkpoints (decision 0017), and the
+  handoff plan docs/plans/handoff-d2-closeout.md.
+- Tests: Samsung, graphics and arrow-step unit tests; browser journeys for both samples, arrow
+
+…3 more lines in the commit.
+
 ### D1: client demo - Nile Gate sample company, material slotting, 3D realism
 
 `e9516dc` · 2026-09-26
