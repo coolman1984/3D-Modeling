@@ -18,6 +18,15 @@ export interface Candidate {
   readonly leftOver: readonly string[];
 }
 
+/**
+ * A deterministic simulator reads a project and options and returns operational results.
+ * It never changes the project and must not infer operational values from geometry alone.
+ */
+export interface SimulationPort<Options, Result> {
+  readonly id: string;
+  run(project: Project, options: Options): Result;
+}
+
 /** Anything that proposes candidates: a built-in heuristic now, an external solver later. */
 export interface OptimizationPort<Goal> {
   readonly id: string;
