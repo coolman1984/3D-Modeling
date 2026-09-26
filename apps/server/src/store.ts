@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   apply,
+  diffCommands,
   deserializeProject,
   serializeProject,
   validateProject,
@@ -20,6 +21,8 @@ export interface ProjectSummary {
   readonly itemCount: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** The approved project this alternative belongs to; null for an ordinary/base project. */
+  readonly variantOf: string | null;
 }
 
 export interface RevisionInfo {
@@ -106,6 +109,9 @@ export class Store extends EventEmitter<StoreEvents> {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.db.exec(SCHEMA);
+    // Variants are a non-destructive additive database upgrade. Existing rows remain ordinary projects.
+    const projectColumns = this.db.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>;
+    if (!projectColumns.some((column) => column.name === 'variant_of')) this.db.exec('ALTER TABLE projects ADD COLUMN variant_of TEXT');
     // Runs that were active when the app last stopped cannot still be running.
     this.db.prepare("UPDATE agent_runs SET status = 'stopped', ended_at = ? WHERE status = 'running'").run(now());
   }
@@ -116,16 +122,61 @@ export class Store extends EventEmitter<StoreEvents> {
 
   listProjects(): ProjectSummary[] {
     const rows = this.db
-      .prepare('SELECT id, name, revision, item_count, created_at, updated_at FROM projects ORDER BY updated_at DESC')
-      .all() as Array<Record<string, string | number>>;
-    return rows.map((r) => ({
-      id: String(r.id),
-      name: String(r.name),
-      revision: Number(r.revision),
-      itemCount: Number(r.item_count),
-      createdAt: String(r.created_at),
-      updatedAt: String(r.updated_at),
-    }));
+      .prepare('SELECT id, name, revision, item_count, created_at, updated_at, variant_of FROM projects ORDER BY updated_at DESC')
+      .all() as Array<Record<string, string | number | null>>;
+    return rows.map(toSummary);
+  }
+
+  summary(id: string): ProjectSummary | null {
+    const row = this.db
+      .prepare('SELECT id, name, revision, item_count, created_at, updated_at, variant_of FROM projects WHERE id = ?')
+      .get(id) as Record<string, string | number | null> | undefined;
+    return row ? toSummary(row) : null;
+  }
+
+  /**
+   * Make a safe alternative of a project. A variant of a variant still belongs to the original
+   * base, so comparisons stay in one family and the approved project is untouched.
+   */
+  createVariant(id: string, name: string, actor: string): Project | null {
+    const source = this.getProject(id);
+    const info = this.summary(id);
+    if (!source || !info) return null;
+    const base = info.variantOf ?? id;
+    const created = this.createProject({ ...source, name }, actor, `Variant of ${this.summary(base)?.name ?? base}`);
+    this.db.prepare('UPDATE projects SET variant_of = ? WHERE id = ?').run(base, created.id);
+    this.emit('projects');
+    return created;
+  }
+
+  /** Approved base first, then its alternatives in deterministic creation order. */
+  familyOf(id: string): ProjectSummary[] {
+    const info = this.summary(id);
+    if (!info) return [];
+    const base = info.variantOf ?? id;
+    const variants = (
+      this.db
+        .prepare('SELECT id, name, revision, item_count, created_at, updated_at, variant_of FROM projects WHERE variant_of = ? ORDER BY created_at, id')
+        .all(base) as Array<Record<string, string | number | null>>
+    ).map(toSummary);
+    const head = this.summary(base);
+    return head ? [head, ...variants] : variants;
+  }
+
+  /**
+   * Adopt an alternative through ordinary core commands. The approved project gets one new,
+   * validated, undoable revision; the alternative is preserved for audit/comparison.
+   */
+  adoptVariant(variantId: string, actor: string): ApplyResult | { ok: false; status: 400 } {
+    const info = this.summary(variantId);
+    const variant = this.getProject(variantId);
+    if (!info || !variant) return { ok: false, status: 404 };
+    if (!info.variantOf) return { ok: false, status: 400 };
+    const base = this.getProject(info.variantOf);
+    if (!base) return { ok: false, status: 404 };
+    const commands = diffCommands(base, variant);
+    if (commands.length === 0) return { ok: true, project: base };
+    return this.applyCommands(base.id, commands, { actor, summary: `Adopted variant “${variant.name}”` });
   }
 
   /** Store a new project; its id is replaced by a fresh one. */
@@ -207,6 +258,9 @@ export class Store extends EventEmitter<StoreEvents> {
   }
 
   deleteProject(id: string): boolean {
+    // If an approved base is deleted, keep its alternatives as ordinary projects rather than
+    // cascading product-level meaning into data loss.
+    this.db.prepare('UPDATE projects SET variant_of = NULL WHERE variant_of = ?').run(id);
     const result = this.db.prepare('DELETE FROM projects WHERE id = ?').run(id);
     if (result.changes > 0) this.emit('projects');
     return result.changes > 0;
@@ -314,6 +368,18 @@ export class Store extends EventEmitter<StoreEvents> {
 
 function now(): string {
   return new Date().toISOString();
+}
+
+function toSummary(r: Record<string, string | number | null>): ProjectSummary {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    revision: Number(r.revision),
+    itemCount: Number(r.item_count),
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
+    variantOf: r.variant_of === null || r.variant_of === undefined ? null : String(r.variant_of),
+  };
 }
 
 function toRun(row: Record<string, string>): AgentRun {

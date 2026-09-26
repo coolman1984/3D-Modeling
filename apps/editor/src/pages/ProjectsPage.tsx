@@ -106,6 +106,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
     .filter((p) => !words || `${p.name} ${cards.get(p.id) ? packOf(cards.get(p.id)!.activity.pack).label : ''}`.toLowerCase().includes(words))
     .sort((a, b) => (sort === 'name' ? (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) : 0));
   const count = (f: Filter) => (projects ?? []).filter((p) => f === 'all' || packOfProject(p) === f).length;
+  const variantBaseName = (p: ProjectSummary) => (p.variantOf ? (projects ?? []).find((x) => x.id === p.variantOf)?.name ?? p.variantOf : null);
   const recent = projects?.[0];
   const recentCard = recent ? cards.get(recent.id) : undefined;
 
@@ -287,7 +288,10 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                     <span className="thumb">{card && <ProjectThumb project={card.project} width={96} height={62} />}</span>
                     <span style={{ minWidth: 0 }}>
                       <span className="proj-name">{p.name}</span>
-                      <span className="proj-sub">Revision {p.revision}</span>
+                      <span className="proj-sub">
+                        Revision {p.revision}
+                        {variantBaseName(p) ? ` · Variant of ${variantBaseName(p)}` : ''}
+                      </span>
                     </span>
                     <span className="opt">
                       {pack?.label ?? '—'}
@@ -326,6 +330,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                   </span>
                   <span className="proj-sub" style={{ fontSize: 13, marginTop: 6 }}>
                     {[card ? packOf(card.activity.pack).label : null, room ? `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m` : null, plural(p.itemCount, 'item')].filter(Boolean).join(' · ')}
+                    {variantBaseName(p) && <><br />Variant of {variantBaseName(p)}</>}
                   </span>
                   <span className={`proj-state state-${state.tone}`} style={{ fontSize: 13, marginTop: 10 }}>
                     {state.icon}

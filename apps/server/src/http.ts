@@ -7,6 +7,7 @@ import { AgentRunner } from './agents.js';
 import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
 import type { Store } from './store.js';
 import { runTool, toolSummaries } from './tools.js';
+import { compareFamily } from './variants.js';
 
 export interface AppOptions {
   readonly store: Store;
@@ -166,6 +167,30 @@ export function createApp(options: AppOptions): App {
     const copy = store.duplicateProject(id!, 'human');
     if (!copy) throw new HttpError(404, 'project not found');
     send(res, 201, copy);
+  });
+
+  route('POST', '/api/projects/:id/variants', async (req, res, [id]) => {
+    const body = await readJson(req);
+    const source = store.getProject(id!);
+    if (!source) throw new HttpError(404, 'project not found');
+    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 200) : `${source.name} · variant`;
+    const made = store.createVariant(id!, name, 'human');
+    if (!made) throw new HttpError(404, 'project not found');
+    send(res, 201, made);
+  });
+
+  route('GET', '/api/projects/:id/variants', (_q, res, [id]) => {
+    if (!store.summary(id!)) throw new HttpError(404, 'project not found');
+    send(res, 200, compareFamily(store, id!));
+  });
+
+  route('POST', '/api/projects/:id/adopt', (_q, res, [id]) => {
+    const result = store.adoptVariant(id!, 'human');
+    if (!result.ok && result.status === 404) throw new HttpError(404, 'project not found');
+    if (!result.ok && result.status === 400) throw new HttpError(400, 'this project is not a variant');
+    if (!result.ok && result.status === 422) throw new HttpError(422, `the base cannot take this variant: ${result.rejection.message}`);
+    if (!result.ok) throw new HttpError(409, 'the base changed; try again');
+    send(res, 200, result.project);
   });
 
   route('POST', '/api/projects/:id/commands', async (req, res, [id]) => {
