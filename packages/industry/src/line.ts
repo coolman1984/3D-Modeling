@@ -84,7 +84,7 @@ export function simulateLine(specs: readonly StationSpec[], horizon: number): Li
   if (missingCycle.length) return { ok: false, problem: 'missing-cycle', ids: missingCycle };
   const missingCapacity = specs.filter((s) => (s.kind === 'buffer' || s.kind === 'conveyor') && !(Number.isInteger(s.capacity) && s.capacity! > 0)).map((s) => s.id);
   if (missingCapacity.length) return { ok: false, problem: 'missing-capacity', ids: missingCapacity };
-  const unknown = specs.filter((s) => s.next.some((n) => !byId.has(n) || byId.get(n)!.kind === 'source')).map((s) => s.id);
+  const unknown = specs.filter((s) => s.next.some((n) => !byId.has(n) || byId.get(n)!.kind === 'source') || (s.kind === 'sink' && s.next.length > 0)).map((s) => s.id);
   if (unknown.length) return { ok: false, problem: 'unknown-next', ids: unknown };
   if (!specs.some((s) => s.kind === 'source')) return { ok: false, problem: 'no-source', ids: [] };
   if (!specs.some((s) => s.kind === 'sink')) return { ok: false, problem: 'no-sink', ids: [] };
