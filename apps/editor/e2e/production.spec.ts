@@ -25,6 +25,14 @@ test('reference production line: flow length, edit a station order, and print re
   await expect(page.getByTestId('production-flow-length')).not.toContainText('8.8');
   const project = await (await page.request.get(`/api/projects/${id}`)).json();
   expect(project.items.S02.meta.step).toBe(7);
+  await expect(page.getByTestId('production-simulation-missing')).toContainText('unknown next');
+
+  // Put the process sequence back into a valid state before the client report.
+  await page.locator('[data-item-id="S02"]').click();
+  await page.getByLabel('Flow order').fill('2');
+  await page.getByLabel('Flow order').press('Enter');
+  await saved(page);
+  await expect(page.getByTestId('production-throughput')).toContainText('39.8');
 
   await openTab(page, 'Review');
   await expect(page.locator('[data-rule="machine-boundary"]')).toHaveAttribute('data-status', 'pass');
