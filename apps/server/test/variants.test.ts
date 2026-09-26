@@ -6,6 +6,7 @@ import { fromUnit } from '@space-planner/core';
 import { demoHall } from '@space-planner/starter';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Store } from '../src/store.js';
+import { runTool } from '../src/tools.js';
 
 const m = (v: number) => fromUnit(v, 'm');
 
@@ -99,4 +100,37 @@ describe('variant store safety', () => {
     const result = store.adoptVariant(base.id, 'human');
     expect(result).toEqual({ ok: false, status: 400 });
   });
+
+  it('exposes create, compare and adopt safely through the shared agent tools', () => {
+    const base = store.createProject(demoHall(), 'human');
+    const ctx = { store, actor: 'agent:test' };
+
+    const made = runTool(ctx, 'create_variant', { project_id: base.id, name: 'Agent idea' });
+    expect(made.isError).toBe(false);
+    const variantId = /Created variant (p-[\w]+)/.exec(made.text)![1]!;
+
+    const placed = runTool(ctx, 'place_items', {
+      project_id: variantId,
+      items: [{ definition_id: 'chair', x_m: 3, y_m: 3 }],
+    });
+    expect(placed.isError).toBe(false);
+
+    const compared = runTool(ctx, 'compare_variants', { project_id: base.id });
+    expect(compared.isError).toBe(false);
+    expect(compared.text).toContain(`BASE ${base.id}`);
+    expect(compared.text).toContain(variantId);
+    expect(compared.text).toContain('Seats');
+
+    // An ordinary project cannot be adopted as a variant.
+    expect(runTool(ctx, 'adopt_variant', { variant_id: base.id }).isError).toBe(true);
+
+    const adopted = runTool({ store, actor: 'human' }, 'adopt_variant', { variant_id: variantId });
+    expect(adopted.isError).toBe(false);
+    expect(store.getProject(base.id)?.items).toHaveProperty('chair-1');
+    expect(store.history(base.id)[0]).toMatchObject({
+      actor: 'human',
+      summary: 'Adopted variant “Agent idea”',
+    });
+  });
+
 });
