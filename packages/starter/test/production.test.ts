@@ -1,10 +1,32 @@
 import { apply, checkProject, deserializeProject, fromUnit, serializeProject } from '@space-planner/core';
 import { describe, expect, it } from 'vitest';
-import { checkPack, detectPack, flowOrder, flowPoints, newProductionLine, productionMetrics, productionRoute, referenceProductionLine } from '../src/index.js';
+import { checkPack, detectPack, flowOrder, flowPoints, newProductionLine, productionLineSpec, productionMetrics, productionRoute, referenceProductionLine, simulateProduction } from '../src/index.js';
 
 const m = (v: number) => fromUnit(v, 'm');
 
 describe('production line reference', () => {
+  it('simulates an eight-hour shift deterministically from entered cycle times, never from floor distance', () => {
+    const project = referenceProductionLine();
+    const spec = productionLineSpec(project);
+    expect(spec.map((s) => [s.kind, s.cycle, s.capacity])).toEqual([
+      ['source', 30_000, undefined],
+      ['machine', 60_000, undefined],
+      ['buffer', undefined, 20],
+      ['machine', 90_000, undefined],
+      ['machine', 30_000, undefined],
+      ['sink', undefined, undefined],
+    ]);
+    const result = simulateProduction(project, 8);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // First finished piece: 30 + 60 + 90 + 30 = 210 s; then the 90 s machine sets the pace.
+    // 210 + 90k <= 28,800 s gives k = 0..317 => 318 finished pieces.
+    expect(result.produced).toBe(318);
+    expect(result.perHour).toBeCloseTo(39.75, 10);
+    expect(result.bottleneck).toBe('S04');
+    expect(simulateProduction(project, 8)).toEqual(result);
+  });
+
   it('source, two machines, a buffer, inspection and finished goods, in flow order', () => {
     const project = referenceProductionLine();
     expect(detectPack(project)).toBe('production');
