@@ -153,6 +153,30 @@ describe('agent tools', () => {
     expect(store.summary(variant!)?.variantOf).toBeNull();
   });
 
+  it('simulates a production shift from entered cycle times and lets agents define real process data', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'Line', activity: 'production', reference: true });
+    expect(created.isError).toBe(false);
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    const simulated = runTool(ctx, 'simulate_line', { project_id: id, hours: 8 });
+    expect(simulated.isError).toBe(false);
+    expect(JSON.parse(simulated.text)).toMatchObject({ ok: true, produced: 318, perHour: 39.75, bottleneck: 'S04' });
+
+    const defined = runTool(ctx, 'define_item', {
+      project_id: id,
+      id: 'custom-machine',
+      name: 'Custom machine',
+      category: 'box',
+      width_cm: 200,
+      depth_cm: 120,
+      height_cm: 180,
+      production: { kind: 'machine', cycle_seconds: 75 },
+    });
+    expect(defined.isError).toBe(false);
+    expect(store.getProject(id)!.catalog['custom-machine']!.meta).toMatchObject({ kind: 'machine', cycleMs: 75_000 });
+    expect(runTool(ctx, 'simulate_line', { project_id: id, hours: 0 }).isError).toBe(true);
+  });
+
   it('creates a warehouse and adds an addressable rack through one revision', () => {
     const ctx = { store, actor: 'agent:test' };
     const created = runTool(ctx, 'create_project', { name: 'Warehouse', activity: 'warehouse', reference: true });
