@@ -1,5 +1,5 @@
 import { area, checkProject, toSquareMetres, type Project } from '@space-planner/core';
-import { bayTypeOf, containerMetrics, containerType, depotMetrics, flowOrder, productionMetrics, restaurantMetrics, SHAPES, shapeOf, stationKindOf, stepOf, stopOf, tableFamilyOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
+import { bayTypeOf, containerMetrics, containerType, depotMetrics, flowOrder, productionMetrics, restaurantMetrics, simulateProduction, SHAPES, shapeOf, stationKindOf, stepOf, stopOf, tableFamilyOf, warehouseMetrics, warehouseRoute } from '@space-planner/starter';
 import { colorsOf } from '../ui/Container.js';
 import { CaretLeft, Check, CheckCircle, Printer, Question, Warning, XCircle } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -102,6 +102,7 @@ export function ReportPage({ projectId }: { projectId: string }) {
   const firstRack = warehouse ? Object.values(project.items).find((i) => project.catalog[i.definitionId]?.category === 'rack') : undefined;
   const sampleRoute = firstRack && project.space.doors[0] ? warehouseRoute(project, project.space.doors[0].id, firstRack.id) : null;
   const production = report.activity.pack === 'production' ? productionMetrics(project) : null;
+  const productionSimulation = production ? simulateProduction(project, 8) : null;
   const flow = production ? flowOrder(project) : [];
   const depot = report.activity.pack === 'depot' ? depotMetrics(project) : null;
   const bays = depot ? (project.space.zones ?? []).filter((z) => bayTypeOf(z)) : [];
@@ -387,9 +388,17 @@ export function ReportPage({ projectId }: { projectId: string }) {
           )}
           {production && (
             <div data-testid="report-production-flow">
-              <div className="sheet-h later"><h2>Production flow</h2><span>Spatial planning only · no throughput simulation</span></div>
+              <div className="sheet-h later"><h2>Production flow</h2><span>Spatial feasibility + deterministic 8-hour simulation</span></div>
               <p className="sub">{formatCount(production.stations)} stations ({formatCount(production.machines)} machines, {formatCount(production.buffers)} buffers, {formatCount(production.bufferCapacity)} buffer capacity) over {(production.flowLength / 10_000).toFixed(1)} m of flow · {production.reachableSegments} of {production.totalSegments} segments reachable for the material handler.</p>
+              {productionSimulation?.ok ? (
+                <p className="sub" data-testid="report-production-simulation">
+                  8-hour simulation: {formatCount(productionSimulation.produced)} finished parts · {productionSimulation.perHour.toFixed(1)} parts/hour · average WIP {productionSimulation.wipAverage.toFixed(1)} · bottleneck {productionSimulation.bottleneck ?? '—'}.
+                </p>
+              ) : (
+                <p className="sub" data-testid="report-production-simulation">Simulation unavailable: {productionSimulation ? productionSimulation.problem.replace(/-/g, ' ') : 'not available'}.</p>
+              )}
               <p className="sub">Flow order: {flow.map((i, idx) => `${idx + 1}. ${project.catalog[i.definitionId]?.name ?? i.id} (${stationKindOf(project.catalog[i.definitionId]) ?? '—'})`).join(' · ') || 'no stations in the flow'}.</p>
+              <p className="sub">Throughput uses only entered cycle times and buffer capacities. Floor distance is not converted into process time.</p>
             </div>
           )}
           {depot && (
