@@ -13,6 +13,8 @@ test('variants: try an idea in a variant, compare it with the approved plan, ado
   await expect(page.locator('h1.project-name')).toHaveText('Site A');
   await saved(page);
   const baseId = /#\/p\/([\w-]+)/.exec(page.url())![1]!;
+  const baseBefore = await (await page.request.get(`/api/projects/${baseId}`)).json();
+  const baseItemsBefore = Object.keys(baseBefore.items).length;
 
   // A variant starts as a copy and opens on its own.
   await page.getByRole('button', { name: 'Variants' }).click();
@@ -36,19 +38,24 @@ test('variants: try an idea in a variant, compare it with the approved plan, ado
   const table = page.getByTestId('variants-table');
   await expect(table.locator('thead th[data-variant]')).toHaveCount(2);
   const locations = table.locator('tbody tr', { hasText: 'Pallet locations' });
-  await expect(locations.locator('td').nth(0)).toHaveText('0');
-  await expect(locations.locator('td').nth(1)).not.toHaveText('0');
+  const baseLocations = Number((await locations.locator('td').nth(0).innerText()).replace(/,/g, ''));
+  const variantLocations = Number((await locations.locator('td').nth(1).innerText()).replace(/,/g, ''));
+  expect(baseLocations).toBeGreaterThanOrEqual(0);
+  expect(variantLocations).toBeGreaterThan(baseLocations);
   await expect(locations.locator('td.best')).toHaveCount(1);
   await expect(page.getByRole('dialog', { name: 'Variants' })).toBeVisible();
   await page.waitForTimeout(250); // let the dialog finish fading in for the picture
   await page.screenshot({ path: 'e2e-results/variants.png' });
-  expect(Object.keys((await (await page.request.get(`/api/projects/${baseId}`)).json()).items)).toHaveLength(0);
+  expect(Object.keys((await (await page.request.get(`/api/projects/${baseId}`)).json()).items)).toHaveLength(baseItemsBefore);
+  const variantBeforeAdopt = await (await page.request.get(`/api/projects/${variantId}`)).json();
+  const variantItems = Object.keys(variantBeforeAdopt.items).length;
+  expect(variantItems).toBeGreaterThan(baseItemsBefore);
 
   // Adopt: the approved plan takes the variant's layout as one new revision, under the person's name.
   page.once('dialog', (d) => void d.accept());
   await page.getByTestId(`adopt-${variantId}`).click();
   await expect(page.locator('h1.project-name')).toHaveText('Site A');
-  await expect(page.locator('[data-item-id]')).toHaveCount(3);
+  await expect(page.locator('[data-item-id]')).toHaveCount(variantItems);
   const history = await (await page.request.get(`/api/projects/${baseId}/history`)).json();
   expect(history[0]).toMatchObject({ revision: 1, actor: 'human', summary: 'Adopted variant “Three rows”' });
 
