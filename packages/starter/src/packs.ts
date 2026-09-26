@@ -1,12 +1,12 @@
-import { type ItemDefinition, type Project } from '@space-planner/core';
+import { measureProject, toSquareMetres, type ItemDefinition, type Project } from '@space-planner/core';
 import { checkHall, HALL_STYLES, type HallStyle } from './hall.js';
 import { STARTER_CATALOG } from './hallCatalog.js';
 import { checkOffice, OFFICE_CATALOG, OFFICE_STYLES, type OfficeStyle } from './office.js';
-import { checkContainer, CONTAINER_CATALOG, CONTAINER_STYLES, isContainer } from './container.js';
-import { checkWarehouse, isWarehouse, WAREHOUSE_CATALOG, WAREHOUSE_STYLES } from './warehouse.js';
-import { checkProduction, isProduction, PRODUCTION_CATALOG, PRODUCTION_STYLES } from './production.js';
-import { checkVehicleDepot, DEPOT_CATALOG, DEPOT_STYLES, isVehicleDepot } from './depot.js';
-import { checkRestaurant, isRestaurant, RESTAURANT_CATALOG, RESTAURANT_STYLES, type RestaurantStyle } from './restaurant.js';
+import { checkContainer, CONTAINER_CATALOG, CONTAINER_STYLES, containerMetrics, isContainer } from './container.js';
+import { checkWarehouse, isWarehouse, WAREHOUSE_CATALOG, WAREHOUSE_STYLES, warehouseMetrics } from './warehouse.js';
+import { checkProduction, isProduction, PRODUCTION_CATALOG, PRODUCTION_STYLES, productionMetrics } from './production.js';
+import { checkVehicleDepot, DEPOT_CATALOG, DEPOT_STYLES, depotMetrics, isVehicleDepot } from './depot.js';
+import { checkRestaurant, isRestaurant, RESTAURANT_CATALOG, RESTAURANT_STYLES, restaurantMetrics, type RestaurantStyle } from './restaurant.js';
 import { RULE_SOURCES, type RuleResult } from './rules.js';
 
 export type PackId = 'hall' | 'office' | 'container' | 'warehouse' | 'production' | 'depot' | 'restaurant';
@@ -21,16 +21,85 @@ export interface Pack {
   readonly catalog: readonly ItemDefinition[];
   readonly styles: readonly { readonly id: string; readonly label: string }[];
   readonly check: (project: Project, style: string) => RuleResult[];
+  /** The few numbers that help compare alternatives of this kind of space. */
+  readonly figures: (project: Project) => Figure[];
+}
+
+/** One pack-specific number in the variant comparison. */
+export interface Figure {
+  readonly id: string;
+  readonly label: string;
+  readonly value: number | undefined;
+  readonly unit: 'count' | 'percent' | 'square-metres' | 'grams' | 'ticks';
+  readonly better?: 'higher' | 'lower';
+}
+
+function seatFigures(project: Project, perSeat: string): Figure[] {
+  const m = measureProject(project);
+  return [
+    { id: 'seats', label: 'Seats', value: m.seats, unit: 'count', better: 'higher' },
+    { id: 'area-per-seat', label: perSeat, value: m.seats > 0 ? Math.round((toSquareMetres(m.floorArea) / m.seats) * 100) / 100 : undefined, unit: 'square-metres' },
+    { id: 'items', label: 'Items', value: m.itemCount, unit: 'count' },
+  ];
+}
+
+function containerFigures(project: Project): Figure[] {
+  const m = containerMetrics(project);
+  return [
+    { id: 'pieces', label: 'Pieces loaded', value: m.pieces, unit: 'count', better: 'higher' },
+    { id: 'unpacked', label: 'Not placed', value: m.unpacked, unit: 'count', better: 'lower' },
+    { id: 'volume-use', label: 'Volume used', value: m.volumeUse, unit: 'percent', better: 'higher' },
+    { id: 'payload-use', label: 'Payload used', value: m.payloadUse, unit: 'percent' },
+  ];
+}
+
+function warehouseFigures(project: Project): Figure[] {
+  const m = warehouseMetrics(project);
+  return [
+    { id: 'locations', label: 'Pallet locations', value: m.positions, unit: 'count', better: 'higher' },
+    { id: 'usable-locations', label: 'Usable locations', value: m.usablePositions, unit: 'count', better: 'higher' },
+    { id: 'floor-use', label: 'Rack floor share', value: m.floorUtilization, unit: 'percent' },
+    { id: 'staging-area', label: 'Staging area', value: m.stagingArea, unit: 'square-metres' },
+  ];
+}
+
+function productionFigures(project: Project): Figure[] {
+  const m = productionMetrics(project);
+  return [
+    { id: 'stations', label: 'Stations', value: m.stations, unit: 'count' },
+    { id: 'reachable-flow', label: 'Reachable flow segments', value: m.reachableSegments, unit: 'count', better: 'higher' },
+    { id: 'flow-length', label: 'Flow length', value: m.flowLength, unit: 'ticks', better: 'lower' },
+    { id: 'buffer-capacity', label: 'Buffer capacity', value: m.bufferCapacity, unit: 'count' },
+  ];
+}
+
+function depotFigures(project: Project): Figure[] {
+  const m = depotMetrics(project);
+  return [
+    { id: 'bays', label: 'Bays', value: m.bays, unit: 'count', better: 'higher' },
+    { id: 'usable-bays', label: 'Usable bays', value: m.usableBays, unit: 'count', better: 'higher' },
+    { id: 'occupied-bays', label: 'Occupied bays', value: m.occupiedBays, unit: 'count' },
+  ];
+}
+
+function restaurantFigures(project: Project): Figure[] {
+  const m = restaurantMetrics(project);
+  return [
+    { id: 'covers', label: 'Covers', value: m.covers, unit: 'count', better: 'higher' },
+    { id: 'tables', label: 'Tables', value: m.tables, unit: 'count' },
+    { id: 'reachable-tables', label: 'Reachable tables', value: m.reachableTables, unit: 'count', better: 'higher' },
+    { id: 'floor-per-cover', label: 'Floor per cover', value: m.floorPerCover || undefined, unit: 'square-metres' },
+  ];
 }
 
 export const PACKS: readonly Pack[] = [
-  { id: 'hall', label: 'Event hall', catalog: STARTER_CATALOG, styles: HALL_STYLES, check: (p, s) => checkHall(p, s as HallStyle) },
-  { id: 'office', label: 'Office', catalog: OFFICE_CATALOG, styles: OFFICE_STYLES, check: (p, s) => checkOffice(p, s as OfficeStyle) },
-  { id: 'container', label: 'Container loading', catalog: CONTAINER_CATALOG, styles: CONTAINER_STYLES, check: (p) => checkContainer(p) },
-  { id: 'warehouse', label: 'Warehouse', catalog: WAREHOUSE_CATALOG, styles: WAREHOUSE_STYLES, check: (p) => checkWarehouse(p) },
-  { id: 'production', label: 'Production line', catalog: PRODUCTION_CATALOG, styles: PRODUCTION_STYLES, check: (p) => checkProduction(p) },
-  { id: 'depot', label: 'Vehicle depot', catalog: DEPOT_CATALOG, styles: DEPOT_STYLES, check: (p) => checkVehicleDepot(p) },
-  { id: 'restaurant', label: 'Restaurant', catalog: RESTAURANT_CATALOG, styles: RESTAURANT_STYLES, check: (p, s) => checkRestaurant(p, s as RestaurantStyle) },
+  { id: 'hall', label: 'Event hall', catalog: STARTER_CATALOG, styles: HALL_STYLES, check: (p, s) => checkHall(p, s as HallStyle), figures: (p) => seatFigures(p, 'Floor per guest') },
+  { id: 'office', label: 'Office', catalog: OFFICE_CATALOG, styles: OFFICE_STYLES, check: (p, s) => checkOffice(p, s as OfficeStyle), figures: (p) => seatFigures(p, 'Floor per person') },
+  { id: 'container', label: 'Container loading', catalog: CONTAINER_CATALOG, styles: CONTAINER_STYLES, check: (p) => checkContainer(p), figures: containerFigures },
+  { id: 'warehouse', label: 'Warehouse', catalog: WAREHOUSE_CATALOG, styles: WAREHOUSE_STYLES, check: (p) => checkWarehouse(p), figures: warehouseFigures },
+  { id: 'production', label: 'Production line', catalog: PRODUCTION_CATALOG, styles: PRODUCTION_STYLES, check: (p) => checkProduction(p), figures: productionFigures },
+  { id: 'depot', label: 'Vehicle depot', catalog: DEPOT_CATALOG, styles: DEPOT_STYLES, check: (p) => checkVehicleDepot(p), figures: depotFigures },
+  { id: 'restaurant', label: 'Restaurant', catalog: RESTAURANT_CATALOG, styles: RESTAURANT_STYLES, check: (p, s) => checkRestaurant(p, s as RestaurantStyle), figures: restaurantFigures },
 ];
 
 export function packOf(id: string | null | undefined): Pack {
