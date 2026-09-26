@@ -194,9 +194,14 @@ interface Draft {
   allowTilt: boolean | undefined;
   stackGroup: string;
   stop: number | undefined;
+  /** Production simulation data; stored on the item type. */
+  stationKind: 'source' | 'machine' | 'buffer' | 'inspection' | 'sink';
+  cycleSeconds: number | undefined;
+  productionCapacity: number | undefined;
 }
 
 const CARGO_KEYS = ['quantity', 'stackable', 'maxLoadOnTop', 'allowTilt', 'stackGroup', 'stop'] as const;
+const PRODUCTION_KEYS = ['kind', 'cycleMs', 'capacity'] as const;
 
 function draftOf(definition: ItemDefinition): Draft {
   const c = (t: number) => toUnit(t, 'cm');
@@ -221,20 +226,34 @@ function draftOf(definition: ItemDefinition): Draft {
     allowTilt: typeof m.allowTilt === 'boolean' ? m.allowTilt : undefined,
     stackGroup: typeof m.stackGroup === 'string' ? m.stackGroup : '',
     stop: typeof m.stop === 'number' ? m.stop : undefined,
+    stationKind: m.kind === 'source' || m.kind === 'machine' || m.kind === 'buffer' || m.kind === 'inspection' || m.kind === 'sink' ? m.kind : 'machine',
+    cycleSeconds: typeof m.cycleMs === 'number' ? m.cycleMs / 1000 : undefined,
+    productionCapacity: typeof m.capacity === 'number' ? m.capacity : undefined,
   };
 }
 
-const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false, massKg: undefined, quantity: undefined, stackable: undefined, maxLoadKg: undefined, allowTilt: undefined, stackGroup: '', stop: undefined };
+const EMPTY: Draft = { id: null, name: '', category: 'box', w: 100, d: 60, h: 75, front: 0, back: 0, left: 0, right: 0, seats: 0, round: false, massKg: undefined, quantity: undefined, stackable: undefined, maxLoadKg: undefined, allowTilt: undefined, stackGroup: '', stop: undefined, stationKind: 'machine', cycleSeconds: undefined, productionCapacity: undefined };
 
 /** The type's meta with the cargo fields from the dialog; other packs' keys are kept as they were. */
-function metaOf(previous: ItemDefinition['meta'], d: Draft): { meta?: Record<string, string | number | boolean> } {
-  const meta: Record<string, string | number | boolean> = Object.fromEntries(Object.entries(previous ?? {}).filter(([k]) => !(CARGO_KEYS as readonly string[]).includes(k)));
-  if (d.quantity !== undefined && d.quantity > 0) meta.quantity = Math.round(d.quantity);
-  if (d.stackable !== undefined) meta.stackable = d.stackable;
-  if (d.maxLoadKg !== undefined) meta.maxLoadOnTop = Math.round(d.maxLoadKg * 1000);
-  if (d.allowTilt !== undefined) meta.allowTilt = d.allowTilt;
-  if (d.stackGroup.trim()) meta.stackGroup = d.stackGroup.trim();
-  if (d.stop !== undefined) meta.stop = Math.round(d.stop);
+function metaOf(previous: ItemDefinition['meta'], d: Draft, pack: PackId): { meta?: Record<string, string | number | boolean> } {
+  const stripped = new Set<string>(CARGO_KEYS as readonly string[]);
+  if (pack === 'production') for (const key of PRODUCTION_KEYS) stripped.add(key);
+  const meta: Record<string, string | number | boolean> = Object.fromEntries(Object.entries(previous ?? {}).filter(([k]) => !stripped.has(k)));
+  if (pack === 'container') {
+    if (d.quantity !== undefined && d.quantity > 0) meta.quantity = Math.round(d.quantity);
+    if (d.stackable !== undefined) meta.stackable = d.stackable;
+    if (d.maxLoadKg !== undefined) meta.maxLoadOnTop = Math.round(d.maxLoadKg * 1000);
+    if (d.allowTilt !== undefined) meta.allowTilt = d.allowTilt;
+    if (d.stackGroup.trim()) meta.stackGroup = d.stackGroup.trim();
+    if (d.stop !== undefined) meta.stop = Math.round(d.stop);
+  }
+  if (pack === 'production') {
+    meta.kind = d.stationKind;
+    if (d.stationKind === 'source' || d.stationKind === 'machine' || d.stationKind === 'inspection') {
+      if (d.cycleSeconds !== undefined && d.cycleSeconds > 0) meta.cycleMs = Math.round(d.cycleSeconds * 1000);
+    }
+    if (d.stationKind === 'buffer' && d.productionCapacity !== undefined && d.productionCapacity > 0) meta.capacity = Math.round(d.productionCapacity);
+  }
   return Object.keys(meta).length > 0 ? { meta } : {};
 }
 
@@ -273,7 +292,7 @@ export function ItemTypeDialog({
           ...(draft.seats > 0 ? { seats: Math.round(draft.seats) } : {}),
           ...(draft.round ? { footprint: 'round' as const } : {}),
           ...(draft.massKg !== undefined && draft.massKg > 0 ? { mass: Math.round(draft.massKg * 1000) } : {}),
-          ...metaOf(existing?.meta, draft),
+          ...metaOf(existing?.meta, draft, pack),
         },
       },
     });
@@ -353,6 +372,32 @@ export function ItemTypeDialog({
               </div>
               <SwitchRow name="type-stackable" label="Other pieces may rest on it" on={draft.stackable !== false} onChange={(on) => setDraft((d) => ({ ...d, stackable: on }))} />
               <SwitchRow name="type-allow-tilt" label="May lie on its side" hint="Off means “this way up”" on={draft.allowTilt === true} onChange={(on) => setDraft((d) => ({ ...d, allowTilt: on }))} />
+            </div>
+          )}
+          {pack === 'production' && (
+            <div aria-label="Production simulation">
+              <div className="kicker" style={{ marginBottom: 8 }}>
+                Production simulation
+              </div>
+              <div className="grid-4">
+                <label className="stack">
+                  Station kind
+                  <select className="input" name="type-station-kind" aria-label="Station kind" value={draft.stationKind} onChange={(e) => setDraft((d) => ({ ...d, stationKind: e.target.value as Draft['stationKind'] }))}>
+                    <option value="source">Source</option>
+                    <option value="machine">Machine</option>
+                    <option value="buffer">Buffer</option>
+                    <option value="inspection">Inspection</option>
+                    <option value="sink">Sink</option>
+                  </select>
+                </label>
+                {(draft.stationKind === 'source' || draft.stationKind === 'machine' || draft.stationKind === 'inspection') && (
+                  <NumberField name="type-cycle" label="Cycle" ariaLabel="Cycle time in seconds" wideKey unit="s" value={draft.cycleSeconds} min={0.001} max={86_400} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, cycleSeconds: v }))} />
+                )}
+                {draft.stationKind === 'buffer' && (
+                  <NumberField name="type-production-capacity" label="Capacity" ariaLabel="Buffer capacity in parts" wideKey unit="parts" value={draft.productionCapacity} min={1} max={1_000_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, productionCapacity: v }))} />
+                )}
+              </div>
+              <p className="hint">Throughput is calculated only from these entered cycle times and capacities. Floor distance never becomes a cycle time.</p>
             </div>
           )}
           <div>
