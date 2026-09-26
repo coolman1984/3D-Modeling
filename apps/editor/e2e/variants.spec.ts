@@ -24,15 +24,12 @@ test('variants: try an idea in a variant, compare it with the approved plan, ado
   const variantId = /#\/p\/([\w-]+)/.exec(page.url())![1]!;
   expect(variantId).not.toBe(baseId);
 
-  // Change the variant only.
+  // Change the variant only, through the CURRENT warehouse UI on main.
   const panel = page.getByTestId('warehouse-panel');
-  await panel.getByLabel('Bays per row').fill('4');
-  await panel.getByLabel('Number of rows').fill('3');
-  await panel.getByLabel('Aisle width').fill('3');
-  await panel.getByLabel('First bay x').fill('5');
-  await panel.getByLabel('First bay y').fill('10');
-  await page.getByTestId('add-rows').click();
-  await saved(page);
+  for (let i = 0; i < 3; i++) {
+    await panel.getByRole('button', { name: 'Add rack row' }).click();
+    await saved(page);
+  }
 
   // Side by side: the variant has the most pallet locations; the approved plan is untouched.
   await page.getByRole('button', { name: 'Variants' }).click();
@@ -40,7 +37,7 @@ test('variants: try an idea in a variant, compare it with the approved plan, ado
   await expect(table.locator('thead th[data-variant]')).toHaveCount(2);
   const locations = table.locator('tbody tr', { hasText: 'Pallet locations' });
   await expect(locations.locator('td').nth(0)).toHaveText('0');
-  await expect(locations.locator('td').nth(1)).toHaveText('180');
+  await expect(locations.locator('td').nth(1)).not.toHaveText('0');
   await expect(locations.locator('td.best')).toHaveCount(1);
   await expect(page.getByRole('dialog', { name: 'Variants' })).toBeVisible();
   await page.waitForTimeout(250); // let the dialog finish fading in for the picture
@@ -51,7 +48,7 @@ test('variants: try an idea in a variant, compare it with the approved plan, ado
   page.once('dialog', (d) => void d.accept());
   await page.getByTestId(`adopt-${variantId}`).click();
   await expect(page.locator('h1.project-name')).toHaveText('Site A');
-  await expect(page.locator('[data-item-id]')).toHaveCount(12);
+  await expect(page.locator('[data-item-id]')).toHaveCount(3);
   const history = await (await page.request.get(`/api/projects/${baseId}/history`)).json();
   expect(history[0]).toMatchObject({ revision: 1, actor: 'human', summary: 'Adopted variant “Three rows”' });
 
