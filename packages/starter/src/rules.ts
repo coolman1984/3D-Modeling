@@ -49,7 +49,8 @@ export type RuleCode =
   | 'bay-boundary'
   | 'bay-entry'
   | 'area-per-cover'
-  | 'table-reachability';
+  | 'table-reachability'
+  | 'building-boundary';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -102,6 +103,7 @@ export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
   'bay-entry': { kind: 'engineering', title: 'A reference vehicle can drive a minimum-turning-radius path from the nearest lane into each empty bay without its swept body leaving the floor or touching a wall, column, other vehicle or no-go zone', ruleSet: 'starter.depot.v1' },
   'area-per-cover': { kind: 'common-guidance', title: 'Restaurant planning guidance: floor area per cover by service style', ruleSet: 'starter.restaurant.v1' },
   'table-reachability': { kind: 'engineering', title: 'Waitstaff can travel from the kitchen pass to every table on the derived floor grid', ruleSet: 'starter.restaurant.v1' },
+  'building-boundary': { kind: 'engineering', title: 'Buildings stand inside the plot and off the marked roads and lanes', ruleSet: 'starter.site.v1' },
 };
 
 export interface RuleResult {
@@ -114,7 +116,7 @@ export interface RuleResult {
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station' | 'no-bays' | 'no-lanes' | 'all-occupied' | 'no-tables' | 'no-pass';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station' | 'no-bays' | 'no-lanes' | 'all-occupied' | 'no-tables' | 'no-pass' | 'no-buildings';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }

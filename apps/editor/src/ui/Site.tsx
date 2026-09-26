@@ -49,7 +49,7 @@ export function SiteHeader({ active, right }: { active: 'projects' | 'settings';
 export function ProjectThumb({ project, width, height, dark = false }: { project: Project; width: number; height: number; dark?: boolean }) {
   const room = boundsOf(project.space.boundary);
   const v = fitViewport(room, width, height, 4);
-  const ink = dark ? 'rgba(233,230,224,.85)' : '#1a1917';
+  const ink = dark ? 'rgba(233,230,224,.85)' : '#0b0d12';
   const soft = dark ? 'rgba(233,230,224,.45)' : 'rgba(26,25,23,.55)';
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">

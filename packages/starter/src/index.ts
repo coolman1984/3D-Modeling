@@ -29,12 +29,27 @@ export const SHAPES = [
   { key: 'rack', label: 'Pallet rack' },
   { key: 'car', label: 'Vehicle' },
   { key: 'forklift', label: 'Forklift' },
+  { key: 'bus', label: 'Bus / coach' },
+  { key: 'tree', label: 'Tree' },
+  { key: 'building', label: 'Building' },
+  { key: 'lamp', label: 'Street light' },
+  { key: 'canopy', label: 'Shade roof / canopy' },
+  { key: 'flag', label: 'Flag poles' },
+  { key: 'barrier', label: 'Gate barrier' },
+  { key: 'wall', label: 'Partition wall' },
+  { key: 'glass-wall', label: 'Glass partition' },
+  { key: 'screen', label: 'Display screen' },
+  { key: 'machine', label: 'Machine' },
+  { key: 'conveyor', label: 'Conveyor' },
+  { key: 'workbench', label: 'Workbench' },
+  { key: 'locker', label: 'Lockers' },
+  { key: 'vending', label: 'Vending machine' },
 ] as const;
 
 export type ShapeKey = (typeof SHAPES)[number]['key'];
 
 /** Shapes whose floor outline is round rather than rectangular. */
-export const ROUND_SHAPES: readonly ShapeKey[] = ['round-table', 'plant'];
+export const ROUND_SHAPES: readonly ShapeKey[] = ['round-table', 'plant', 'tree', 'lamp'];
 
 export function shapeOf(category: string): ShapeKey {
   return SHAPES.some((s) => s.key === category) ? (category as ShapeKey) : 'box';
@@ -96,3 +111,6 @@ export * from './depot.js';
 export * from './restaurant.js';
 export * from './stock.js';
 export * from './samples.js';
+export * from './site.js';
+export * from './samsung.js';
+export * from './sampleCompanies.js';

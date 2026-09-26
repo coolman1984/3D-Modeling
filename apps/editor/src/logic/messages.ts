@@ -147,6 +147,7 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'bay-entry': 'A vehicle can turn into every empty bay',
   'area-per-cover': 'Floor area per cover',
   'table-reachability': 'Waitstaff reaches every table',
+  'building-boundary': 'Buildings stand on the plot, off the roads',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -225,6 +226,8 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : formatSquareMetres(rule.measured), required: rule.required === undefined ? dash : `${formatSquareMetres(rule.required)} or more` };
     case 'table-reachability':
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} tables` };
+    case 'building-boundary':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} clear`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} buildings` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -274,6 +277,8 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'Add tables to check the restaurant.';
       case 'no-pass':
         return 'Add a kitchen pass door (its role set to "pass") so waitstaff have somewhere to start from.';
+      case 'no-buildings':
+        return 'Add buildings to the site plan to check where they stand.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -347,5 +352,7 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return `Each cover has ${formatSquareMetres(rule.measured ?? 0)} of floor; at least ${formatSquareMetres(rule.required ?? 0)} is needed.`;
     case 'table-reachability':
       return rule.status === 'pass' ? 'Waitstaff can reach every table from the kitchen pass.' : `No route from the pass to: ${list(rule.entityIds)}.`;
+    case 'building-boundary':
+      return rule.status === 'pass' ? 'Every building stands inside the plot and off the marked roads.' : `Outside the plot or across a road: ${list(rule.entityIds)}. Move the building or the road.`;
   }
 }

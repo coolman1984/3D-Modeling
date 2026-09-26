@@ -17,9 +17,9 @@ export interface StockView {
   readonly slot: string | null;
 }
 
-const VELOCITY_COLOR = { A: 0x3f8f5a, B: 0xd9a03a, C: 0x9a958b } as const;
+const VELOCITY_COLOR = { A: 0x3f8f5a, B: 0xd9a03a, C: 0x98a0ab } as const;
 const VELOCITY_WORD = { A: 'Fast (A)', B: 'Medium (B)', C: 'Slow (C)' } as const;
-const FALLBACK = 0xb8b2a8;
+const FALLBACK = 0xb3b9c3;
 
 /** The colour a stored pallet of this material is drawn in. */
 export function stockColor(material: Material | undefined, by: StockColorBy): number {

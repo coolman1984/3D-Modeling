@@ -177,7 +177,8 @@ describe('extreme-point packer', () => {
       }),
       { numRuns: 25 },
     );
-  });
+    // ~1 s alone; 25 packings can pass 5 s when the whole suite shares the CPU. Not a speed test.
+  }, 20_000);
 });
 
 describe('settling a piece', () => {

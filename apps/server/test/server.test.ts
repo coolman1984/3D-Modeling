@@ -78,6 +78,17 @@ describe('store', () => {
     expect(store.history(project.id)).toHaveLength(3);
   });
 
+  it('opens a database made before project groups and keeps its projects, ungrouped', async () => {
+    store.close();
+    const path = join(dir, 'old.db');
+    const { DatabaseSync } = await import('node:sqlite');
+    const old = new DatabaseSync(path);
+    old.exec("CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, revision INTEGER NOT NULL, item_count INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO projects VALUES ('p-old', 'Old hall', 0, 0, '2026-01-01', '2026-01-01');");
+    old.close();
+    store = new Store(path);
+    expect(store.listProjects()).toEqual([expect.objectContaining({ id: 'p-old', name: 'Old hall', collection: null })]);
+  });
+
   it('duplicates and deletes projects', () => {
     const project = store.createProject(demoHall(), 'human');
     const copy = store.duplicateProject(project.id, 'human');
@@ -306,6 +317,21 @@ describe('HTTP app', () => {
     expect(list[0]!.name).toContain('10th of Ramadan DC');
     const history = (await json(`/api/projects/${list[0]!.id}/history`)).body as Array<{ actor: string }>;
     expect(history).toEqual([expect.objectContaining({ actor: 'Sample data', revision: 0 })]);
+    expect(list[0]).toMatchObject({ collection: 'nile-gate' });
+  });
+
+  it('lists both sample companies and adds the Samsung one as its own group, campus first', async () => {
+    const companies = (await json('/api/samples')).body as Array<{ id: string; name: string }>;
+    expect(companies.map((c) => c.id)).toEqual(['samsung-egypt', 'nile-gate']);
+    const added = await json('/api/samples/samsung-egypt', { method: 'POST', body: '{}' });
+    expect(added.status).toBe(201);
+    expect(added.body).toHaveLength(10);
+    const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
+    expect(list[0]!.name).toContain('campus');
+    expect(list.filter((p) => p.collection === 'samsung-egypt')).toHaveLength(10);
+    expect((await json('/api/samples/unknown', { method: 'POST', body: '{}' })).status).toBe(404);
+    store.createProject(demoHall(), 'human');
+    expect(store.listProjects()[0]).toMatchObject({ collection: null });
   });
 
   it('pushes live events when anything changes', async () => {

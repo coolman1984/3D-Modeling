@@ -7,6 +7,11 @@ import { fromUnit } from '@space-planner/core';
 export interface ControlSettings {
   /** Grid step for dragging, in ticks (1 = no grid). */
   readonly grid: number;
+  /**
+   * Arrow steps follow the zoom (see `arrowSteps`): a press always moves a visible amount, in a
+   * 12 m hall and on a 600 m campus alike. Typing a step in the Precision panel turns it off.
+   */
+  readonly autoStep: boolean;
   /** Arrow key step; Shift uses `bigStep`, Alt uses `fineStep`. */
   readonly step: number;
   readonly bigStep: number;
@@ -32,6 +37,7 @@ const cm = (v: number) => fromUnit(v, 'cm');
 
 export const DEFAULT_CONTROLS: ControlSettings = {
   grid: cm(5),
+  autoStep: true,
   step: cm(1),
   bigStep: cm(10),
   fineStep: fromUnit(1, 'mm'),
@@ -46,7 +52,7 @@ export const DEFAULT_CONTROLS: ControlSettings = {
 };
 
 /** Limits for each number, so a bad saved value can never make the editor unusable. */
-export const CONTROL_LIMITS: Readonly<Record<Exclude<keyof ControlSettings, 'guides'>, readonly [number, number]>> = {
+export const CONTROL_LIMITS: Readonly<Record<Exclude<keyof ControlSettings, 'guides' | 'autoStep'>, readonly [number, number]>> = {
   grid: [1, cm(100)],
   step: [1, cm(100)],
   bigStep: [1, cm(500)],
@@ -71,7 +77,31 @@ export function sanitizeControls(value: unknown): ControlSettings {
     }
   }
   if (typeof source.guides === 'boolean') out.guides = source.guides;
+  if (typeof source.autoStep === 'boolean') out.autoStep = source.autoStep;
   return out as unknown as ControlSettings;
+}
+
+/** The smallest 1, 2 or 5 × a power of ten (in ticks, at least 1) that is not below `ticks`. */
+export function niceStep(ticks: number): number {
+  if (!(ticks > 1)) return 1;
+  const power = 10 ** Math.floor(Math.log10(ticks));
+  for (const m of [1, 2, 5, 10]) if (m * power >= ticks - 1e-9) return m * power;
+  return 10 * power;
+}
+
+/** On screen, one arrow press moves about this many pixels when the step follows the zoom. */
+export const ARROW_PIXELS = 4;
+
+/**
+ * The arrow and Shift+arrow steps actually used. With `autoStep` on, a press moves about four
+ * screen pixels, rounded to a round length (1, 2, 5, 10 cm…), and Shift ten times that; a
+ * 1 cm step on a whole campus was far too small to see. `ticksPerPixel` comes from the plan's
+ * zoom, or from the room's size in the 3D view. Alt (fine) and the typed steps are never changed.
+ */
+export function arrowSteps(s: ControlSettings, ticksPerPixel: number): { step: number; bigStep: number } {
+  if (!s.autoStep || !(ticksPerPixel > 0)) return { step: s.step, bigStep: s.bigStep };
+  const step = Math.min(CONTROL_LIMITS.step[1] * 100, niceStep(ticksPerPixel * ARROW_PIXELS));
+  return { step, bigStep: step * 10 };
 }
 
 const STORAGE_KEY = 'space-planner.controls';
@@ -102,13 +132,28 @@ export function acceleratedStep(step: number, repeat: number, acceleration: numb
   return step * factor;
 }
 
+/** Inputs that never use the arrow keys themselves: a tick box or button keeps focus after a click. */
+const ARROW_FREE_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file', 'image']);
+
+/**
+ * True when a key belongs to the focused control rather than to the editor: text and number
+ * fields, lists, sliders (their arrows move the slider) and editable text. A tick box that was
+ * just clicked must not switch the arrow keys off everywhere, as it did before.
+ */
+export function ownsKeys(target: EventTarget | null): boolean {
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return true;
+  if (target.tagName === 'INPUT') return !ARROW_FREE_INPUTS.has((target as HTMLInputElement).type);
+  return false;
+}
+
 /** What a key press means in the editor, independent of the browser event. */
 export type KeyIntent =
   | { readonly kind: 'nudge'; readonly dx: number; readonly dy: number }
   | { readonly kind: 'raise'; readonly dz: number }
   | { readonly kind: 'rotate'; readonly by: number }
-  | { readonly kind: 'undo' | 'redo' | 'select-all' | 'duplicate' | 'copy' | 'paste' | 'cut' | 'delete' | 'escape' | 'lock' | 'frame' }
-  | null;
+  | { readonly kind: 'undo' | 'redo' | 'select-all' | 'duplicate' | 'copy' | 'paste' | 'cut' | 'delete' | 'escape' | 'lock' | 'frame' }  | null;
 
 export interface KeyPress {
   readonly key: string;

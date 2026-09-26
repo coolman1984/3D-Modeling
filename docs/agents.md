@@ -100,8 +100,19 @@ Stock: a material is an item type holding one loaded pallet (`meta.sku`). `wareh
 occupancy and pallets per material (give `material_id` for its locations); `assign_stock` fills or
 empties locations such as `W01-B02-L03-P01` (level 1 is the floor) in one revision;
 `optimize_slotting` proposes moving the busiest pallets nearest the shipping dock and reports
-weekly forklift travel before and after (`apply: true` makes it one revision). The sample company
-(projects page, "Add sample company") has fully stocked warehouses to try this on.
+weekly forklift travel before and after (`apply: true` makes it one revision). The sample
+companies (projects page, "Add sample company": Nile Gate Logistics or Samsung Electronics Egypt)
+have fully stocked warehouses to try this on.
+
+## Site plans (whole campuses)
+
+A site plan (pack `site`, from the Samsung sample) is a plot seen from above. A building is one
+item (`category: "building"`, `meta.use`, `meta.storeys`) with its outer size; what happens inside
+is its own project. Roads, lawns, plazas and yards are zones; staff parking uses the depot's bays
+and lanes, so `add_depot_bay`, `add_depot_zone` and `bay_entry_check` work here too (a bus bay
+defaults to a 12 m coach, other bays to a sedan). `get_project` reports plot area, built area and
+coverage, green area and bays; `check_project` adds `building-boundary` (every building inside the
+plot and off the roads) to the depot's bay rules.
 
 ## Production line planning
 

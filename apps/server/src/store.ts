@@ -20,6 +20,8 @@ export interface ProjectSummary {
   readonly itemCount: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** The sample company (or other group) the project was added with; null for the person's own projects. */
+  readonly collection: string | null;
 }
 
 export interface RevisionInfo {
@@ -106,6 +108,9 @@ export class Store extends EventEmitter<StoreEvents> {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.db.exec(SCHEMA);
+    // Databases made before project groups existed gain the column in place; nothing else changes.
+    const columns = this.db.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === 'collection')) this.db.exec('ALTER TABLE projects ADD COLUMN collection TEXT');
     // Runs that were active when the app last stopped cannot still be running.
     this.db.prepare("UPDATE agent_runs SET status = 'stopped', ended_at = ? WHERE status = 'running'").run(now());
   }
@@ -116,8 +121,8 @@ export class Store extends EventEmitter<StoreEvents> {
 
   listProjects(): ProjectSummary[] {
     const rows = this.db
-      .prepare('SELECT id, name, revision, item_count, created_at, updated_at FROM projects ORDER BY updated_at DESC, rowid DESC')
-      .all() as Array<Record<string, string | number>>;
+      .prepare('SELECT id, name, revision, item_count, created_at, updated_at, collection FROM projects ORDER BY updated_at DESC, rowid DESC')
+      .all() as Array<Record<string, string | number | null>>;
     return rows.map((r) => ({
       id: String(r.id),
       name: String(r.name),
@@ -125,11 +130,12 @@ export class Store extends EventEmitter<StoreEvents> {
       itemCount: Number(r.item_count),
       createdAt: String(r.created_at),
       updatedAt: String(r.updated_at),
+      collection: r.collection === null || r.collection === undefined ? null : String(r.collection),
     }));
   }
 
-  /** Store a new project; its id is replaced by a fresh one. */
-  createProject(project: Project, actor: string, summary = 'Created the project'): Project {
+  /** Store a new project; its id is replaced by a fresh one. collection groups sample projects. */
+  createProject(project: Project, actor: string, summary = 'Created the project', collection: string | null = null): Project {
     const id = `p-${randomUUID().slice(0, 8)}`;
     const fresh: Project = { ...project, id, revision: 0 };
     const problems = validateProject(fresh);
@@ -137,8 +143,8 @@ export class Store extends EventEmitter<StoreEvents> {
     const at = now();
     this.transaction(() => {
       this.db
-        .prepare('INSERT INTO projects (id, name, revision, item_count, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)')
-        .run(id, fresh.name, Object.keys(fresh.items).length, at, at);
+        .prepare('INSERT INTO projects (id, name, revision, item_count, created_at, updated_at, collection) VALUES (?, ?, 0, ?, ?, ?, ?)')
+        .run(id, fresh.name, Object.keys(fresh.items).length, at, at, collection);
       this.insertRevision(fresh, actor, summary, [], at);
     });
     this.emit('projects');

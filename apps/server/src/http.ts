@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
-import { demoHall, nileGateSample, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse } from '@space-planner/starter';
+import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
 import type { Store } from './store.js';
@@ -155,9 +155,13 @@ export function createApp(options: AppOptions): App {
     send(res, 201, store.createProject(project, 'human'));
   });
 
-  // The sample company, stored like any other projects. Created last-first so the main site lists on top.
-  route('POST', '/api/samples/nile-gate', (_q, res) => {
-    const created = nileGateSample().reverse().map(({ project, summary }) => store.createProject(project, 'Sample data', summary));
+  route('GET', '/api/samples', (_q, res) => send(res, 200, SAMPLE_COMPANIES.map(({ id, name, description }) => ({ id, name, description }))));
+
+  // A sample company, stored like any other projects and grouped by its id. Created last-first so its main site lists on top.
+  route('POST', '/api/samples/:id', (_q, res, [id]) => {
+    const company = sampleCompany(id!);
+    if (!company) throw new HttpError(404, 'no such sample company');
+    const created = company.build().reverse().map(({ project, summary }) => store.createProject(project, 'Sample data', summary, company.id));
     send(res, 201, created.reverse().map((p) => ({ id: p.id, name: p.name })));
   });
 

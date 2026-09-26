@@ -1,4 +1,4 @@
-import { boundsOf, containsPolygon, createProject, fromUnit, itemPolygon, roomSpace, rotate, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
+import { area, boundsOf, containsPolygon, createProject, fromUnit, itemPolygon, roomSpace, rotate, toSquareMetres, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
 import { findRoute, floorRaster, type MovementProfile, type RouteResult } from '@space-planner/industry';
 import { stepOf } from './container.js';
 import type { RuleResult } from './rules.js';
@@ -138,8 +138,7 @@ export function productionMetrics(project: Project): ProductionMetrics {
   const kinds = order.map((i) => stationKindOf(project.catalog[i.definitionId]));
   const buffers = order.filter((i) => stationKindOf(project.catalog[i.definitionId]) === 'buffer');
   const bufferCapacity = buffers.reduce((sum, i) => { const c = project.catalog[i.definitionId]?.meta?.capacity; return sum + (typeof c === 'number' ? c : 0); }, 0);
-  const boundary = boundsOf(project.space.boundary);
-  const floorArea = ((boundary.maxX - boundary.minX) / 100_000) * ((boundary.maxY - boundary.minY) / 100_000);
+  const floorArea = toSquareMetres(Math.abs(area(project.space.boundary)));
   let flowLength = 0;
   let reachableSegments = 0;
   const totalSegments = Math.max(0, order.length - 1);

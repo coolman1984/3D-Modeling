@@ -22,7 +22,7 @@ export type ColorBy = 'type' | 'stop' | 'weight' | 'step';
 
 /** Calm categorical colours for types and stops; weight and steps use one blue ramp. */
 const CATEGORICAL = [0xc8a97e, 0x8fa6c9, 0xa9c29b, 0xd9a28c, 0xb7a6cf, 0x9cc5c1, 0xd4c48a, 0xc9a0b4];
-const NONE = 0xd6d2c9;
+const NONE = 0xd3d7de;
 const ramp = (t: number) => {
   // From a pale blue-grey to the accent blue.
   const a = [0xdc, 0xe4, 0xf6];
@@ -52,7 +52,13 @@ export function colorsOf(project: Project, by: ColorBy): ColorLegend {
       const s = stopOf(i, project.catalog[i.definitionId]!);
       colors.set(i.id, s === undefined ? NONE : CATEGORICAL[stops.indexOf(s) % CATEGORICAL.length]!);
     }
-    return { colors, legend: [...stops.map((s, k) => ({ label: `Stop ${s}`, color: CATEGORICAL[k % CATEGORICAL.length]! })), ...(items.some((i) => stopOf(i, project.catalog[i.definitionId]!) === undefined) ? [{ label: 'No stop', color: NONE }] : [])] };
+    return {
+      colors,
+      legend: [
+        ...stops.map((s, k) => ({ label: `Drop ${s}${k === 0 ? ' · unloaded first' : k === stops.length - 1 && stops.length > 1 ? ' · unloaded last' : ''}`, color: CATEGORICAL[k % CATEGORICAL.length]! })),
+        ...(items.some((i) => stopOf(i, project.catalog[i.definitionId]!) === undefined) ? [{ label: 'No drop set', color: NONE }] : []),
+      ],
+    };
   }
   if (by === 'weight') {
     const masses = items.map((i) => project.catalog[i.definitionId]?.mass);
@@ -65,7 +71,7 @@ export function colorsOf(project: Project, by: ColorBy): ColorLegend {
     const s = stepOf(i);
     colors.set(i.id, s === undefined ? NONE : ramp(s / max));
   }
-  return { colors, legend: [{ label: 'Step 1', color: ramp(1 / max) }, { label: `Step ${max}`, color: ramp(1) }] };
+  return { colors, legend: [{ label: 'Loaded first', color: ramp(1 / max) }, { label: `Loaded last · step ${max}`, color: ramp(1) }] };
 }
 
 /** The loading-plan panel: the container, the cargo plan, and packing candidates to compare and apply. */
@@ -267,7 +273,7 @@ export function CargoGroup({ project, item, dispatch }: { project: Project; item
     <div className="insp-group" aria-label="Cargo">
       <div className="kicker">Cargo</div>
       <div className="grid-2">
-        <CommitField label="Stop" wideKey ariaLabel="Unloading stop" unit="" digits={0} limit={999} value={stopOf(item, definition) ?? 0} onCommit={(v) => setMeta('stop', v)} />
+        <CommitField label="Drop" wideKey ariaLabel="Unloading stop" unit="" digits={0} limit={999} value={stopOf(item, definition) ?? 0} onCommit={(v) => setMeta('stop', v)} />
         <CommitField label="Step" wideKey ariaLabel="Loading step" unit="" digits={0} limit={100_000} value={stepOf(item) ?? 0} onCommit={(v) => setMeta('step', v)} />
       </div>
       <div style={{ marginTop: 8 }}>
@@ -317,7 +323,7 @@ export function CargoGroup({ project, item, dispatch }: { project: Project; item
           </div>
         )}
       </div>
-      <p className="hint">Stop 1 is unloaded first. Height above the floor is set under Rotation & elevation.</p>
+      <p className="hint">Drop = the customer delivery this piece belongs to; drop 1 is unloaded first. Step = the order it is loaded in. Height above the floor is set under Rotation & elevation.</p>
     </div>
   );
 }
@@ -335,9 +341,18 @@ export function containerFacts(project: Project): Array<[string, string]> {
     ['Floor used', formatPercent(m.floorUse)],
     ['Centre of mass', m.balance ? `${m.balance.along.toFixed(1)}% along · ${m.balance.across.toFixed(1)}% across` : 'Unknown'],
     ['Pieces', `${formatCount(m.pieces)}${m.unpacked ? ` · ${formatCount(m.unpacked)} not placed` : ''}`],
-    ['Stops · steps', `${m.stops.length ? m.stops.join(', ') : '—'} · ${m.steps || '—'}`],
+    ['Delivery drops', m.stops.length ? m.stops.join(', ') : 'One drop'],
+    ['Loading steps', m.steps ? formatCount(m.steps) : '—'],
   ];
 }
+
+/** One line under the colour choice: what the colours say and why it matters. */
+const COLOR_BY_HINT: Readonly<Record<ColorBy, string>> = {
+  type: 'Each kind of cargo has its own colour.',
+  stop: 'Each customer drop has its own colour. Drop 1 is unloaded first, so it should sit nearest the doors.',
+  weight: 'Darker blue is heavier. Heavy pieces belong low and near the middle.',
+  step: 'The order pieces go in: pale first, dark last. Press play to watch the load.',
+};
 
 /** Colour-by, cutaway and load-sequence playback over the 3D view of a container. */
 export function ContainerViewTools({
@@ -361,6 +376,12 @@ export function ContainerViewTools({
   legend: ColorLegend['legend'];
 }) {
   const steps = Object.values(project.items).reduce((m, i) => Math.max(m, stepOf(i) ?? 0), 0);
+  // "Delivery drop" only means something on a multi-drop load; a single-drop container hides it.
+  const hasDrops = Object.values(project.items).some((i) => project.catalog[i.definitionId] && stopOf(i, project.catalog[i.definitionId]!) !== undefined);
+  const shown: ColorBy = colorBy === 'stop' && !hasDrops ? 'type' : colorBy;
+  useEffect(() => {
+    if (shown !== colorBy) onColorBy(shown);
+  }, [shown, colorBy, onColorBy]);
   const [playing, setPlaying] = useState(false);
   // Playback: from empty, one loading step at a time, to fully loaded.
   useEffect(() => {
@@ -380,17 +401,18 @@ export function ContainerViewTools({
   return (
     <div className="container-tools" aria-label="Container view">
       <Segmented
-        label="Colour by"
+        label="Colour pieces by"
         className="compact"
-        value={colorBy}
+        value={shown}
         onChange={onColorBy}
         options={[
-          { id: 'type', label: 'Type' },
-          { id: 'stop', label: 'Stop' },
+          { id: 'type', label: 'Cargo type' },
+          ...(hasDrops ? [{ id: 'stop' as const, label: 'Delivery drop' }] : []),
           { id: 'weight', label: 'Weight' },
-          { id: 'step', label: 'Step' },
+          { id: 'step', label: 'Load order' },
         ]}
       />
+      <p className="container-tools-hint" data-testid="color-by-hint">{COLOR_BY_HINT[shown]}</p>
       <label className="check-inline">
         <input type="checkbox" checked={cutaway} onChange={(e) => onCutaway(e.target.checked)} />
         Cut away side wall
@@ -402,7 +424,7 @@ export function ContainerViewTools({
           </button>
           <input type="range" min={0} max={steps} value={step ?? steps} aria-label="Loading step" onChange={(e) => onStep(Number(e.target.value) >= steps ? null : Number(e.target.value))} />
           <span className="num" data-testid="sequence-label">
-            {step === null ? 'Fully loaded' : step === 0 ? 'Empty' : `Step ${step} of ${steps}`}
+            {step === null ? 'Fully loaded' : step === 0 ? 'Empty' : `Loading step ${step} of ${steps}`}
           </span>
         </div>
       )}

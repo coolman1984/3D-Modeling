@@ -11,7 +11,7 @@ import { Dialog, LineTabs, NumberField, SwitchRow } from './Fields.js';
 const cm = (v: number) => fromUnit(v, 'cm');
 
 /** Library categories, from the item's shape. Item types not from any pack are "Custom". */
-export type Category = 'All' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Racks' | 'Vehicles' | 'Other' | 'Custom';
+export type Category = 'All' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Walls' | 'Racks' | 'Production' | 'Vehicles' | 'Site' | 'Other' | 'Custom';
 const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Custom'>>> = {
   table: 'Tables',
   'round-table': 'Tables',
@@ -27,8 +27,23 @@ const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Cu
   forklift: 'Vehicles',
   plant: 'Other',
   box: 'Other',
+  bus: 'Vehicles',
+  tree: 'Site',
+  building: 'Site',
+  lamp: 'Site',
+  canopy: 'Site',
+  flag: 'Site',
+  barrier: 'Site',
+  wall: 'Walls',
+  'glass-wall': 'Walls',
+  screen: 'Office',
+  locker: 'Office',
+  vending: 'Service',
+  machine: 'Production',
+  conveyor: 'Production',
+  workbench: 'Production',
 };
-const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Racks', 'Vehicles', 'Other', 'Custom'];
+const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Walls', 'Racks', 'Production', 'Vehicles', 'Site', 'Other', 'Custom'];
 const PACK_IDS = new Set(PACKS.flatMap((p) => p.catalog.map((d) => d.id)));
 
 export function categoryOf(definition: ItemDefinition): Exclude<Category, 'All'> {
@@ -57,17 +72,17 @@ export function TypeArt({ definition, box = 64 }: { definition: ItemDefinition; 
   return (
     <svg width={box} height={box * 0.8} viewBox={`${-box / 2} ${-box * 0.4} ${box} ${box * 0.8}`} aria-hidden="true">
       {hasClear && (
-        <rect x={-w / 2 - c.left * k + x} y={-d / 2 - c.back * k + y} width={totalW * k} height={totalD * k} fill="none" stroke="#7a756c" strokeWidth={1} strokeDasharray="1.5 2.5" />
+        <rect x={-w / 2 - c.left * k + x} y={-d / 2 - c.back * k + y} width={totalW * k} height={totalD * k} fill="none" stroke="#6f7581" strokeWidth={1} strokeDasharray="1.5 2.5" />
       )}
       {round ? (
         <>
-          <ellipse cx={x} cy={y} rx={w / 2} ry={d / 2} fill="#fdfcfa" stroke="#1a1917" strokeWidth={1.3} />
-          {(definition.seats ?? 0) === 0 && definition.category === 'round-table' && <ellipse cx={x} cy={y} rx={w / 2 + 4} ry={d / 2 + 4} fill="none" stroke="#7a756c" strokeWidth={1} strokeDasharray="1.5 2" />}
+          <ellipse cx={x} cy={y} rx={w / 2} ry={d / 2} fill="#ffffff" stroke="#0b0d12" strokeWidth={1.3} />
+          {(definition.seats ?? 0) === 0 && definition.category === 'round-table' && <ellipse cx={x} cy={y} rx={w / 2 + 4} ry={d / 2 + 4} fill="none" stroke="#6f7581" strokeWidth={1} strokeDasharray="1.5 2" />}
         </>
       ) : (
         <>
-          <rect x={-w / 2 + x} y={-d / 2 + y} width={w} height={d} fill={dark ? '#2b2a27' : '#fdfcfa'} stroke="#1a1917" strokeWidth={1.3} />
-          <line x1={-w / 2 + x} y1={d / 2 + y} x2={w / 2 + x} y2={d / 2 + y} stroke="#1a1917" strokeWidth={2.2} />
+          <rect x={-w / 2 + x} y={-d / 2 + y} width={w} height={d} fill={dark ? '#161a22' : '#ffffff'} stroke="#0b0d12" strokeWidth={1.3} />
+          <line x1={-w / 2 + x} y1={d / 2 + y} x2={w / 2 + x} y2={d / 2 + y} stroke="#0b0d12" strokeWidth={2.2} />
         </>
       )}
     </svg>
@@ -349,7 +364,7 @@ export function ItemTypeDialog({
               <div className="grid-4">
                 <NumberField name="type-quantity" label="#" ariaLabel="Quantity to load" unit="pcs" value={draft.quantity} min={0} max={10_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, quantity: v }))} />
                 <NumberField name="type-max-load" label="Top" ariaLabel="Maximum load on top in kilograms" wideKey unit="kg" value={draft.maxLoadKg} min={0} max={1_000_000} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, maxLoadKg: v }))} />
-                <NumberField name="type-stop" label="Stop" ariaLabel="Unloading stop" wideKey unit="" value={draft.stop} min={1} max={999} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, stop: v }))} />
+                <NumberField name="type-stop" label="Drop" ariaLabel="Unloading stop" wideKey unit="" value={draft.stop} min={1} max={999} allowEmpty onChange={(v) => setDraft((d) => ({ ...d, stop: v }))} />
                 <input className="input" name="type-stack-group" aria-label="Stacking group" placeholder="Group" value={draft.stackGroup} onChange={(e) => setDraft((d) => ({ ...d, stackGroup: e.target.value }))} />
               </div>
               <SwitchRow name="type-stackable" label="Other pieces may rest on it" on={draft.stackable !== false} onChange={(on) => setDraft((d) => ({ ...d, stackable: on }))} />

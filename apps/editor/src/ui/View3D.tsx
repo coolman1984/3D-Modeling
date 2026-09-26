@@ -1,14 +1,16 @@
-import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
-import { materialOf, materialsOf, rackSpecOf, rackStock, shapeOf, slotId, slotPlacement, type RackSpec, type ShapeKey } from '@space-planner/starter';
-import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Scissors, Square } from '@phosphor-icons/react';
+import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2, type Zone } from '@space-planner/core';
+import { detectPack, materialOf, materialsOf, rackSpecOf, rackStock, shapeOf, slotId, slotPlacement, type PackId } from '@space-planner/starter';
+import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Gauge, Scissors, Square } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { addEnvironment, addLights, aimSun, isSoftwareRenderer, StillPass } from './environment3d.js';
+import { DEFAULT_QUALITY, FrameWatch, lighter, loadQuality, nextQuality, QUALITY_LABEL, QUALITY_PROFILES, saveQuality, type Quality } from '../logic/graphics.js';
+import { buildModel, COLORS, M } from './models3d.js';
 import { stockColor, type StockView } from './Stock.js';
-import { cartonFace, cartonStack, corrugated, planks, printedCarton } from './textures.js';
-import { headingQuarter, type ControlSettings } from '../logic/controls.js';
+import { asphalt, carpet, cartonStack, ceramic, cladding, concreteFloor, corrugated, epoxyFloor, grass, marble, pavers, planks, plaster, precast, sand, type Surface } from './textures.js';
+import { headingQuarter, ownsKeys, type ControlSettings } from '../logic/controls.js';
 import type { Action } from '../logic/session.js';
 import { snapMove } from '../logic/snap.js';
 import { elevateCommands, movable, moveCommands } from '../logic/transform.js';
@@ -32,6 +34,8 @@ interface Props {
   readonly fullWallsAtStart?: boolean;
   /** Told when a stored pallet is clicked: its location id and rack row. */
   readonly onSlot?: ((slot: string, rackId: Id) => void) | undefined;
+  /** True while this view has the keyboard: with nothing selected, arrows turn and tilt the camera. */
+  readonly keyboardActive?: () => boolean;
 }
 
 export interface SceneLook {
@@ -48,96 +52,34 @@ const TICKS_PER_METRE = 10_000;
 const mt = (ticks: number) => ticks / TICKS_PER_METRE;
 const DOOR_HEIGHT = 2.1;
 const WALL_THICKNESS = 0.12;
+const WALL_CUT = 1.1;
+const PERIMETER_WALL = 2.6;
 
-const COLORS = {
-  floor: 0xf4f2ed,
-  wall: 0xfbfaf8,
-  wood: 0xa7784e,
-  darkWood: 0x6f4f35,
-  cloth: 0xfbfaf7,
-  fabric: 0xd9d4ca,
-  metal: 0x8c939c,
-  stage: 0x2b2a27,
-  plantPot: 0x8a5a3c,
-  leaves: 0x4f8a4b,
-  box: 0xd6d2c9,
-  palletA: 0xc9a06a,
-  palletB: 0x8fa3b0,
-  palletC: 0xb7c19a,
-  palletWrap: 0xe8e4da,
-  carBody: 0x3b5b8c,
-  carGlass: 0x2a2e33,
-  tyre: 0x1f1e1c,
-  bayLine: 0xd8d3c6,
-  column: 0x3a3834,
-  blocked: 0xb93a2e,
-  selected: 0x2b54d0,
-  error: 0xb93a2e,
-  warning: 0x9a6400,
-  grid: 0x1a1917,
-  rackUpright: 0x2f5a96,
-  rackBeam: 0xe07a2c,
-  palletWood: 0xc29a66,
-  forklift: 0xf0b429,
-  forkliftDark: 0x2c2b29,
-  carton: 0xefeae0,
-  dimStock: 0xe6e3dc,
-  containerSteel: 0x3d78a8,
-  containerFloor: 0xb88657,
-  warehouseFloor: 0xe7e4dd,
-  safetyYellow: 0xe8b923,
-  walkGreen: 0x3f8f5a,
-  dockPlate: 0x4a4844,
-};
+/** Site plans and parking yards are outside: sky, sun, haze, ground beyond the plot. */
+const isOutdoor = (pack: PackId) => pack === 'site' || pack === 'depot';
+
+function spanOf(project: Project): number {
+  const b = boundsOf(project.space.boundary);
+  return Math.max(mt(b.maxX - b.minX), mt(b.maxY - b.minY), 2);
+}
 
 /**
  * Put the camera where the whole room is in view, looking down at it from the south, and aim
  * the sun's shadows at it. Returns the point the camera looks at.
  */
-function frameRoom(scene: THREE.Scene, camera: THREE.PerspectiveCamera, room: { minX: number; minY: number; maxX: number; maxY: number }, aspect: number): THREE.Vector3 {
+function frameRoom(camera: THREE.PerspectiveCamera, sun: THREE.DirectionalLight | null, room: { minX: number; minY: number; maxX: number; maxY: number }, aspect: number, outdoor: boolean): THREE.Vector3 {
   const centre = new THREE.Vector3(mt((room.minX + room.maxX) / 2), 0, -mt((room.minY + room.maxY) / 2));
   const size = Math.max(mt(room.maxX - room.minX), mt(room.maxY - room.minY), 2);
   // Narrow panes (side-by-side view) need the camera further back to keep the room in frame.
   const back = aspect < 1.2 ? 1.05 / aspect : 1;
-  camera.position.set(centre.x + size * 0.15 * back, size * 0.95 * back, centre.z + size * 1.05 * back);
+  const lift = outdoor ? 0.62 : 0.95;
+  camera.position.set(centre.x + size * 0.15 * back, size * lift * back, centre.z + size * 1.05 * back);
+  camera.near = Math.max(0.05, size / 4000);
+  camera.far = Math.max(2000, size * 12);
+  camera.updateProjectionMatrix();
   camera.lookAt(centre);
-  const sun = scene.children.find((c) => (c as THREE.DirectionalLight).isDirectionalLight) as THREE.DirectionalLight | undefined;
-  if (sun) {
-    sun.position.set(centre.x - size * 0.4, size * 1.2, centre.z + size * 0.6);
-    sun.target.position.copy(centre);
-    const cam = sun.shadow.camera;
-    cam.left = cam.bottom = -size;
-    cam.right = cam.top = size;
-    cam.far = size * 4;
-    cam.updateProjectionMatrix();
-  }
+  if (sun) aimSun(sun, centre, size);
   return centre;
-}
-
-function lights(scene: THREE.Scene, background: number | null = 0xefede8): void {
-  scene.background = background === null ? null : new THREE.Color(background);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b2a8, 1.25));
-  const sun = new THREE.DirectionalLight(0xfff8ee, 1.9);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.bias = -0.0005;
-  sun.shadow.normalBias = 0.02;
-  scene.add(sun, sun.target);
-}
-
-/**
- * Soft studio reflections and a tone curve that keeps the design colours: metal racking, printed
- * cartons and steel shells read as materials instead of flat paint.
- */
-function studio(renderer: THREE.WebGLRenderer, scene: THREE.Scene, reflections = true): void {
-  renderer.toneMapping = THREE.NeutralToneMapping;
-  renderer.toneMappingExposure = 1;
-  // Building the reflection map blocks the page for a moment; one-off report pictures skip it.
-  if (!reflections) return;
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.45;
-  pmrem.dispose();
 }
 
 /**
@@ -152,22 +94,30 @@ export function renderSnapshot(project: Project, issues: readonly Issue[], width
     return null;
   }
   try {
-    renderer.setPixelRatio(2);
+    // A report picture is drawn once, so it may use more than the live view, but still follows
+    // the chosen level: a weak graphics chip can stall on a 4096-pixel shadow map at twice the size.
+    const quality = isSoftwareRenderer(renderer) ? 'fast' : (loadQuality() ?? DEFAULT_QUALITY);
+    const profile = QUALITY_PROFILES[quality];
+    renderer.setPixelRatio(quality === 'high' ? 2 : 1.5);
     renderer.setSize(width, height, false);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = profile.shadows;
+    renderer.shadowMap.type = profile.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const pack = detectPack(project);
+    const outdoor = isOutdoor(pack);
     const scene = new THREE.Scene();
-    lights(scene);
-    studio(renderer, scene, false);
+    const sun = addLights(scene, outdoor, profile);
+    // Building the reflection map blocks the page for a moment; one-off report pictures skip it.
+    const disposeEnv = addEnvironment(renderer, scene, outdoor, false, spanOf(project));
+    if (!outdoor) scene.background = new THREE.Color(0xf5f6f8);
     const content = buildScene(project, issues, [], fullWalls, look);
     scene.add(content);
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 2000);
-    frameRoom(scene, camera, boundsOf(project.space.boundary), width / height);
+    frameRoom(camera, sun, boundsOf(project.space.boundary), width / height, outdoor);
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
     disposeTree(content);
-    scene.environment?.dispose();
+    disposeEnv();
     return url;
   } catch {
     return null;
@@ -180,219 +130,9 @@ export function renderSnapshot(project: Project, issues: readonly Issue[], width
 /** Plan (x east, y north, z up) → three.js (X east, Y up, Z south). */
 const at = (p: Vec2, height = 0) => new THREE.Vector3(mt(p.x), height, -mt(p.y));
 
-function material(color: number): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.05 });
-}
-
-function box(w: number, h: number, d: number, color: number, x = 0, y = h / 2, z = 0): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material(color));
-  mesh.position.set(x, y, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-function cylinder(r: number, h: number, color: number, x = 0, y = h / 2, z = 0, segments = 32): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, segments), material(color));
-  mesh.position.set(x, y, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
 /**
- * A simple model for each shape, in the item's local frame: width along X, depth along Z,
- * front facing -Z (plan north at rotation 0), standing on Y = 0.
- */
-interface ModelExtra {
-  /** Text printed on a carton's large faces: "line|size". */
-  readonly print?: string | undefined;
-  /** Racks show the real stock layer instead of placeholder loads. */
-  readonly stocked?: boolean;
-  /** Draw as a loaded pallet with this load colour (a stock material on the floor). */
-  readonly pallet?: number | undefined;
-}
-
-function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: RackSpec, extra: ModelExtra = {}): THREE.Group {
-  const g = new THREE.Group();
-  const leg = Math.min(0.05, w / 8, d / 8);
-  const legs = (height: number, color: number, inset = 0.04) => {
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(leg, height, leg, color, sx * (w / 2 - inset - leg / 2), height / 2, sz * (d / 2 - inset - leg / 2)));
-  };
-  switch (shape) {
-    case 'table': {
-      g.add(box(w, 0.04, d, COLORS.cloth, 0, h - 0.02));
-      legs(h - 0.04, COLORS.darkWood);
-      break;
-    }
-    case 'round-table': {
-      const r = Math.min(w, d) / 2;
-      g.add(cylinder(r, 0.04, COLORS.cloth, 0, h - 0.02));
-      g.add(cylinder(0.05, h - 0.04, COLORS.metal, 0, (h - 0.04) / 2));
-      g.add(cylinder(r * 0.4, 0.03, COLORS.metal, 0, 0.015));
-      break;
-    }
-    case 'chair': {
-      const seat = Math.min(0.46, h * 0.5);
-      g.add(box(w * 0.92, 0.05, d * 0.9, COLORS.fabric, 0, seat));
-      g.add(box(w * 0.92, h - seat, 0.05, COLORS.fabric, 0, seat + (h - seat) / 2, d / 2 - 0.05));
-      legs(seat - 0.025, COLORS.metal, 0.05);
-      break;
-    }
-    case 'sofa': {
-      const seat = h * 0.5;
-      g.add(box(w, seat, d, COLORS.fabric, 0, seat / 2));
-      g.add(box(w, h - seat, d * 0.22, COLORS.fabric, 0, seat + (h - seat) / 2, d / 2 - d * 0.11));
-      for (const sx of [-1, 1]) g.add(box(0.14, h * 0.7, d, COLORS.fabric, sx * (w / 2 - 0.07), (h * 0.7) / 2));
-      break;
-    }
-    case 'desk': {
-      g.add(box(w, 0.04, d, COLORS.wood, 0, h - 0.02));
-      for (const sx of [-1, 1]) g.add(box(0.04, h - 0.04, d * 0.9, COLORS.wood, sx * (w / 2 - 0.02), (h - 0.04) / 2));
-      g.add(box(w - 0.08, (h - 0.04) * 0.5, 0.02, COLORS.wood, 0, h - 0.04 - ((h - 0.04) * 0.5) / 2, d / 2 - 0.05));
-      break;
-    }
-    case 'counter': {
-      g.add(box(w, h - 0.04, d * 0.94, COLORS.wood, 0, (h - 0.04) / 2, 0.01));
-      g.add(box(w + 0.04, 0.04, d, COLORS.cloth, 0, h - 0.02));
-      break;
-    }
-    case 'stage': {
-      g.add(box(w, h, d, COLORS.stage));
-      g.add(box(w, 0.02, d, 0x3a3834, 0, h + 0.01));
-      break;
-    }
-    case 'shelf': {
-      for (const sx of [-1, 1]) g.add(box(0.03, h, d, COLORS.wood, sx * (w / 2 - 0.015)));
-      g.add(box(w, h, 0.02, COLORS.wood, 0, h / 2, d / 2 - 0.01));
-      for (let i = 0; i < 5; i++) g.add(box(w - 0.06, 0.025, d - 0.02, COLORS.wood, 0, 0.05 + (i * (h - 0.08)) / 4));
-      break;
-    }
-    case 'rack': {
-      if (!rack) { g.add(box(w, h, d, COLORS.metal)); break; }
-      const upright = mt(rack.uprightWidth);
-      const bay = mt(rack.bayWidth);
-      // Level 1 is the floor; every level above stands on a pair of beams (same pitch as `slotPlacement`).
-      const pitch = h / rack.levels;
-      const post = Math.min(0.09, upright);
-      for (let b = 0; b <= rack.bays; b++) {
-        const x = -w / 2 + upright / 2 + b * (bay + upright);
-        for (const z of [-d / 2 + post / 2, d / 2 - post / 2]) g.add(box(post, h, post, COLORS.rackUpright, x, h / 2, z));
-        // Frame bracing between the front and back posts.
-        for (let k = 0; k < Math.max(2, Math.round(h / 1.2)); k++) g.add(box(0.03, 0.03, d - post, COLORS.rackUpright, x, 0.15 + (k * (h - 0.3)) / Math.max(1, Math.round(h / 1.2) - 1)));
-      }
-      for (let level = 2; level <= rack.levels; level++) {
-        const y = (level - 1) * pitch;
-        for (const z of [-d / 2 + post / 2, d / 2 - post / 2]) g.add(box(w - upright, 0.11, 0.05, COLORS.rackBeam, 0, y - 0.055, z));
-      }
-      if (!extra.stocked) {
-        // Placeholder loads for racks with no stock data: at most 3 per level keeps long rows cheap.
-        const loadColors = [COLORS.palletA, COLORS.palletB, COLORS.palletC];
-        const loadD = Math.max(0.1, d - post * 2 - 0.04);
-        const loadH = Math.max(0.12, Math.min(1.5, pitch - 0.3));
-        const groups = Math.min(rack.bays, 3);
-        const baysPerGroup = Math.ceil(rack.bays / groups);
-        for (let level = 1; level <= rack.levels; level++) {
-          const y = (level - 1) * pitch;
-          for (let gStart = 0; gStart < rack.bays; gStart += baysPerGroup) {
-            const gEnd = Math.min(rack.bays, gStart + baysPerGroup);
-            const x0 = -w / 2 + upright + gStart * (bay + upright);
-            const x1 = -w / 2 + upright + (gEnd - 1) * (bay + upright) + bay;
-            const gw = (x1 - x0) * 0.94;
-            g.add(box(gw, 0.14, loadD * 0.9, COLORS.palletWood, (x0 + x1) / 2, y + 0.07));
-            g.add(box(gw * 0.97, loadH - 0.14, loadD * 0.86, loadColors[(gStart / baysPerGroup + level) % loadColors.length]!, (x0 + x1) / 2, y + 0.14 + (loadH - 0.14) / 2));
-          }
-        }
-      }
-      break;
-    }
-    case 'forklift': {
-      // Front (forks) faces -Z like every model; body, counterweight and overhead guard behind.
-      const bodyD = d * 0.6;
-      const bodyZ = d / 2 - bodyD / 2;
-      const wheel = Math.min(0.28, h * 0.13);
-      g.add(box(w * 0.92, h * 0.34, bodyD, COLORS.forklift, 0, wheel + h * 0.17, bodyZ));
-      g.add(box(w * 0.94, h * 0.3, 0.32, COLORS.forkliftDark, 0, wheel + h * 0.15, d / 2 - 0.16));
-      g.add(box(w * 0.5, 0.08, 0.45, COLORS.forkliftDark, 0, wheel + h * 0.34 + 0.12, bodyZ + 0.05));
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(0.05, h * 0.52, 0.05, COLORS.forkliftDark, sx * (w * 0.42), wheel + h * 0.34 + h * 0.26, bodyZ + sz * bodyD * 0.38));
-      g.add(box(w * 0.9, 0.04, bodyD * 0.82, COLORS.forkliftDark, 0, h - 0.02, bodyZ));
-      const mastZ = d / 2 - bodyD - 0.06;
-      for (const sx of [-1, 1]) g.add(box(0.09, h * 1.02, 0.12, COLORS.forkliftDark, sx * w * 0.28, (h * 1.02) / 2, mastZ));
-      g.add(box(w * 0.66, 0.5, 0.05, COLORS.forkliftDark, 0, 0.35, mastZ - 0.08));
-      const forkL = d - bodyD - 0.2;
-      for (const sx of [-1, 1]) g.add(box(0.12, 0.05, forkL, COLORS.metal, sx * w * 0.2, 0.06, mastZ - 0.1 - forkL / 2));
-      for (const sx of [-1, 1]) for (const z of [bodyZ - bodyD * 0.3, d / 2 - 0.3]) g.add(box(0.2, wheel * 2, wheel * 2, COLORS.tyre, sx * (w / 2 - 0.1), wheel, z));
-      break;
-    }
-    case 'plant': {
-      const r = Math.min(w, d) / 2;
-      g.add(cylinder(r * 0.6, Math.min(0.45, h * 0.3), COLORS.plantPot));
-      const foliage = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), material(COLORS.leaves));
-      foliage.scale.set(1, Math.max(1, (h * 0.7) / (2 * r)), 1);
-      foliage.position.y = Math.min(0.45, h * 0.3) + (h - Math.min(0.45, h * 0.3)) / 2;
-      foliage.castShadow = true;
-      g.add(foliage);
-      break;
-    }
-    case 'car': {
-      const bodyH = h * 0.55;
-      g.add(box(w, bodyH, d, COLORS.carBody, 0, bodyH / 2));
-      g.add(box(w * 0.82, h - bodyH, d * 0.5, COLORS.carGlass, 0, bodyH + (h - bodyH) / 2, -d * 0.08));
-      const wheelH = Math.min(0.18, h * 0.15);
-      const wheelZ = d / 2 - wheelH * 1.4;
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(0.08, wheelH * 2, wheelH * 2, COLORS.tyre, sx * (w / 2 + 0.02), wheelH, sz * wheelZ));
-      break;
-    }
-    case 'dance-floor': {
-      // Checkered tiles of about 60 cm, alternating two woods.
-      const nx = Math.max(1, Math.round(w / 0.6));
-      const nz = Math.max(1, Math.round(d / 0.6));
-      for (let i = 0; i < nx; i++) {
-        for (let k = 0; k < nz; k++) {
-          const tile = box(w / nx, Math.max(0.005, h), d / nz, (i + k) % 2 ? COLORS.wood : COLORS.darkWood, -w / 2 + (i + 0.5) * (w / nx), Math.max(0.005, h) / 2, -d / 2 + (k + 0.5) * (d / nz));
-          tile.castShadow = false;
-          g.add(tile);
-        }
-      }
-      break;
-    }
-    default: {
-      if (extra.pallet !== undefined) {
-        // A stock material standing on the floor: wooden pallet, stretch-wrapped load on top.
-        g.add(box(w, 0.14, d, COLORS.palletWood));
-        const load = new THREE.Mesh(new THREE.BoxGeometry(w * 0.97, Math.max(0.05, h - 0.14), d * 0.95), new THREE.MeshStandardMaterial({ color: extra.pallet, map: cartonStack(), roughness: 0.6 }));
-        load.position.y = 0.14 + Math.max(0.05, h - 0.14) / 2;
-        load.castShadow = true;
-        load.receiveShadow = true;
-        g.add(load);
-        break;
-      }
-      const map = extra.print ? printedCarton(extra.print) : null;
-      const face = cartonFace();
-      if (!map) {
-        const plainBox = box(w, h, d, COLORS.box);
-        if (face) (plainBox.material as THREE.MeshStandardMaterial).map = face;
-        g.add(plainBox);
-        break;
-      }
-      // Print on the two large upright faces; box faces are ordered +x, −x, +y, −y, +z, −z.
-      const plain = new THREE.MeshStandardMaterial({ color: COLORS.carton, map: face, roughness: 0.85 });
-      const printed = new THREE.MeshStandardMaterial({ color: 0xffffff, map, roughness: 0.7 });
-      const onZ = w >= d;
-      const faces = onZ ? [plain, plain, plain, plain, printed, printed] : [printed, printed, plain, plain, plain, plain];
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), faces);
-      mesh.position.y = h / 2;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      g.add(mesh);
-    }
-  }
-  return g;
-}
-
-/**
- * Fold a model's meshes into one geometry per look, so a rack row with 60 posts and beams costs
- * two draw calls instead of sixty; every part keeps its place through its own matrix.
+ * Fold a model's meshes into one geometry per material, so a rack row with 60 posts and beams
+ * costs two draw calls instead of sixty; every part keeps its place through its own matrix.
  */
 function mergeTemplate(template: THREE.Group): Array<{ geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[]; castShadow: boolean; receiveShadow: boolean }> {
   template.updateMatrixWorld(true);
@@ -402,12 +142,16 @@ function mergeTemplate(template: THREE.Group): Array<{ geometry: THREE.BufferGeo
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+    mesh.geometry.dispose();
     if (Array.isArray(mesh.material)) {
       parts.push({ geometry, material: mesh.material, castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow });
       return;
     }
     const m = mesh.material as THREE.MeshStandardMaterial;
-    const key = `${m.color?.getHex()}|${m.emissive?.getHex()}|${m.emissiveIntensity}|${m.map?.uuid ?? ''}|${m.transparent}|${m.opacity}|${mesh.castShadow}`;
+    // Shared materials merge by identity; per-item copies (tints, colour-by) by how they look.
+    const key = m.userData.shared
+      ? `${m.uuid}|${mesh.castShadow}|${geometry.index ? 'i' : 'n'}`
+      : `${m.color?.getHex()}|${m.emissive?.getHex()}|${m.emissiveIntensity}|${m.map?.uuid ?? ''}|${m.transparent}|${m.opacity}|${m.roughness}|${m.metalness}|${mesh.castShadow}|${geometry.index ? 'i' : 'n'}`;
     const group = groups.get(key);
     if (group) group.geometries.push(geometry);
     else groups.set(key, { material: m, geometries: [geometry], castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow });
@@ -422,13 +166,14 @@ function mergeTemplate(template: THREE.Group): Array<{ geometry: THREE.BufferGeo
   return parts;
 }
 
-/** Give every mesh of a model one colour (colour by stop, weight or loading step). */
+/** Give every mesh of a model a changed copy of its material (colour by stop, selection tint). */
 function restyle(group: THREE.Object3D, change: (m: THREE.MeshStandardMaterial) => void): void {
   group.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const one = (source: THREE.Material) => {
       const m = (source as THREE.MeshStandardMaterial).clone();
+      m.userData = {};
       change(m);
       return m;
     };
@@ -454,24 +199,182 @@ function disposeTree(object: THREE.Object3D): void {
       mesh.geometry.dispose();
       (o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).dispose();
       (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => {
-        // Shared textures stay cached; per-wall copies (their own repeat) go with the scene.
-        const map = (m as THREE.MeshStandardMaterial).map;
-        if (map?.userData.owned) map.dispose();
+        // Shared materials and textures stay cached; per-item copies go with the scene.
+        if (m.userData.shared) return;
+        for (const slot of ['map', 'normalMap', 'roughnessMap', 'emissiveMap'] as const) {
+          const texture = (m as THREE.MeshStandardMaterial)[slot];
+          if (texture?.userData.owned) texture.dispose();
+        }
         m.dispose();
       });
     }
   });
 }
 
+/** A textured material whose texture repeats at its real size on a floor whose UVs are metres. */
+function surfaceMaterial(s: Surface | null, color: number, extra: THREE.MeshStandardMaterialParameters = {}, normalScale = 1): THREE.MeshStandardMaterial {
+  const own = (t: THREE.Texture | undefined) => {
+    if (!t) return null;
+    const c = t.clone();
+    c.repeat.set(1 / (s?.metres ?? 1), 1 / (s?.metres ?? 1));
+    c.userData.owned = true;
+    c.needsUpdate = true;
+    return c;
+  };
+  return new THREE.MeshStandardMaterial({
+    color,
+    map: own(s?.map),
+    normalMap: own(s?.normalMap),
+    roughnessMap: own(s?.roughnessMap),
+    normalScale: new THREE.Vector2(normalScale, normalScale),
+    roughness: 1,
+    ...extra,
+  });
+}
+
+/** The floor finish of each activity: what the room would really be paved with. */
+function floorMaterial(pack: PackId, project: Project): THREE.Material {
+  switch (pack) {
+    case 'container':
+      return new THREE.MeshStandardMaterial({ color: COLORS.containerFloor, map: planks(), roughness: 0.8 });
+    case 'warehouse':
+      return surfaceMaterial(concreteFloor(), 0xffffff);
+    case 'production':
+      return surfaceMaterial(epoxyFloor(), 0xb9c4c0, {}, 0.6);
+    case 'office':
+      return surfaceMaterial(carpet(), project.space.meta?.style === 'meeting' ? 0x9aa6b4 : 0xb2b6bb);
+    case 'restaurant':
+      return surfaceMaterial(ceramic(), 0xffffff);
+    case 'hall':
+      return surfaceMaterial(marble(), 0xffffff);
+    case 'depot':
+      return surfaceMaterial(asphalt(), 0xffffff, {}, 0.9);
+    case 'site':
+      return surfaceMaterial(concreteFloor(), 0xbfbab0, {}, 0.5);
+  }
+}
+
+/** A zone's polygon as a flat mesh a little above the floor. */
+function zoneMesh(zone: Zone, material: THREE.Material, height: number): THREE.Mesh {
+  const shape = new THREE.Shape(zone.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = height;
+  m.receiveShadow = true;
+  return m;
+}
+
+/** Outline strips along a polygon's edges, merged into one geometry. */
+function outlineStrips(polygon: readonly Vec2[], width: number, y: number, dashed = false): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  polygon.forEach((p, i) => {
+    const q = polygon[(i + 1) % polygon.length]!;
+    const length = mt(Math.hypot(q.x - p.x, q.y - p.y));
+    if (length < 0.01) return;
+    const angle = Math.atan2(q.y - p.y, q.x - p.x);
+    const pieces = dashed ? Math.max(1, Math.floor(length / 3)) : 1;
+    for (let k = 0; k < pieces; k++) {
+      const seg = dashed ? 1.5 : length + width;
+      const t = dashed ? (k + 0.25) / pieces : 0.5;
+      const mid = { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
+      const strip = new THREE.BoxGeometry(Math.min(seg, length + width), 0.004, width);
+      strip.applyMatrix4(new THREE.Matrix4().compose(at(mid, y), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle), new THREE.Vector3(1, 1, 1)));
+      out.push(strip);
+    }
+  });
+  return out;
+}
+
+/** A dashed centre line along the long axis of a rectangular road or lane. */
+function centreLine(zone: Zone, y: number): THREE.BufferGeometry[] {
+  const b = boundsOf(zone.polygon);
+  const wide = b.maxX - b.minX >= b.maxY - b.minY;
+  const a = wide ? { x: b.minX, y: (b.minY + b.maxY) / 2 } : { x: (b.minX + b.maxX) / 2, y: b.minY };
+  const c = wide ? { x: b.maxX, y: (b.minY + b.maxY) / 2 } : { x: (b.minX + b.maxX) / 2, y: b.maxY };
+  if (Math.min(b.maxX - b.minX, b.maxY - b.minY) < 50_000) return [];
+  return outlineStrips([a, c], 0.15, y, true).slice(0, Math.max(0, Math.floor(mt(Math.hypot(c.x - a.x, c.y - a.y)) / 3)));
+}
+
+type Lines = Map<number, THREE.BufferGeometry[]>;
+const addLines = (lines: Lines, color: number, geometries: THREE.BufferGeometry[]) => lines.set(color, [...(lines.get(color) ?? []), ...geometries]);
+
+/** Outdoor ground: asphalt roads and lanes, lawns, pavers, concrete yards, painted bays and lines. */
+function outdoorZones(project: Project, group: THREE.Group, lines: Lines, span: number): void {
+  // Layers must stay apart at the depth precision of a camera 700 m away: lift them with the site.
+  const lift = Math.max(0.004, span / 60000);
+  const layered = (m: THREE.Material, k: number) => {
+    m.polygonOffset = true;
+    m.polygonOffsetFactor = -1 - k;
+    m.polygonOffsetUnits = -4 * (k + 1);
+    return m;
+  };
+  const road = layered(surfaceMaterial(asphalt(), 0xb7b9bc, {}, 0.9), 2);
+  const lawn = layered(surfaceMaterial(grass(), 0xffffff, {}, 0.7), 0);
+  const paving = layered(surfaceMaterial(pavers(), 0xffffff), 4);
+  const yard = layered(surfaceMaterial(concreteFloor(), 0xd2cec6), 1);
+  const zones = [...(project.space.zones ?? [])];
+  const order = (k: string) => (k === 'green' ? 0 : k === 'yard' ? 1 : k === 'road' ? 2 : k.startsWith('lane') ? 3 : k === 'footpath' || k === 'plaza' ? 4 : 5);
+  zones.sort((a, b) => order(a.kind) - order(b.kind));
+  zones.forEach((zone, k) => {
+    const y = lift * (1 + order(zone.kind)) + k * 0.00001;
+    switch (zone.kind) {
+      case 'road':
+      case 'lane-one-way':
+      case 'lane-two-way':
+        group.add(zoneMesh(zone, road, y));
+        addLines(lines, 0xf4f1e6, centreLine(zone, y + lift * 0.5));
+        break;
+      case 'green': {
+        const lawnMesh = zoneMesh(zone, lawn, y);
+        group.add(lawnMesh);
+        // Kerbs around lawns.
+        addLines(lines, 0xcfcac0, outlineStrips(zone.polygon, 0.18, y + 0.06));
+        break;
+      }
+      case 'footpath':
+      case 'plaza':
+        group.add(zoneMesh(zone, paving, y));
+        break;
+      case 'yard':
+        group.add(zoneMesh(zone, yard, y));
+        break;
+      case 'bay': {
+        const bus = zone.meta?.bayType === 'bus';
+        addLines(lines, bus ? 0xf2c230 : 0xf7f7f2, outlineStrips(zone.polygon, 0.12, lift * 5));
+        break;
+      }
+      case 'no-go':
+        group.add(zoneMesh(zone, new THREE.MeshStandardMaterial({ color: COLORS.error, transparent: true, opacity: 0.22, depthWrite: false }), y));
+        addLines(lines, COLORS.error, outlineStrips(zone.polygon, 0.12, y + 0.003));
+        break;
+      default:
+        group.add(zoneMesh(zone, new THREE.MeshBasicMaterial({ color: 0x829fc3, transparent: true, opacity: 0.18, depthWrite: false }), y));
+    }
+  });
+}
+
+/** Indoor zones: a light tint and, where traffic runs, painted floor lines. */
+function indoorZones(project: Project, group: THREE.Group, lines: Lines, painted: boolean): void {
+  for (const zone of project.space.zones ?? []) {
+    const kind = zone.kind;
+    const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind === 'bay' ? 0xd8d3c6 : kind.includes('aisle') ? 0x7bb198 : kind === 'clean-room' ? 0x9fc3e0 : kind === 'break' || kind === 'lounge' ? 0xd9b98f : 0x829fc3;
+    const overlay = zoneMesh(zone, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.06 : painted ? 0.12 : 0.18, side: THREE.DoubleSide, depthWrite: false }), 0.009);
+    group.add(overlay);
+    if (!painted || kind === 'storage') continue;
+    const line = kind === 'pedestrian' ? COLORS.walkGreen : kind === 'no-go' ? COLORS.error : kind === 'clean-room' ? 0x3d7fc4 : COLORS.safetyYellow;
+    addLines(lines, line, outlineStrips(zone.polygon, 0.1, 0.012));
+  }
+}
+
 /** Wall pieces along one boundary edge, leaving gaps where doors hang on it. */
-function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THREE.Group, skin?: (length: number) => THREE.Material): void {
+function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THREE.Group, skin: (length: number) => THREE.Material, cap?: THREE.Material): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const length = Math.hypot(dx, dy);
   if (length === 0) return;
   const ux = dx / length;
   const uy = dy / length;
-  const gaps: Array<[number, number]> = [];
+  const gaps: Array<[number, number, boolean]> = [];
   for (const door of project.space.doors) {
     const t = ((door.hinge.x - a.x) * ux + (door.hinge.y - a.y) * uy) / length;
     const off = Math.abs((door.hinge.x - a.x) * uy - (door.hinge.y - a.y) * ux);
@@ -480,14 +383,14 @@ function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THR
     const along = Math.cos(angle) * ux + Math.sin(angle) * uy;
     if (Math.abs(Math.abs(along) - 1) > 1e-6) continue;
     const t2 = t + (along * door.width) / length;
-    gaps.push([Math.min(t, t2), Math.max(t, t2)]);
+    gaps.push([Math.min(t, t2), Math.max(t, t2), door.meta?.role === 'gate']);
   }
   gaps.sort((p, q) => p[0] - q[0]);
   const pieces: Array<[number, number, number, number]> = []; // t0, t1, bottom, top
   let cursor = 0;
-  for (const [g0, g1] of gaps) {
+  for (const [g0, g1, open] of gaps) {
     if (g0 > cursor) pieces.push([cursor, g0, 0, height]);
-    if (height > DOOR_HEIGHT) pieces.push([g0, g1, DOOR_HEIGHT, height]);
+    if (!open && height > DOOR_HEIGHT) pieces.push([g0, g1, DOOR_HEIGHT, height]);
     cursor = Math.max(cursor, g1);
   }
   if (cursor < 1) pieces.push([cursor, 1, 0, height]);
@@ -496,80 +399,25 @@ function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THR
     const len = mt(length * (t1 - t0));
     if (len <= 0.001 || top - bottom <= 0.001) continue;
     const mid = { x: a.x + dx * ((t0 + t1) / 2) + (outward.x * WALL_THICKNESS * TICKS_PER_METRE) / 2, y: a.y + dy * ((t0 + t1) / 2) + (outward.y * WALL_THICKNESS * TICKS_PER_METRE) / 2 };
-    const wall = box(len + WALL_THICKNESS, top - bottom, WALL_THICKNESS, COLORS.wall);
-    if (skin) {
-      (wall.material as THREE.Material).dispose();
-      wall.material = skin(len + WALL_THICKNESS);
-    }
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(len + WALL_THICKNESS, top - bottom, WALL_THICKNESS), skin(len + WALL_THICKNESS));
+    wall.castShadow = true;
+    wall.receiveShadow = true;
     wall.position.copy(at(mid, (top + bottom) / 2));
     wall.rotation.y = Math.atan2(dy, dx);
     group.add(wall);
+    if (cap && bottom === 0) {
+      // A darker top edge makes a cut wall read as a section, as on an architect's model.
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(len + WALL_THICKNESS + 0.01, 0.02, WALL_THICKNESS + 0.01), cap);
+      edge.position.copy(at(mid, top + 0.01));
+      edge.rotation.y = wall.rotation.y;
+      group.add(edge);
+    }
   }
 }
 
-function buildScene(project: Project, issues: readonly Issue[], selectedIds: readonly Id[], fullWalls: boolean, look: SceneLook = {}): THREE.Group {
-  const group = new THREE.Group();
-  const ceiling = project.space.ceilingHeight === undefined ? 3 : mt(project.space.ceilingHeight);
-  const wallHeight = fullWalls ? ceiling : Math.min(1.1, ceiling);
-
-  const pack = project.space.meta?.pack;
-  const isContainer = pack === 'container';
-  const isWarehouse = pack === 'warehouse';
-  const shape = new THREE.Shape(project.space.boundary.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
-  // Shape UVs are in metres, so a repeating texture keeps its real size on any floor.
-  const floorMaterial = isContainer
-    ? new THREE.MeshStandardMaterial({ color: COLORS.containerFloor, map: planks(), roughness: 0.8 })
-    : material(isWarehouse ? COLORS.warehouseFloor : COLORS.floor);
-  if (isWarehouse) floorMaterial.roughness = 0.55;
-  const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  group.add(floor);
-
-  const lines = new Map<number, THREE.BufferGeometry[]>();
-  for (const zone of project.space.zones ?? []) {
-    const kind = zone.kind;
-    const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind === 'bay' ? COLORS.bayLine : kind.includes('aisle') ? 0x7bb198 : 0x829fc3;
-    const region = new THREE.Shape(zone.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
-    const overlay = new THREE.Mesh(new THREE.ShapeGeometry(region), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.08 : isWarehouse ? 0.16 : 0.23, side: THREE.DoubleSide, depthWrite: false }));
-    overlay.rotation.x = -Math.PI / 2;
-    overlay.position.y = 0.009;
-    group.add(overlay);
-    if (!isWarehouse || kind === 'storage') continue;
-    // Painted floor lines around warehouse zones: yellow for traffic, green walkways, red no-go.
-    const paint = kind === 'pedestrian' ? COLORS.walkGreen : kind === 'no-go' ? COLORS.error : COLORS.safetyYellow;
-    const list = lines.get(paint) ?? [];
-    zone.polygon.forEach((p, i) => {
-      const q = zone.polygon[(i + 1) % zone.polygon.length]!;
-      const length = mt(Math.hypot(q.x - p.x, q.y - p.y));
-      if (length < 0.01) return;
-      const strip = new THREE.BoxGeometry(length + 0.1, 0.004, 0.1);
-      strip.applyMatrix4(new THREE.Matrix4().compose(at({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, 0.012), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(q.y - p.y, q.x - p.x)), new THREE.Vector3(1, 1, 1)));
-      list.push(strip);
-    });
-    lines.set(paint, list);
-  }
-  for (const [color, geometries] of lines) {
-    const merged = mergeGeometries(geometries);
-    geometries.forEach((g) => g.dispose());
-    if (merged) group.add(new THREE.Mesh(merged, new THREE.MeshBasicMaterial({ color })));
-  }
-
-  // A light one-metre grid on the floor, as on the plan.
-  const box3 = boundsOf(project.space.boundary);
-  const points: THREE.Vector3[] = [];
-  for (let x = Math.ceil(box3.minX / TICKS_PER_METRE) * TICKS_PER_METRE; x <= box3.maxX; x += TICKS_PER_METRE) points.push(at({ x, y: box3.minY }, 0.003), at({ x, y: box3.maxY }, 0.003));
-  for (let y = Math.ceil(box3.minY / TICKS_PER_METRE) * TICKS_PER_METRE; y <= box3.maxY; y += TICKS_PER_METRE) points.push(at({ x: box3.minX, y }, 0.003), at({ x: box3.maxX, y }, 0.003));
-  if (points.length > 0) group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: COLORS.grid, transparent: true, opacity: 0.07 })));
-
-  const b = project.space.boundary;
-  const south = boundsOf(b).minY;
-  for (let i = 0; i < b.length; i++) {
-    const a = b[i]!;
-    const c = b[(i + 1) % b.length]!;
-    if (look.cutaway && a.y === south && c.y === south) continue;
-    wallEdge(project, a, c, wallHeight, group, isContainer ? (length) => {
-      // Corrugated steel: about one rib every 28 cm, on a copy so each wall keeps its own repeat.
+function wallSkin(pack: PackId, height: number): (length: number) => THREE.Material {
+  if (pack === 'container') {
+    return (length) => {
       const map = corrugated()?.clone() ?? null;
       if (map) {
         map.repeat.set(length / 0.28, 1);
@@ -577,44 +425,148 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
         map.needsUpdate = true;
       }
       return new THREE.MeshStandardMaterial({ color: COLORS.containerSteel, map, roughness: 0.5, metalness: 0.35 });
-    } : undefined);
+    };
   }
+  const textured = (s: Surface | null, color: number, extra: THREE.MeshStandardMaterialParameters = {}) => (length: number) => {
+    const own = (t: THREE.Texture | undefined) => {
+      if (!t) return null;
+      const c = t.clone();
+      c.repeat.set(length / (s?.metres ?? 1), height / (s?.metres ?? 1));
+      c.userData.owned = true;
+      c.needsUpdate = true;
+      return c;
+    };
+    return new THREE.MeshStandardMaterial({ color, map: own(s?.map), normalMap: own(s?.normalMap), roughness: 0.8, ...extra });
+  };
+  if (pack === 'site' || pack === 'depot') return textured(precast(), 0xe4e1da);
+  if (pack === 'warehouse' || pack === 'production') return textured(cladding(), 0xdfe3e7, { metalness: 0.3, roughness: 0.5 });
+  return textured(plaster(), 0xf7f5f0);
+}
 
+/** Doors by role: gates are open posts, docks get a leveller plate, other doors a leaf. */
+function doors(project: Project, group: THREE.Group, fullWalls: boolean): void {
   for (const door of project.space.doors) {
     const open = ((door.angle + (door.swing === 'left' ? 90_000 : -90_000)) / 1000) * (Math.PI / 180);
-    if (door.meta?.role) {
-      // A loading dock: a dock leveller plate inside the opening with yellow edges, no swinging leaf.
-      const along = (door.angle / 1000) * (Math.PI / 180);
+    const along = (door.angle / 1000) * (Math.PI / 180);
+    const role = door.meta?.role;
+    if (role === 'gate') {
+      for (const t of [0, 1]) {
+        const p = { x: door.hinge.x + Math.cos(along) * door.width * t, y: door.hinge.y + Math.sin(along) * door.width * t };
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.7, 3.2, 0.7), M.paint(0xd9d4c8));
+        post.position.copy(at(p, 1.6));
+        post.castShadow = true;
+        group.add(post);
+        const top = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.25, 0.8), M.gloss(COLORS.brand));
+        top.position.copy(at(p, 3.3));
+        group.add(top);
+      }
+      continue;
+    }
+    if (role === 'receiving' || role === 'shipping') {
+      // A loading dock: a dock leveller plate inside the opening with yellow edges.
       const plateDepth = 2.2;
       const centre = {
         x: door.hinge.x + (Math.cos(along) * door.width) / 2 + Math.cos(open) * (plateDepth / 2) * TICKS_PER_METRE,
         y: door.hinge.y + (Math.sin(along) * door.width) / 2 + Math.sin(open) * (plateDepth / 2) * TICKS_PER_METRE,
       };
-      const plate = box(mt(door.width) * 0.8, 0.03, plateDepth, COLORS.dockPlate);
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(mt(door.width) * 0.8, 0.03, plateDepth), M.metal(COLORS.dockPlate));
       plate.position.copy(at(centre, 0.015));
       plate.rotation.y = along;
+      plate.receiveShadow = true;
       group.add(plate);
       for (const side of [-1, 1]) {
-        const edge = box(0.12, 0.035, plateDepth, COLORS.safetyYellow);
+        const edge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.035, plateDepth), M.gloss(COLORS.safetyYellow));
         edge.position.copy(at({ x: centre.x + Math.cos(along) * side * (door.width * 0.4 + 600), y: centre.y + Math.sin(along) * side * (door.width * 0.4 + 600) }, 0.017));
         edge.rotation.y = along;
         group.add(edge);
       }
+      if (fullWalls) {
+        // A sectional door rolled up under the lintel.
+        const mid = { x: door.hinge.x + (Math.cos(along) * door.width) / 2, y: door.hinge.y + (Math.sin(along) * door.width) / 2 };
+        const roll = new THREE.Mesh(new THREE.BoxGeometry(mt(door.width), 0.45, 0.3), M.paint(0x6d7680));
+        roll.position.copy(at(mid, DOOR_HEIGHT + 1.6));
+        roll.rotation.y = along;
+        group.add(roll);
+      }
       continue;
     }
-    const leaf = box(mt(door.width), DOOR_HEIGHT, 0.04, COLORS.darkWood);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(mt(door.width), DOOR_HEIGHT, 0.045), M.walnut());
     const centre = { x: door.hinge.x + (Math.cos(open) * door.width) / 2, y: door.hinge.y + (Math.sin(open) * door.width) / 2 };
     leaf.position.copy(at(centre, DOOR_HEIGHT / 2));
     leaf.rotation.y = open;
+    leaf.castShadow = true;
     group.add(leaf);
   }
+}
+
+function buildScene(project: Project, issues: readonly Issue[], selectedIds: readonly Id[], fullWalls: boolean, look: SceneLook = {}): THREE.Group {
+  const group = new THREE.Group();
+  const pack = detectPack(project);
+  const outdoor = isOutdoor(pack);
+  const ceiling = project.space.ceilingHeight === undefined ? 3 : mt(project.space.ceilingHeight);
+  const wallHeight = outdoor ? PERIMETER_WALL : fullWalls ? ceiling : Math.min(WALL_CUT, ceiling);
+  const box = boundsOf(project.space.boundary);
+  const span = spanOf(project);
+
+  // Shape UVs are in metres, so a repeating texture keeps its real size on any floor.
+  const shape = new THREE.Shape(project.space.boundary.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
+  const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMaterial(pack, project));
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  group.add(floor);
+
+  if (outdoor) {
+    // The land around the plot, fading into the haze: the site no longer floats in space.
+    const size = span * 8;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), surfaceMaterial(sand(), 0xd3c9b2, {}, 0.6));
+    const uv = ground.geometry.attributes.uv!;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * size, uv.getY(i) * size);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(mt((box.minX + box.maxX) / 2), -Math.max(0.03, span / 2000), -mt((box.minY + box.maxY) / 2));
+    ground.receiveShadow = true;
+    group.add(ground);
+  }
+
+  const lines: Lines = new Map();
+  if (outdoor) outdoorZones(project, group, lines, span);
+  else indoorZones(project, group, lines, pack === 'warehouse' || pack === 'production');
+  for (const [color, geometries] of lines) {
+    if (geometries.length === 0) continue;
+    const merged = mergeGeometries(geometries);
+    geometries.forEach((g) => g.dispose());
+    if (merged) {
+      const paintLines = new THREE.Mesh(merged, new THREE.MeshStandardMaterial({ color, roughness: 0.6 }));
+      paintLines.receiveShadow = true;
+      group.add(paintLines);
+    }
+  }
+
+  if (!outdoor && pack !== 'container') {
+    // A light one-metre grid on the floor, as on the plan.
+    const points: THREE.Vector3[] = [];
+    for (let x = Math.ceil(box.minX / TICKS_PER_METRE) * TICKS_PER_METRE; x <= box.maxX; x += TICKS_PER_METRE) points.push(at({ x, y: box.minY }, 0.003), at({ x, y: box.maxY }, 0.003));
+    for (let y = Math.ceil(box.minY / TICKS_PER_METRE) * TICKS_PER_METRE; y <= box.maxY; y += TICKS_PER_METRE) points.push(at({ x: box.minX, y }, 0.003), at({ x: box.maxX, y }, 0.003));
+    if (points.length > 0) group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: COLORS.grid, transparent: true, opacity: 0.05 })));
+  }
+
+  const b = project.space.boundary;
+  const south = box.minY;
+  const skin = wallSkin(pack, wallHeight);
+  const cap = !outdoor && !fullWalls && pack !== 'container' ? M.paint(0x3a3f48) : undefined;
+  for (let i = 0; i < b.length; i++) {
+    const a = b[i]!;
+    const c = b[(i + 1) % b.length]!;
+    if (look.cutaway && a.y === south && c.y === south) continue;
+    wallEdge(project, a, c, wallHeight, group, skin, cap);
+  }
+  doors(project, group, fullWalls);
 
   for (const o of project.space.obstacles) {
     const s = new THREE.Shape(o.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
-    const height = o.kind === 'column' ? wallHeight : 0.01;
+    const height = o.kind === 'column' ? (fullWalls ? ceiling : Math.max(wallHeight, 1.1)) : 0.01;
     const mesh = new THREE.Mesh(
       new THREE.ExtrudeGeometry(s, { depth: height, bevelEnabled: false }),
-      o.kind === 'column' ? material(COLORS.column) : new THREE.MeshStandardMaterial({ color: COLORS.blocked, transparent: true, opacity: 0.35 }),
+      o.kind === 'column' ? M.paint(0xd5d9e0) : new THREE.MeshStandardMaterial({ color: COLORS.blocked, transparent: true, opacity: 0.35 }),
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.castShadow = true;
@@ -630,22 +582,26 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
   }
 
   const stocked = materialsOf(project).length > 0;
-  group.add(buildItems(project, severity, selectedIds, look, stocked));
+  group.add(buildItems(project, severity, selectedIds, look, stocked, fullWalls ? null : WALL_CUT));
   const stock = stocked ? buildStock(project, look.stock ?? { colorBy: 'material', find: null, slot: null }) : null;
   if (stock) group.add(stock);
   if (look.routePoints?.length) {
     const points = look.routePoints.map((p) => at(p, 0.07));
-    const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x2b54d0, depthTest: false }));
+    const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x1f3bf5, depthTest: false }));
     route.name = 'warehouse-route';
     route.renderOrder = 20;
     group.add(route);
     for (const [index, point] of [points[0]!, points[points.length - 1]!].entries()) {
-      const marker = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 6), new THREE.MeshBasicMaterial({ color: index === 0 ? 0xffffff : 0x2b54d0, depthTest: false }));
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.09, span / 600), 10, 6), new THREE.MeshBasicMaterial({ color: index === 0 ? 0xffffff : 0x1f3bf5, depthTest: false }));
       marker.position.copy(point);
       marker.renderOrder = 21;
       group.add(marker);
     }
   }
+  group.traverse((o) => {
+    o.matrixAutoUpdate = false;
+    o.updateMatrix();
+  });
   return group;
 }
 
@@ -661,32 +617,33 @@ const STATE_TINT: Readonly<Record<Exclude<ItemState, 'normal'>, [number, number]
  * share one model whose meshes become `InstancedMesh`es, so 500 chairs cost a few draw calls
  * instead of 3 000 meshes. `userData.itemIds[instanceId]` maps a hit back to the item.
  */
-function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warning'>, selectedIds: readonly Id[], look: SceneLook, stocked: boolean): THREE.Group {
+function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warning'>, selectedIds: readonly Id[], look: SceneLook, stocked: boolean, wallCut: number | null): THREE.Group {
   const group = new THREE.Group();
   group.name = 'items';
   const selected = new Set(selectedIds);
-  const batches = new Map<string, { definition: ItemDefinition; tilt: ItemInstance['tilt']; state: ItemState; color: number | undefined; items: ItemInstance[] }>();
+  const batches = new Map<string, { definition: ItemDefinition; tilt: ItemInstance['tilt']; state: ItemState; color: number | undefined; elevation: number; items: ItemInstance[] }>();
   const ordered = Object.values(project.items).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const item of ordered) {
     const definition = project.catalog[item.definitionId];
     if (!definition || look.hidden?.has(item.id)) continue;
     const state: ItemState = selected.has(item.id) ? 'selected' : (severity.get(item.id) ?? 'normal');
     const color = look.itemColors?.get(item.id);
-    const key = `${definition.id}|${item.tilt ?? ''}|${state}|${color ?? ''}`;
+    // Raised shades draw posts down to the ground, so their height above it is part of the model.
+    const elevation = definition.category === 'canopy' ? mt(item.elevation ?? 0) : 0;
+    const key = `${definition.id}|${item.tilt ?? ''}|${state}|${color ?? ''}|${elevation}`;
     const batch = batches.get(key);
     if (batch) batch.items.push(item);
-    else batches.set(key, { definition, tilt: item.tilt, state, color, items: [item] });
+    else batches.set(key, { definition, tilt: item.tilt, state, color, elevation, items: [item] });
   }
   const itemMatrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   const unit = new THREE.Vector3(1, 1, 1);
-  for (const { definition, tilt, state, color, items } of batches.values()) {
+  for (const { definition, tilt, state, color, elevation, items } of batches.values()) {
     const { w, d, h } = definition.size;
-    const print = typeof definition.meta?.print === 'string' ? definition.meta.print : undefined;
     const asMaterial = materialOf(definition);
     const pallet = asMaterial ? stockColor(asMaterial, look.stock?.colorBy ?? 'material') : undefined;
-    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), rackSpecOf(definition), { print, stocked, pallet });
+    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), { definition, rack: rackSpecOf(definition), stocked, pallet, elevation, wallCut });
     // A lying item: turn the upright model about its centre, then stand it on the floor again.
     const placedHeight = tilt === 'x' ? mt(w) : tilt === 'y' ? mt(d) : mt(h);
     const lay = new THREE.Matrix4()
@@ -752,17 +709,17 @@ function buildStock(project: Project, view: StockView): THREE.Group | null {
   const group = new THREE.Group();
   group.name = 'stock';
   const unitBox = new THREE.BoxGeometry(1, 1, 1);
-  const bases = new THREE.InstancedMesh(unitBox, new THREE.MeshStandardMaterial({ color: COLORS.palletWood, roughness: 0.9 }), pallets.length);
+  const bases = new THREE.InstancedMesh(unitBox, M.palletWood(), pallets.length);
   const loads = new THREE.InstancedMesh(unitBox.clone(), new THREE.MeshStandardMaterial({ color: 0xffffff, map: cartonStack(), roughness: 0.6 }), pallets.length);
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
-  const tint = new THREE.Color();
+  const tone = new THREE.Color();
   pallets.forEach((p, k) => {
     quaternion.setFromAxisAngle(up, (p.rotation / 1000) * (Math.PI / 180));
     bases.setMatrixAt(k, matrix.compose(at(p.center, p.elevation + 0.07), quaternion, new THREE.Vector3(p.width, 0.14, p.depth)));
     loads.setMatrixAt(k, matrix.compose(at(p.center, p.elevation + 0.14 + p.loadHeight / 2), quaternion, new THREE.Vector3(p.width * 0.97, p.loadHeight, p.depth * 0.95)));
-    loads.setColorAt(k, tint.setHex(p.color));
+    loads.setColorAt(k, tone.setHex(p.color));
   });
   for (const mesh of [bases, loads]) {
     mesh.instanceMatrix.needsUpdate = true;
@@ -785,52 +742,109 @@ function buildStock(project: Project, view: StockView): THREE.Group | null {
   return group;
 }
 
+interface Stage {
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  controls: OrbitControls;
+  content: THREE.Group | null;
+  sun: THREE.DirectionalLight | null;
+  outdoor: boolean | null;
+  profile: (typeof QUALITY_PROFILES)[Quality];
+  still: StillPass | null;
+  disposeEnv: () => void;
+  /** Ask for a frame; renders stop when nothing moves. */
+  invalidate: () => void;
+}
+
 /**
  * The same project as a 3D model. Drag empty space to orbit (right button pans, wheel zooms);
  * drag an item to slide it over the floor, Shift+drag to raise or lower it, Alt for precision;
  * click / Shift-click selects. Every drag is one saved change.
  */
-export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken, onHeading, look, fullWallsAtStart = false, onSlot }: Props) {
+export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken, onHeading, look, fullWallsAtStart = false, onSlot, keyboardActive }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const three = useRef<{
-    renderer: THREE.WebGLRenderer;
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    controls: OrbitControls;
-    content: THREE.Group | null;
-  } | null>(null);
+  const three = useRef<Stage | null>(null);
+  const keptView = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const [fullWalls, setFullWalls] = useState(fullWallsAtStart);
   const [topView, setTopView] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The graphics level: what the person picked, else Balanced, lowered by itself while the
+  // person has not picked one and moving frames are too slow.
+  const [quality, setQuality] = useState<Quality>(() => loadQuality() ?? DEFAULT_QUALITY);
+  const chooseQuality = (q: Quality) => {
+    saveQuality(q);
+    setQuality(q);
+  };
   // The event handlers are set up once; they read the latest props through this ref.
-  const latest = useRef({ saved, selectedIds, settings, dispatch, onHeading, onSlot });
-  latest.current = { saved, selectedIds, settings, dispatch, onHeading, onSlot };
+  const latest = useRef({ saved, selectedIds, settings, dispatch, onHeading, onSlot, keyboardActive });
+  latest.current = { saved, selectedIds, settings, dispatch, onHeading, onSlot, keyboardActive };
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    const profile = QUALITY_PROFILES[quality];
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+      renderer = new THREE.WebGLRenderer({ antialias: profile.antialias, preserveDrawingBuffer: true, alpha: true, powerPreference: 'high-performance' });
     } catch {
       setError('This browser cannot show the 3D view.');
       return;
     }
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    if (quality !== 'fast' && loadQuality() === null && isSoftwareRenderer(renderer)) {
+      // No graphics chip at all (a virtual machine, a test browser): start at the lightest level.
+      renderer.dispose();
+      setQuality('fast');
+      return;
+    }
+    renderer.setPixelRatio(Math.min(profile.pixelRatio, window.devicePixelRatio));
+    renderer.shadowMap.enabled = profile.shadows;
+    renderer.shadowMap.type = profile.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    // Shadows are redrawn only when the scene changes, not on every camera move.
+    renderer.shadowMap.autoUpdate = false;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     host.appendChild(renderer.domElement);
+    host.setAttribute('data-quality', quality);
 
     const scene = new THREE.Scene();
-    lights(scene, null);
-    studio(renderer, scene);
-
     const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
-    three.current = { renderer, scene, camera, controls, content: null };
+
+    // Render on demand: a frame when something changed, more while the camera glides to a stop,
+    // then one ambient-occlusion still once it rests (on machines with a GPU).
+    // While the person has not picked a level, a view that cannot keep up with the camera
+    // (most moving frames under 20 a second) steps down one level by itself.
+    let frame = 0;
+    let stillTimer = 0;
+    const adapt = loadQuality() === null;
+    const watch = new FrameWatch();
+    let lastMoving = 0;
+    const draw = (now: number) => {
+      frame = 0;
+      const moving = controls.update();
+      renderer.render(scene, camera);
+      if (moving) {
+        const down = lighter(quality);
+        if (adapt && down && lastMoving > 0 && watch.record(now - lastMoving)) {
+          setQuality(down);
+          return;
+        }
+        lastMoving = now;
+        frame = requestAnimationFrame(draw);
+        return;
+      }
+      lastMoving = 0;
+      window.clearTimeout(stillTimer);
+      const t = three.current;
+      if (t?.still) stillTimer = window.setTimeout(() => t.still?.render(), 180);
+    };
+    const invalidate = () => {
+      window.clearTimeout(stillTimer);
+      if (!frame) frame = requestAnimationFrame(draw);
+    };
+    three.current = { renderer, scene, camera, controls, content: null, sun: null, outdoor: null, profile, still: null, disposeEnv: () => undefined, invalidate };
 
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = host;
@@ -838,14 +852,12 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      three.current?.still?.setSize(w, h);
+      invalidate();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(host);
     resize();
-    renderer.setAnimationLoop(() => {
-      controls.update();
-      renderer.render(scene, camera);
-    });
 
     let lastQuarter = -1;
     const reportHeading = () => {
@@ -856,6 +868,8 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       }
     };
     controls.addEventListener('change', reportHeading);
+    controls.addEventListener('change', invalidate);
+    controls.addEventListener('start', invalidate);
 
     const canvas = renderer.domElement;
     const ray = new THREE.Raycaster();
@@ -976,25 +990,83 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       if (id && wasSelected) send({ type: 'select', ids: [id], mode: additive ? 'toggle' : 'replace' });
       else if (!id && !additive) send({ type: 'select', ids: [] });
     };
+    // Arrows with nothing selected: left and right walk the camera round the room, up and down
+    // tilt it between looking across and looking down (Shift: bigger steps).
+    const onKey = (e: KeyboardEvent) => {
+      const { selectedIds: selection, keyboardActive: active } = latest.current;
+      if (selection.length > 0 || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      if (ownsKeys(e.target) || e.ctrlKey || e.metaKey || e.altKey || !(active?.() ?? true)) return;
+      e.preventDefault();
+      const offset = camera.position.clone().sub(controls.target);
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      const turn = THREE.MathUtils.degToRad(e.shiftKey ? 45 : 10);
+      if (e.key === 'ArrowLeft') spherical.theta -= turn;
+      if (e.key === 'ArrowRight') spherical.theta += turn;
+      if (e.key === 'ArrowUp') spherical.phi -= turn / 2;
+      if (e.key === 'ArrowDown') spherical.phi += turn / 2;
+      spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.05, controls.maxPolarAngle);
+      camera.position.copy(controls.target).add(offset.setFromSpherical(spherical));
+      controls.update();
+      invalidate();
+    };
+    window.addEventListener('keydown', onKey);
     canvas.addEventListener('pointerdown', onDown, { capture: true });
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('wheel', invalidate, { passive: true });
 
     return () => {
       observer.disconnect();
-      renderer.setAnimationLoop(null);
+      cancelAnimationFrame(frame);
+      window.clearTimeout(stillTimer);
       controls.removeEventListener('change', reportHeading);
+      controls.removeEventListener('change', invalidate);
+      controls.removeEventListener('start', invalidate);
+      window.removeEventListener('keydown', onKey);
       canvas.removeEventListener('pointerdown', onDown, { capture: true });
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('wheel', invalidate);
+      // A change of graphics level builds a new canvas; it opens where this one was looking.
+      keptView.current = { position: camera.position.clone(), target: controls.target.clone() };
       controls.dispose();
-      if (three.current?.content) disposeTree(three.current.content);
-      scene.environment?.dispose();
+      const t = three.current;
+      if (t?.content) disposeTree(t.content);
+      t?.still?.dispose();
+      t?.disposeEnv();
       renderer.dispose();
       renderer.domElement.remove();
       three.current = null;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quality]);
+
+  // Light and sky follow the kind of place and the graphics level: set up with each new canvas,
+  // and again only if the place turns indoor ↔ outdoor.
+  const outdoor = isOutdoor(detectPack(project));
+  const span = spanOf(project);
+  useEffect(() => {
+    const t = three.current;
+    if (!t || t.outdoor === outdoor) return;
+    t.disposeEnv();
+    if (t.sun) {
+      t.scene.remove(t.sun, t.sun.target);
+      t.sun.dispose();
+    }
+    for (const light of t.scene.children.filter((c) => (c as THREE.Light).isLight)) t.scene.remove(light);
+    t.scene.fog = null;
+    t.scene.background = null;
+    t.sun = addLights(t.scene, outdoor, t.profile);
+    t.disposeEnv = addEnvironment(t.renderer, t.scene, outdoor, t.profile.reflections, span);
+    t.outdoor = outdoor;
+    if (t.profile.ambientOcclusion && !t.still) {
+      const host = hostRef.current;
+      t.still = new StillPass(t.renderer, t.scene, t.camera, host?.clientWidth || 800, host?.clientHeight || 600);
+    }
+    t.still?.setScale(span);
+    t.invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outdoor, quality]);
 
   // Rebuild the model whenever the project, issues or selection change.
   useEffect(() => {
@@ -1006,28 +1078,51 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     }
     t.content = buildScene(project, issues, selectedIds, fullWalls, look);
     t.scene.add(t.content);
+    t.renderer.shadowMap.needsUpdate = true;
+    t.invalidate();
     hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length - (look?.hidden?.size ?? 0)));
     hostRef.current?.setAttribute('data-selected', selectedIds.join(' '));
-  }, [project, issues, selectedIds, fullWalls, look]);
+  }, [project, issues, selectedIds, fullWalls, look, quality]);
 
   // Frame the room when asked, and when the room itself changes size.
   const room = boundsOf(project.space.boundary);
   const roomKey = `${room.minX},${room.minY},${room.maxX},${room.maxY}`;
+  const aspect = () => {
+    const host = hostRef.current;
+    return host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
+  };
+  const reframe = () => {
+    const t = three.current;
+    if (!t) return null;
+    const centre = frameRoom(t.camera, t.sun, room, aspect(), outdoor);
+    t.renderer.shadowMap.needsUpdate = true;
+    t.still?.setScale(span);
+    return centre;
+  };
   useEffect(() => {
     const t = three.current;
     if (!t) return;
-    const host = hostRef.current;
-    const aspect = host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
-    t.controls.target.copy(frameRoom(t.scene, t.camera, room, aspect));
+    const centre = reframe();
+    const kept = keptView.current;
+    keptView.current = null;
+    if (kept) {
+      // A new canvas for another graphics level: carry on from the same view.
+      t.camera.position.copy(kept.position);
+      t.controls.target.copy(kept.target);
+    } else {
+      if (centre) t.controls.target.copy(centre);
+      setTopView(false);
+    }
     t.controls.update();
-    setTopView(false);
+    t.invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomKey, fitToken]);
+  }, [roomKey, fitToken, outdoor, quality]);
 
   const savePicture = () => {
     const t = three.current;
     if (!t) return;
-    t.renderer.render(t.scene, t.camera);
+    if (t.still) t.still.render();
+    else t.renderer.render(t.scene, t.camera);
     // A blob link keeps the file name; large data: links are saved as "download".
     t.renderer.domElement.toBlob((blob) => {
       if (!blob) return;
@@ -1046,38 +1141,40 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   const orbit = (degrees: number) => {
     const t = three.current;
     if (!t) return;
-    const offset = t.camera.position.clone().sub(t.controls.target);
     if (topView) {
       setTopView(false);
-      t.controls.target.copy(frameRoom(t.scene, t.camera, room, aspect()));
+      const centre = reframe();
+      if (centre) t.controls.target.copy(centre);
       t.controls.update();
+      t.invalidate();
       return;
     }
+    const offset = t.camera.position.clone().sub(t.controls.target);
     offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), (degrees * Math.PI) / 180);
     t.camera.position.copy(t.controls.target).add(offset);
     t.controls.update();
-  };
-  const aspect = () => {
-    const host = hostRef.current;
-    return host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
+    t.invalidate();
   };
   const perspective = () => {
     const t = three.current;
     if (!t) return;
     setTopView(false);
-    t.controls.target.copy(frameRoom(t.scene, t.camera, room, aspect()));
+    const centre = reframe();
+    if (centre) t.controls.target.copy(centre);
     t.controls.update();
+    t.invalidate();
   };
   const fromAbove = () => {
     const t = three.current;
     if (!t) return;
     setTopView(true);
-    const centre = frameRoom(t.scene, t.camera, room, aspect());
-    const size = Math.max(mt(room.maxX - room.minX), mt(room.maxY - room.minY), 2);
+    const centre = reframe();
+    if (!centre) return;
     const back = aspect() < 1.2 ? 1.05 / aspect() : 1;
     t.controls.target.copy(centre);
-    t.camera.position.set(centre.x, size * 1.3 * back, centre.z + 0.001);
+    t.camera.position.set(centre.x, span * 1.3 * back, centre.z + 0.001);
     t.controls.update();
+    t.invalidate();
   };
 
   const tools: Array<{ label: string; icon: ReactElement; onClick: () => void; on?: boolean; sep?: boolean }> = [
@@ -1091,10 +1188,10 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   ];
 
   return (
-    <div className="view3d" ref={hostRef} data-testid="view3d" aria-label="3D view">
+    <div className={`view3d${outdoor ? ' outdoor' : ''}`} ref={hostRef} data-testid="view3d" aria-label="3D view">
       <div className="pane-title">
         <div className="serif">{topView ? 'Top view' : 'Perspective'}</div>
-        <div className="sub">{fullWalls ? 'Full-height walls' : 'Walls cut at 1.10 m'} · Drag to orbit · Scroll to zoom</div>
+        <div className="sub">{outdoor ? 'Site with sky and sun' : fullWalls ? 'Full-height walls' : 'Walls cut at 1.10 m'} · Drag to orbit · Scroll to zoom</div>
       </div>
       {error ? (
         <p className="view3d-error">{error}</p>
@@ -1108,6 +1205,18 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
               {t.sep && <span className="sep" />}
             </span>
           ))}
+          <span className="sep" />
+          <button
+            type="button"
+            className="quality"
+            data-testid="graphics-quality"
+            title={`Graphics: ${QUALITY_LABEL[quality]}. Click for ${QUALITY_LABEL[nextQuality(quality)]}. Fast turns off shadows for slow computers; High adds soft shadows and ambient occlusion.`}
+            aria-label={`Graphics quality: ${QUALITY_LABEL[quality]}`}
+            onClick={() => chooseQuality(nextQuality(quality))}
+          >
+            <Gauge size={15} />
+            {QUALITY_LABEL[quality]}
+          </button>
         </div>
       )}
     </div>

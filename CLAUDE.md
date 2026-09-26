@@ -72,6 +72,9 @@ didn't create, force-pushing, rewriting history, or changing anything outside th
 
 - Keep the task list in `TASKS.md`: a checklist with the finish line at the top. Tick items as
   they're done and add anything new you find. It survives context summaries; the chat doesn't.
+- After an interruption, start from `docs/STATUS.md` (generated). Run `pnpm checkpoint "<item>"`
+  after each finished checklist item and before risky steps; `pnpm log "<finding>"` for surprises.
+  See `docs/process/interruptions.md` and decision 0017.
 - Every task starts from a stated finish line ("done means: …"). If the request has none, write
   one at the top of `TASKS.md` from the plan's done criterion before starting.
 - Split broad audits or reviews across subagents only when the work is genuinely parallel, and
@@ -107,15 +110,16 @@ didn't create, force-pushing, rewriting history, or changing anything outside th
 
 ## User interface
 
-- The approved visual target is the "Atrium" Claude Design export in `design-reference/`
-  (`Atrium * v2.dc.html`). It is a visual reference only: never copy its mock logic.
-  See `docs/redesign-audit.md` and decision 0007.
+- The approved visual system is **`DESIGN.md`** (the "Paradigm" look, decision 0019). Read it before
+  any UI change. The older Atrium export in `design-reference/` is history, not the target.
 - UI text is English, left-to-right; the plan canvas keeps its own math orientation (X east, Y north).
-- Visual system: tokens on `:root` in `apps/editor/src/styles.css` (warm-neutral page, Newsreader serif
-  headings, Geist controls, thin borders, one blue accent; red, amber and green only for error,
-  warning and pass). Icons are Phosphor "light" from `@phosphor-icons/react`; fonts are bundled.
-- It is a working tool: the plan is the hero. No gradients or glass except the 3D backdrop, no
-  pill buttons, no emoji inside the app, only functional shadows (menus, dialogs, floating tools).
+- Visual system: tokens on `:root` in `apps/editor/src/styles.css` (cool white-grey page, dark top
+  bars, Newsreader serif headings, Geist controls, hairline borders, square buttons, one electric-blue
+  accent; red, amber and green only for error, warning and pass, as pastel chips). Icons are Phosphor
+  "light" from `@phosphor-icons/react`; fonts are bundled.
+- It is a working tool: the plan is the hero. No gradients or glass except `--wash` on feature
+  panels and the 3D backdrop, no pill buttons, no emoji inside the app, only functional shadows
+  (menus, dialogs, floating tools).
 - Every UI change goes through core commands; the UI never edits a project directly.
 - Agents and people share one path: server tools → core commands → one revision with the actor's name.
   Never add a way to change a project that skips the store.

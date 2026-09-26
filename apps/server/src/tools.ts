@@ -20,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -171,11 +171,15 @@ export function describeProject(project: Project): string {
     const w = warehouseMetrics(project);
     lines.push(`Warehouse: ${w.rackRows} rack rows, ${w.bays} bays, ${w.positions} pallet positions (${w.usablePositions} usable), ${w.docks} docks, ${w.floorArea.toFixed(1)} m² gross floor.`);
   }
+  if (detectPack(project) === 'site') {
+    const s = siteMetrics(project);
+    lines.push(`Site: ${s.siteArea} m² plot, ${s.buildings} buildings covering ${s.builtArea} m² (${s.coverage}%), ${s.greenArea} m² green, ${s.busBays} bus bays and ${s.carBays} car bays holding ${s.buses} buses and ${s.cars} cars, ${s.trees} trees. Buildings are one item each; open the building's own project for its inside.`);
+  }
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant', site: 'Site plan' };
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -516,16 +520,18 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'bay_entry_check',
-    description: 'Check whether a vehicle can drive a minimum-turning-radius path from the nearest lane into a named parking bay without its swept body leaving the floor or touching a wall, column, other vehicle or no-go zone. Optionally name a vehicle type id from the catalog (default: sedan).',
+    description: 'Check whether a vehicle can drive a minimum-turning-radius path from the nearest lane into a named parking bay (depot or site plan) without its swept body leaving the floor or touching a wall, column, other vehicle, building, tree or no-go zone. Optionally name a vehicle type id from the catalog (default: a 12 m coach for bus bays, a sedan otherwise).',
     inputSchema: { type: 'object', properties: { project_id: projectId, bay_id: { type: 'string' }, vehicle_type: { type: 'string' } }, required: ['project_id', 'bay_id'], additionalProperties: false },
     run: (ctx, input) => {
       const project = load(ctx, input);
-      if (detectPack(project) !== 'depot') throw new ToolError('This project is not a vehicle depot.');
+      if (detectPack(project) !== 'depot' && detectPack(project) !== 'site') throw new ToolError('This project is not a vehicle depot or site plan.');
       const vehicleType = str(input, 'vehicle_type', true);
-      const profile = vehicleType ? vehicleProfileOf(project.catalog[vehicleType]) : DEFAULT_VEHICLE;
-      if (!profile) throw new ToolError('Unknown vehicle type.');
-      const result = bayEntry(project, str(input, 'bay_id'), profile);
-      return result.clear ? `Clear: ${profile.name} can enter ${result.bayId}.` : `Not clear: ${result.reason}.`;
+      const profile = vehicleType ? vehicleProfileOf(project.catalog[vehicleType]) : undefined;
+      if (vehicleType && !profile) throw new ToolError('Unknown vehicle type.');
+      const bayId = str(input, 'bay_id');
+      const result = bayEntry(project, bayId, profile);
+      const name = (profile ?? referenceVehicleFor(project.space.zones?.find((z) => z.id === bayId))).name;
+      return result.clear ? `Clear: ${name} can enter ${result.bayId}.` : `Not clear: ${result.reason}.`;
     },
   },
   {

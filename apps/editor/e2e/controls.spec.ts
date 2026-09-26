@@ -24,6 +24,52 @@ async function centreOf(page: Page, id: string) {
 
 const plan = (page: Page) => page.locator('svg.plan');
 
+/** The arrow step shown in the status bar ("Arrow 5 cm"), in ticks. */
+async function arrowStepTicks(page: Page): Promise<number> {
+  const text = (await page.getByTestId('arrow-step').textContent())!;
+  const [, value, unit] = /Arrow ([\d.,]+) (mm|cm|m)/.exec(text)!;
+  return Math.round(Number(value!.replace(/,/g, '')) * (unit === 'm' ? 10_000 : unit === 'cm' ? 100 : 10));
+}
+
+test('arrow keys: a visible step, the view moves when nothing is selected, and a tick box does not steal them', async ({ page }) => {
+  const id = await newProject(page, 'Arrow Hall');
+  await page.locator('[data-add="chair"]').click();
+  await saved(page);
+
+  // Nothing selected: the arrows pan the plan and leave the design alone.
+  await page.keyboard.press('Escape');
+  const rev = await revisions(page, id);
+  const before = (await page.locator('path.floor').boundingBox())!;
+  await page.keyboard.press('ArrowRight');
+  const after = (await page.locator('path.floor').boundingBox())!;
+  expect(after.x).toBeLessThan(before.x - 30);
+  expect(await revisions(page, id)).toBe(rev);
+
+  // A clicked switch keeps the focus, but the arrows still move the selected chair.
+  await openPanel(page, 'Precision');
+  const guides = page.locator('[data-name="control-guides"]');
+  await guides.click();
+  await guides.click();
+  await page.locator('[data-item-id="chair-1"]').click();
+  const start = (await items(page, id))['chair-1']!.position.x;
+  const step = await arrowStepTicks(page);
+  await page.keyboard.press('ArrowRight');
+  expect((await items(page, id))['chair-1']!.position.x).toBe(start + step);
+
+  // In 3D with nothing selected the arrows turn the camera; the heading label follows.
+  await page.getByRole('button', { name: /3D/ }).first().click();
+  await expect(page.getByTestId('view3d').locator('canvas')).toBeVisible();
+  await page.keyboard.press('Escape');
+  const rev3d = await revisions(page, id);
+  const canvas = page.getByTestId('view3d').locator('canvas');
+  await page.waitForTimeout(500);
+  const shotBefore = await canvas.screenshot();
+  for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowRight'); // 90°
+  await page.waitForTimeout(500);
+  expect((await canvas.screenshot()).equals(shotBefore)).toBe(false);
+  expect(await revisions(page, id)).toBe(rev3d);
+});
+
 test('select many with a box, move with the keyboard as one step, raise, copy and turn', async ({ page }) => {
   const id = await newProject(page, 'Control Hall');
   for (const add of ['table-180', 'chair', 'chair']) await page.locator(`[data-add="${add}"]`).click();
@@ -52,14 +98,17 @@ test('select many with a box, move with the keyboard as one step, raise, copy an
   expect(after['table-180-1']!.position.x - before['table-180-1']!.position.x).toBe(moved);
   expect(after['chair-2']!.position.y).toBe(before['chair-2']!.position.y);
 
-  // Click one chair: just that one. PageUp raises it 5 cm; Shift+ArrowDown moves it 10 cm south.
+  // Click one chair: just that one. PageUp raises it 5 cm; Shift+ArrowDown moves it ten arrow
+  // steps south. The arrow step follows the zoom by default; the status bar shows it.
   await page.locator('[data-item-id="chair-1"]').click();
   await expect(plan(page)).toHaveAttribute('data-selected', 'chair-1');
+  const arrow = await arrowStepTicks(page);
+  expect(arrow).toBeGreaterThanOrEqual(100); // at least 1 cm: visible at this zoom
   await page.keyboard.press('PageUp');
   await page.keyboard.press('Shift+ArrowDown');
   const raised = (await items(page, id))['chair-1']!;
   expect(raised.elevation).toBe(500);
-  expect(raised.position.y).toBe(after['chair-1']!.position.y - 1000);
+  expect(raised.position.y).toBe(after['chair-1']!.position.y - 10 * arrow);
   await expect(page.getByLabel('Elevation', { exact: true })).toHaveValue('5');
 
   // Shift-click adds the table; Ctrl+D copies both, and the copies become the selection.

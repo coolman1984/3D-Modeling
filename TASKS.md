@@ -1,6 +1,61 @@
 # TASKS
 
-## Now: D1 — client demo: "Nile Gate Logistics" sample company + material slotting + visual polish
+## Now: D2 — Samsung Electronics Egypt (Beni Suef) sample + 3D engine v2
+
+**Next agent: follow `docs/plans/handoff-d2-closeout.md` step by step, then stop.**
+
+**Finish line:** the projects page offers two sample companies, each listed as its own group:
+(1) Nile Gate Logistics (containers + storage, existing) and (2) Samsung Electronics Egypt ·
+Kom Abu Radi, Al Wasta, Beni Suef. The Samsung set holds an illustrative campus master plan
+(336,000 m² per public figures, buildings, gates, roads, staff bus and car parking, trees), the
+TV & monitor assembly hall, the mobile & tablet plant (~9,000 m², SMT lines), the finished-goods
+warehouse stocked with Samsung TVs/monitors/phones, an HR department floor (offices, interview
+rooms, records, onboarding room), a meeting & training centre, a town-hall events hall, the staff
+canteen and break areas, and an export container of TVs. The layout is labelled as illustrative
+(no public floor plans; public facts cited in decision 0016). The 3D view makes a visible quality
+jump for both samples: procedural PBR textures (concrete/epoxy/asphalt/grass/carpet/tile/cladding/
+glass), sky and sun outdoors, ambient occlusion when the camera rests, better models (buses, cars,
+trees, buildings, partitions, office chairs, desks with screens, SMT machines, conveyors) — and is
+faster (render on demand, static shadows, shared materials). Everything goes through core commands
+and the store; no core change; `pnpm check` passes; browser-checked with screenshots.
+
+- [x] Starter: `site` pack (campus: buildings, trees, gates, buses, cars; building + parking rules with sources)
+- [x] Starter: bus bays; bay entry treats every non-vehicle item as an obstacle and prefilters by path box (speed)
+- [x] Starter: office partitions / glass walls / screens / lockers / vending in catalogs; new shapes list
+- [x] Starter: Samsung sample set (10 projects) + tests
+- [x] Server: project collections (stored group), `POST /api/samples/:id`, test
+- [x] Editor: two sample companies, projects grouped by collection
+- [x] Editor 3D v2: texture library, material cache, sky/sun/fog, idle AO, render on demand, static shadows
+- [x] Editor 3D v2: new models (bus, car, tree, building, wall, glass wall, machine, conveyor, workbench, locker, screen, vending) and upgraded old ones
+- [x] Editor 2D: plan drawing for the new shapes
+- [x] Resumed after the interruption: reviewed every uncommitted file; typecheck and 345 unit tests green
+- [x] Decision 0016 (public facts re-checked with sources), agents.md site-plan section
+- [x] Docs system (decision 0017): generated STATUS / CHANGELOG / index, work log, checkpoints, `docs/process/interruptions.md`
+- [x] e2e: Samsung sample journey in `sample.spec.ts`
+- [x] Browser suite: 17/19 first run; `office.spec.ts` count was stale (5 fit-out items added to the office catalog: 20→25, 45→50), fixed, not yet re-run
+- [x] Graphics levels Fast / Balanced (default) / High, toolbar button, auto step-down on slow frames (decision 0018); owner reported lag on their laptop
+- [x] `controls.spec.ts` 3D drag journey no longer times out (29 s, was over 45 s); `office`, `sample`, `controls` journeys pass
+- [x] Container view tools: "Stop" said nothing on single-drop loads; now Cargo type / Delivery drop (only when drops exist) / Weight / Load order, each with a one-line meaning; report and inspector labels match
+- [x] Arrow keys: the 1 cm default step was invisible at normal zoom; Auto step follows the zoom (status bar shows it); with nothing selected arrows pan the plan and turn the 3D camera; the "Cut away side wall" tick box no longer switches the arrows off (planted bug caught)
+- [x] Design: `DESIGN.md` (Paradigm look, decision 0019) applied to all screens: tokens, dark top bars, dark hero band, square buttons, electric blue, pastel status colours; create-dialog activity cards no longer overlap
+- [x] Undid the accidental commit `3b54ab0` (author "t", made by a mis-aimed test command): `git reset --mixed b292f17`, removed the stray local git identity and my scratch `a.txt`; no file changed
+- [x] Full check green (handoff run): typecheck, 355 unit tests (core 148, industry 16, starter 112, editor 47, server 30, scripts 2), all 20 browser journeys; planted bugs caught (graphics slow-frame check, tick-box arrow focus); every screen reviewed in a browser against `DESIGN.md`
+- [x] README status rows; commit, push (this commit)
+
+Found along the way (handoff):
+- The Monitor tool runs Git Bash and cannot see Windows processes; wait for a Windows process with `Wait-Process` in a background PowerShell command instead.
+- A mid-fade screenshot of the sample menu looked see-through; after the 0.14 s fade it is opaque and sits above the list.
+
+Found along the way (D2):
+- The session was interrupted with three checklist items unticked that were in fact written; nothing recorded where it stood. Decision 0017 adds checkpoints and a generated status page.
+- Build output left by the interrupted (sandboxed) session belonged to another Windows identity and could not be deleted, which silently stopped the browser suite; moved aside to `apps/editor/node_modules/.stale-dist-20260926` (safe to delete as administrator).
+- Two starter tests (container property test, Samsung determinism) hit the 5 s default only under full-suite load (1–2 s alone); they now have a 20 s budget. Neither asserts speed.
+- `samsung.ts` quoted 80–85% exports; the public source says about 85–90% (fixed). "Since 2013", "24″–82″" and "5,000 jobs" are not confirmed by a primary source (decision 0016).
+- Bay entry stopped the vehicle with its rear reference point on the bay centre, so the nose poked 1.1 m (car) / 3 m (coach) past the bay; back-to-back rows always looked blocked. It now stops with the body centred, as parked items stand, and swings wide when the lane is narrower than a turning radius.
+- Production and depot "floor area" was 100× too small (30 × 8 m showed 2.4 m²); now computed like the warehouse and restaurant.
+- The nearest lane to a bay can belong to a different car park; the transport yard keeps its car park 20 m clear of the bus lane.
+
+## Done: D1 — client demo: "Nile Gate Logistics" sample company + material slotting + visual polish
 
 **Finish line (1–2 day deadline):** from the projects page, one click adds a realistic fictional
 Egyptian logistics company (Nile Gate Logistics): an electronics distribution centre in 10th of

@@ -6,3 +6,8 @@ e2e-results/
 test-results/
 playwright-report/
 data/
+
+# Local agent and tool state (machine-specific)
+.claude/worktrees/
+.claude/settings.local.json
+.claude/launch.json

@@ -1,9 +1,11 @@
 import { boundsOf, serializeProject } from '@space-planner/core';
-import { CONTAINER_TYPES, packOf, type PackId } from '@space-planner/starter';
+import { CONTAINER_TYPES, packOf, SAMPLE_COMPANIES, type PackId } from '@space-planner/starter';
 import {
   ArrowRight,
   ArrowUpRight,
   Briefcase,
+  CaretDown,
+  MapTrifold,
   Buildings,
   Car,
   ForkKnife,
@@ -111,14 +113,41 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
   const recentCard = recent ? cards.get(recent.id) : undefined;
 
   const [addingSample, setAddingSample] = useState(false);
-  const addSample = () => {
+  const addSample = (company: (typeof SAMPLE_COMPANIES)[number]) => {
     setAddingSample(true);
     void api
-      .addSampleCompany()
-      .then((created) => showToast(`Added Nile Gate Logistics · ${created.length} projects`))
+      .addSampleCompany(company.id)
+      .then((created) => showToast(`Added ${company.name} · ${created.length} projects`))
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : String(error)))
       .finally(() => setAddingSample(false));
   };
+  const sampleMenu = (testId: string) => (
+    <Menu
+      label="Sample companies"
+      button={(isOpen, toggle) => (
+        <button type="button" className="btn" disabled={addingSample} aria-expanded={isOpen} onClick={toggle} data-testid={testId}>
+          <Buildings size={17} />
+          {addingSample ? 'Adding…' : 'Add sample company'}
+          <CaretDown size={13} />
+        </button>
+      )}
+    >
+      {(close) =>
+        SAMPLE_COMPANIES.map((company) => (
+          <button key={company.id} type="button" role="menuitem" className="sample-choice" data-testid={`add-sample-${company.id}`} onClick={() => { close(); addSample(company); }}>
+            <span className="sample-choice-name">{company.name}</span>
+            <span className="sample-choice-desc">{company.description}</span>
+          </button>
+        ))
+      }
+    </Menu>
+  );
+  // Sample companies first, each as its own group, then the person's own projects.
+  const groups = [
+    ...SAMPLE_COMPANIES.map((c) => ({ id: c.id, title: c.name, description: c.description, rows: rows.filter((p) => p.collection === c.id) })),
+    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !p.collection || !SAMPLE_COMPANIES.some((c) => c.id === p.collection)) },
+  ].filter((g) => g.rows.length > 0);
+  const grouped = groups.some((g) => g.id !== 'own');
 
   const importFile = (file: File) =>
     void file
@@ -131,16 +160,14 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
     <div className="site">
       <SiteHeader active="projects" />
       <main className="site-main">
+        <section className="hero-band" aria-label="Projects overview">
         <div className="hero-row">
           <div>
             <h1 className="page-title">Projects</h1>
             <p className="lede">Measured spaces and the plans inside them. Check that everything fits and works before anything is ordered.</p>
           </div>
           <div className="hero-actions">
-            <button type="button" className="btn" disabled={addingSample} onClick={addSample} data-testid="add-sample">
-              <Buildings size={17} />
-              {addingSample ? 'Adding…' : 'Add sample company'}
-            </button>
+            {sampleMenu('add-sample')}
             <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
               <FolderOpen size={17} />
               Open file
@@ -197,7 +224,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                     No issues
                   </span>
                 )}
-                <span style={{ color: '#a29d93' }}>
+                <span style={{ color: '#9aa1ad' }}>
                   Revision {recent.revision} · {formatAgo(recent.updatedAt)}
                 </span>
                 <span className="continue-open">
@@ -209,6 +236,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             <div className="continue-art">{recentCard && <ProjectThumb project={recentCard.project} width={420} height={280} dark />}</div>
           </a>
         )}
+        </section>
 
         <div className="list-head">
           <h2>All projects</h2>
@@ -221,6 +249,10 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               { id: 'office', label: 'Office', count: count('office') },
               { id: 'container', label: 'Container', count: count('container') },
               { id: 'warehouse', label: 'Warehouse', count: count('warehouse') },
+              { id: 'production', label: 'Production', count: count('production') },
+              { id: 'depot', label: 'Parking', count: count('depot') },
+              { id: 'restaurant', label: 'Canteen', count: count('restaurant') },
+              { id: 'site', label: 'Site plan', count: count('site') },
             ]}
           />
           <span className="spacer" />
@@ -262,10 +294,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                     <Plus size={16} />
                     Create project
                   </button>
-                  <button type="button" className="btn" disabled={addingSample} onClick={addSample}>
-                    <Buildings size={16} />
-                    Add sample company
-                  </button>
+                  {sampleMenu('add-sample-empty')}
                 </div>
               </>
             ) : (
@@ -297,7 +326,10 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               <span>Edited</span>
               <span />
             </div>
-            {rows.map((p) => {
+            {groups.map((g) => (
+              <section key={g.id} className="proj-group" data-group={g.id} aria-label={g.title}>
+                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} />}
+                {g.rows.map((p) => {
               const card = cards.get(p.id);
               const state = stateOf(card, p.itemCount);
               const room = card ? boundsOf(card.project.space.boundary) : null;
@@ -328,11 +360,17 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                   <RowMenu project={p} open={open} onDone={showToast} />
                 </div>
               );
-            })}
+                })}
+              </section>
+            ))}
           </>
         ) : (
-          <div className="proj-grid">
-            {rows.map((p) => {
+          <>
+            {groups.map((g) => (
+              <section key={g.id} className="proj-group" data-group={g.id} aria-label={g.title}>
+                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} />}
+                <div className="proj-grid">
+            {g.rows.map((p) => {
               const card = cards.get(p.id);
               const state = stateOf(card, p.itemCount);
               const room = card ? boundsOf(card.project.space.boundary) : null;
@@ -355,7 +393,10 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                 </a>
               );
             })}
-          </div>
+                </div>
+              </section>
+            ))}
+          </>
         )}
       </main>
       <div className="toast fixed" role="status" hidden={!toast}>
@@ -364,6 +405,20 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
       </div>
       {creating && <CreateDialog onClose={() => setCreating(false)} open={open} />}
     </div>
+  );
+}
+
+/** A sample company's heading in the project list: its name, what it shows, how many projects. */
+function GroupHead({ title, description, count, sample }: { title: string; description: string; count: number; sample: boolean }) {
+  return (
+    <header className="proj-group-head">
+      {sample ? <MapTrifold size={18} /> : <FolderOpen size={18} />}
+      <div>
+        <div className="serif proj-group-title">{title}</div>
+        {description && <div className="proj-group-desc">{description}</div>}
+      </div>
+      <span className="proj-group-count">{plural(count, 'project')}</span>
+    </header>
   );
 }
 

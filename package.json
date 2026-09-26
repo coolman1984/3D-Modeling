@@ -7,9 +7,12 @@
   },
   "scripts": {
     "dev": "pnpm --filter @space-planner/editor dev",
-    "test": "pnpm -r test",
+    "test": "pnpm -r test && node --test scripts/docs.test.mjs",
     "typecheck": "pnpm -r typecheck",
     "e2e": "pnpm --filter @space-planner/editor e2e",
-    "check": "pnpm typecheck && pnpm test && pnpm e2e"
+    "check": "pnpm typecheck && pnpm test && pnpm e2e",
+    "docs": "node scripts/docs.mjs",
+    "log": "node scripts/docs.mjs log",
+    "checkpoint": "node scripts/checkpoint.mjs"
   }
 }

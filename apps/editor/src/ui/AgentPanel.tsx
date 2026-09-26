@@ -21,6 +21,11 @@ const TOOL_WORDS: Readonly<Record<string, string>> = {
 };
 
 const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
+  site: [
+    'Add a second row of 20 bus bays next to the bus park and check a coach can turn into every empty one.',
+    'Plant a row of shade trees along the spine road, 12 m apart, without touching roads or buildings.',
+    'Tell me the site coverage and how many car bays are free right now.',
+  ],
   hall: [
     'Seat 120 guests at round tables of 10 and keep every walkway at least 120 cm wide.',
     'Put the stage in the middle of the north wall and the buffet along the east wall.',

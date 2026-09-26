@@ -52,8 +52,25 @@ test('a container load: plan the cargo, compare packing plans, apply one, inspec
   await saved(page);
   expect((await (await page.request.get(`/api/projects/${id}`)).json()).items['euro-pallet-1'].meta).toMatchObject({ stop: 2, step: expect.any(Number) });
 
+  // The "Cut away side wall" tick box keeps the focus after a click; the arrows must still move
+  // the selected pallet (they used to stop working until something else was clicked).
+  const cut = page.locator('.container-tools input[type="checkbox"]');
+  await cut.click();
+  await cut.click();
+  await expect(cut).toBeFocused();
+  const x0 = (await (await page.request.get(`/api/projects/${id}`)).json()).items['euro-pallet-1'].position.x;
+  await page.keyboard.press('ArrowRight');
+  await saved(page);
+  const x1 = (await (await page.request.get(`/api/projects/${id}`)).json()).items['euro-pallet-1'].position.x;
+  expect(x1).toBeGreaterThan(x0);
+  await page.keyboard.press('Control+z'); // leave the history as the rest of this journey expects
+  await saved(page);
+
   // Colour by loading step numbers the pieces on the plan; playback empties and refills the 3D view.
-  await page.locator('.container-tools').getByRole('button', { name: 'Step' }).click();
+  // A piece now has a drop, so "Delivery drop" is offered and says what it means.
+  await page.locator('.container-tools').getByRole('button', { name: 'Delivery drop' }).click();
+  await expect(page.getByTestId('color-by-hint')).toContainText('Drop 1 is unloaded first');
+  await page.locator('.container-tools').getByRole('button', { name: 'Load order' }).click();
   await expect(page.locator('[data-item-id] .item-label').first()).toHaveText(/^\d+$/);
   const slider = page.locator('.sequence input[type="range"]');
   await slider.focus();
@@ -62,7 +79,7 @@ test('a container load: plan the cargo, compare packing plans, apply one, inspec
   await expect(page.getByTestId('view3d')).toHaveAttribute('data-items', '0');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByTestId('sequence-label')).toHaveText('Step 2 of 10');
+  await expect(page.getByTestId('sequence-label')).toHaveText('Loading step 2 of 10');
   await expect(page.getByTestId('view3d')).toHaveAttribute('data-items', '2');
   await page.keyboard.press('End');
   await expect(page.getByTestId('sequence-label')).toHaveText('Fully loaded');

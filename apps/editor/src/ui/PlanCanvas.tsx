@@ -21,6 +21,7 @@ import type { Action } from '../logic/session.js';
 import { snapAngle, snapMove, type Guide } from '../logic/snap.js';
 import { boxCentre, itemsInBox, movable, moveCommands, rotateCommands, selectionBounds } from '../logic/transform.js';
 import { fitViewport, panBy, pathOf, toScreen, toWorld, zoomAt, type Viewport } from '../logic/viewport.js';
+import { zoneStyle } from '../logic/zoneStyle.js';
 
 interface Props {
   /** What to draw: the saved project with any change in progress on top. */
@@ -388,10 +389,10 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
         {(project.space.zones ?? []).map((zone) => {
           const b = boundsOf(zone.polygon);
           const p = toScreen(v, { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 });
-          const restricted = zone.kind === 'no-go' || zone.kind === 'pedestrian';
+          const style = zoneStyle(zone.kind);
           return <g key={zone.id} data-zone={zone.id} pointerEvents="none" className="warehouse-zone">
-            <path d={pathOf(v, zone.polygon)} fill={restricted ? '#d7a79d' : zone.kind.includes('aisle') ? '#c9dfd4' : '#b9c9e2'} fillOpacity={zone.kind === 'storage' ? 0.13 : 0.21} stroke={restricted ? '#a85f54' : '#55789f'} strokeWidth={1} strokeDasharray="5 4" />
-            {Math.min(b.maxX - b.minX, b.maxY - b.minY) * v.scale > 14 && <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="var(--ink-2)" fontSize={10}>{zone.kind.replace(/-/g, ' ')}</text>}
+            <path d={pathOf(v, zone.polygon)} fill={style.fill} fillOpacity={style.opacity} stroke={style.stroke} strokeWidth={1} strokeDasharray={style.dash} />
+            {style.label && Math.min(b.maxX - b.minX, b.maxY - b.minY) * v.scale > 14 && <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="var(--ink-2)" fontSize={10}>{zone.kind.replace(/-/g, ' ')}</text>}
           </g>;
         })}
         {rulerX.map((m) => {

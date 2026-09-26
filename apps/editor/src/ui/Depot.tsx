@@ -1,14 +1,15 @@
 import { fromUnit, type Project } from '@space-planner/core';
-import { BAY_TYPES, bayTypeOf, bayZone, DEFAULT_VEHICLE, depotMetrics, type BayEntryResult, type BayType } from '@space-planner/starter';
-import { useEffect, useState } from 'react';
+import { BAY_TYPES, bayTypeOf, bayZone, depotMetrics, referenceVehicleFor, siteMetrics, type BayEntryResult, type BayType } from '@space-planner/starter';
+import { useEffect, useMemo, useState } from 'react';
 import { formatCount } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import type { Action } from '../logic/session.js';
 import { takenIds } from '../logic/transform.js';
 
-/** Depot controls in the Atrium left rail: metrics, an "add bay" form and a bay-entry check. */
-export function DepotPanel({ project, entry, onCheck, dispatch }: {
+/** Depot controls in the Atrium left rail: metrics, an "add bay" form and a bay-entry check. A site plan adds its own figures on top. */
+export function DepotPanel({ project, entry, onCheck, dispatch, site = false }: {
   project: Project;
+  site?: boolean;
   entry: BayEntryResult | null;
   onCheck: (bayId: string) => void;
   dispatch: (action: Action) => void;
@@ -16,7 +17,10 @@ export function DepotPanel({ project, entry, onCheck, dispatch }: {
   const bays = (project.space.zones ?? []).filter((z) => bayTypeOf(z));
   const [bay, setBay] = useState(bays[0]?.id ?? '');
   useEffect(() => { if (!bays.some((b) => b.id === bay)) setBay(bays[0]?.id ?? ''); }, [bays.map((b) => b.id).join(',')]);
-  const metrics = depotMetrics(project);
+  // Usable bays drive a path check per empty bay; a campus has hundreds, so only when the plan changes.
+  const metrics = useMemo(() => depotMetrics(project), [project]);
+  const plot = useMemo(() => (site ? siteMetrics(project) : null), [project, site]);
+  const vehicle = referenceVehicleFor(bays.find((b) => b.id === bay));
   const [type, setType] = useState<BayType>('perpendicular');
   const [pos, setPos] = useState({ x: 1, y: 1, direction: 0 });
   const [bayError, setBayError] = useState('');
@@ -32,16 +36,30 @@ export function DepotPanel({ project, entry, onCheck, dispatch }: {
   };
   return (
     <div className="depot-panel" data-testid="depot-panel">
+      {plot && (
+        <>
+          <div className="kicker">Site</div>
+          <div className="depot-big" data-testid="site-area">{formatCount(plot.siteArea)} <small>m² plot</small></div>
+          <div className="facts" style={{ marginBottom: 24 }}>
+            <div className="fact"><span>Buildings</span><span>{formatCount(plot.buildings)}</span></div>
+            <div className="fact"><span>Built footprint</span><span>{formatCount(plot.builtArea)} m² · {plot.coverage}%</span></div>
+            <div className="fact"><span>Green area</span><span>{formatCount(plot.greenArea)} m²</span></div>
+            <div className="fact"><span>Buses · cars</span><span>{formatCount(plot.buses)} · {formatCount(plot.cars)}</span></div>
+            <div className="fact"><span>Trees</span><span>{formatCount(plot.trees)}</span></div>
+          </div>
+        </>
+      )}
       <div className="kicker">Parking bays</div>
       <div className="depot-big" data-testid="depot-bays">{formatCount(metrics.bays)} <small>bays</small></div>
       <div className="facts">
+        {metrics.bayTypes.bus > 0 && <div className="fact"><span>Bus bays</span><span>{formatCount(metrics.bayTypes.bus)}</span></div>}
         <div className="fact"><span>Occupied</span><span>{formatCount(metrics.occupiedBays)}</span></div>
         <div className="fact"><span>Usable (empty, reachable)</span><span>{formatCount(metrics.usableBays)}</span></div>
         <div className="fact"><span>Vehicles</span><span>{formatCount(metrics.vehicles)}</span></div>
         <div className="fact"><span>Floor area</span><span>{metrics.floorArea.toFixed(1)} m²</span></div>
       </div>
       <div className="kicker" style={{ marginTop: 24 }}>Bay entry check</div>
-      <p className="sub">{DEFAULT_VEHICLE.name}. Turning radius {(DEFAULT_VEHICLE.minTurningRadius / 10_000).toFixed(1)} m.</p>
+      <p className="sub">{vehicle.name}. Turning radius {(vehicle.minTurningRadius / 10_000).toFixed(1)} m.</p>
       <label className="stack">Bay
         <select className="input" aria-label="Bay to check" value={bay} onChange={(e) => setBay(e.target.value)}>
           {bays.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}

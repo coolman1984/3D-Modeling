@@ -40,6 +40,12 @@ export const OFFICE_CATALOG: readonly ItemDefinition[] = [
   { id: 'sofa', name: 'Sofa · 3 seats', category: 'sofa', size: { w: cm(210), d: cm(90), h: cm(85) }, clearance: { ...none, front: cm(60) }, seats: 3 },
   { id: 'armchair', name: 'Armchair', category: 'sofa', size: { w: cm(80), d: cm(80), h: cm(85) }, clearance: { ...none, front: cm(50) }, seats: 1 },
   { id: 'plant', name: 'Plant', category: 'plant', size: { w: cm(50), d: cm(50), h: cm(150) }, clearance: none, footprint: 'round' },
+  // Fit-out: rooms inside one floor are made of partitions; a gap between two is a doorway.
+  { id: 'partition-wall-300', name: 'Partition wall 3 m', category: 'wall', size: { w: cm(300), d: cm(12), h: cm(270) }, clearance: none },
+  { id: 'glass-partition-300', name: 'Glass partition 3 m', category: 'glass-wall', size: { w: cm(300), d: cm(10), h: cm(270) }, clearance: none },
+  { id: 'display-75', name: 'Display screen 75″ on stand', category: 'screen', size: { w: cm(170), d: cm(60), h: cm(160) }, clearance: { ...none, front: cm(150) } },
+  { id: 'staff-lockers', name: 'Staff lockers · 6 doors', category: 'locker', size: { w: cm(120), d: cm(50), h: cm(190) }, clearance: { ...none, front: cm(90) } },
+  { id: 'vending', name: 'Vending machine', category: 'vending', size: { w: cm(90), d: cm(80), h: cm(190) }, clearance: { ...none, front: cm(100) } },
 ];
 
 export type OfficeStyle = 'open-plan' | 'meeting';

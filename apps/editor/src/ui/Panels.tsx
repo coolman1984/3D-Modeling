@@ -28,14 +28,17 @@ const SHORTCUTS: ReadonlyArray<readonly [string, string]> = [
   ['Fit room', 'F'],
   ['Clear selection', 'Esc'],
   ['Remove', 'Delete'],
-  ['Pan the plan', 'Space + drag'],
+  ['Pan the plan', 'Space + drag · arrows with nothing selected'],
+  ['Turn and tilt the 3D view', 'Arrows with nothing selected'],
   ['Move straight · slowly · freely', 'Shift · Alt · Ctrl + drag'],
   ['Raise in 3D', 'Shift + drag'],
 ];
 
 /** Precision and speed of the mouse and keyboard; kept in this browser. */
 export function ControlsPanel({ controls, onChange }: { controls: ControlSettings; onChange: (c: ControlSettings) => void }) {
-  const set = (key: keyof ControlSettings) => (value: number | undefined) => value !== undefined && onChange(sanitizeControls({ ...controls, [key]: value }));
+  // Typing an arrow step means "use exactly this": the step stops following the zoom.
+  const set = (key: keyof ControlSettings) => (value: number | undefined) =>
+    value !== undefined && onChange(sanitizeControls({ ...controls, [key]: value, ...(key === 'step' || key === 'bigStep' ? { autoStep: false } : {}) }));
   const cmField = (key: 'grid' | 'step' | 'bigStep' | 'fineStep' | 'raiseStep', label: string) => (
     <NumberField
       variant="stack"
@@ -84,7 +87,14 @@ export function ControlsPanel({ controls, onChange }: { controls: ControlSetting
       <div className="section-title" style={{ marginTop: 22 }}>
         <span className="kicker">Keyboard movement</span>
       </div>
-      <div className="grid-2">
+      <SwitchRow
+        name="control-auto-step"
+        label="Arrow step follows the zoom"
+        hint="Each press moves about 4 screen pixels, rounded to 1, 2 or 5 cm, 10 cm, 1 m… Typing a step below turns this off."
+        on={controls.autoStep}
+        onChange={(autoStep) => onChange({ ...controls, autoStep })}
+      />
+      <div className="grid-2" style={{ marginTop: 10 }}>
         {cmField('step', 'Arrow step')}
         {cmField('bigStep', 'Shift + arrow')}
         {cmField('fineStep', 'Alt + arrow')}
