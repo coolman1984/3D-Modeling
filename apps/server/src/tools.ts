@@ -20,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, serviceRoute, simulateProduction, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 import { compareFamily, figureText } from './variants.js';
 
@@ -258,6 +258,18 @@ function cargoMeta(value: unknown, previous: Record<string, string | number | bo
   return Object.keys(meta).length > 0 ? { meta } : {};
 }
 
+/** Production station fields of define_item → type meta, merged over all existing pack data. */
+function productionMeta(value: unknown, previous: Record<string, string | number | boolean> | undefined): { meta?: Record<string, string | number | boolean> } {
+  const meta: Record<string, string | number | boolean> = { ...(previous ?? {}) };
+  if (typeof value === 'object' && value !== null) {
+    const p = value as Record<string, unknown>;
+    if (p.kind === 'source' || p.kind === 'machine' || p.kind === 'buffer' || p.kind === 'inspection' || p.kind === 'sink') meta.kind = p.kind;
+    if (typeof p.cycle_seconds === 'number' && Number.isFinite(p.cycle_seconds) && p.cycle_seconds > 0) meta.cycleMs = Math.round(p.cycle_seconds * 1000);
+    if (typeof p.capacity === 'number' && Number.isFinite(p.capacity) && p.capacity > 0) meta.capacity = Math.round(p.capacity);
+  }
+  return Object.keys(meta).length > 0 ? { meta } : {};
+}
+
 /** stop / step of a placed piece → its meta. */
 function pieceMeta(s: Record<string, unknown>): { meta?: Record<string, number> } {
   const meta: Record<string, number> = {};
@@ -403,6 +415,38 @@ export const TOOLS: readonly ToolDef[] = [
       const project = load(ctx, input);
       if (detectPack(project) !== 'production') throw new ToolError('This project is not a production line.');
       return JSON.stringify(productionMetrics(project));
+    },
+  },
+  {
+    name: 'simulate_line',
+    description:
+      'Simulate a production line deterministically from the cycle times and buffer capacities entered on station types. Returns throughput, WIP, bottleneck and per-station busy/blocked/starved shares. It never derives cycle time from floor distance.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        hours: { type: 'number', description: 'Simulation horizon in hours; defaults to 8.' },
+      },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'production') throw new ToolError('This project is not a production line.');
+      const hours = num(input, 'hours', true) ?? 8;
+      if (!(hours > 0 && hours <= 24 * 31)) throw new ToolError('"hours" must be greater than 0 and no more than 744.');
+      const result = simulateProduction(project, hours);
+      if (!result.ok) return JSON.stringify(result);
+      return JSON.stringify({
+        ok: true,
+        hours,
+        produced: result.produced,
+        perHour: result.perHour,
+        wipAverage: result.wipAverage,
+        wipEnd: result.wipEnd,
+        bottleneck: result.bottleneck,
+        stations: Object.fromEntries(result.stations),
+      });
     },
   },
   {
@@ -633,6 +677,15 @@ export const TOOLS: readonly ToolDef[] = [
           description: 'Container cargo data: quantity planned, stackable, max_load_on_top_kg, allow_tilt (may lie on its side), stack_group, stop (1 = unloaded first).',
           properties: { quantity: { type: 'integer' }, stackable: { type: 'boolean' }, max_load_on_top_kg: { type: 'number' }, allow_tilt: { type: 'boolean' }, stack_group: { type: 'string' }, stop: { type: 'integer' } },
         },
+        production: {
+          type: 'object',
+          description: 'Production simulation data: station kind, cycle_seconds for sources/machines/inspection, and capacity for buffers. Values come from real process data, never floor distance.',
+          properties: {
+            kind: { type: 'string', enum: ['source', 'machine', 'buffer', 'inspection', 'sink'] },
+            cycle_seconds: { type: 'number' },
+            capacity: { type: 'integer' },
+          },
+        },
         summary,
       },
       required: ['project_id', 'id', 'name', 'category', 'width_cm', 'depth_cm', 'height_cm'],
@@ -654,7 +707,7 @@ export const TOOLS: readonly ToolDef[] = [
         ...(seats === undefined ? {} : { seats }),
         ...(footprint === 'round' ? { footprint: 'round' as const } : {}),
         ...(input.mass_kg === undefined ? {} : { mass: Math.round(num(input, 'mass_kg') * 1000) }),
-        ...cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta),
+        ...productionMeta(input.production, cargoMeta(input.cargo, project.catalog[str(input, 'id')]?.meta).meta),
       };
       const existed = Boolean(project.catalog[definition.id]);
       const updated = commit(ctx, project, [{ type: 'catalog.define', definition }], str(input, 'summary', true) || `${existed ? 'Changed' : 'Added'} item type ${definition.name}`);
