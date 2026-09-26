@@ -22,6 +22,7 @@ import {
 } from '@space-planner/core';
 import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
+import { compareFamily, figureText } from './variants.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
 export interface ToolDef {
@@ -745,6 +746,75 @@ export const TOOLS: readonly ToolDef[] = [
       if (chosen.commands.length === 0) return `Nothing to place.\n${text}`;
       const updated = commit(ctx, project, [...chosen.commands], str(input, 'summary', true) || `Packed ${chosen.commands.length} pieces (${chosen.label.toLowerCase()})`);
       return afterChange(updated, `Applied "${chosen.label}".`) + '\n' + describeRules(updated).join('\n');
+    },
+  },
+  {
+    name: 'create_variant',
+    description:
+      'Create a linked alternative of a project so an idea can be tried without touching the approved plan. Returns the new project id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        name: { type: 'string', description: 'Short name of the idea, e.g. "Reach truck, 3 m aisles".' },
+      },
+      required: ['project_id', 'name'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const created = ctx.store.createVariant(project.id, str(input, 'name').slice(0, 200), ctx.actor);
+      if (!created) throw new ToolError('could not create the variant');
+      return `Created variant ${created.id} "${created.name}" of ${ctx.store.summary(created.id)?.variantOf}. Change it with the usual tools using project_id ${created.id}.`;
+    },
+  },
+  {
+    name: 'compare_variants',
+    description:
+      'Compare a project and all its variants side by side: errors, warnings, failed/unknown rules, and pack-specific decision figures. Nothing changes.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const rows = compareFamily(ctx.store, project.id);
+      if (rows.length < 2) return `${project.id} has no variants yet. Use create_variant.`;
+      return rows
+        .map(
+          (row) =>
+            `${row.base ? 'BASE ' : ''}${row.project.id} "${row.project.name}" rev ${row.project.revision}: ${row.errors} errors, ${row.warnings} warnings, ${row.rulesFailed} rules failed, ${row.rulesUnknown} unknown; ${row.figures.map((figure) => `${figure.label} ${figureText(figure)}`).join(', ')}`,
+        )
+        .join('\n');
+    },
+  },
+  {
+    name: 'adopt_variant',
+    description:
+      'Adopt a variant into its approved/base project as one new reversible revision. Use only when the person explicitly asked to adopt it.',
+    inputSchema: {
+      type: 'object',
+      properties: { variant_id: { type: 'string' }, summary },
+      required: ['variant_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const id = str(input, 'variant_id');
+      const result = ctx.store.adoptVariant(id, ctx.actor);
+      if (!result.ok) {
+        throw new ToolError(
+          result.status === 400
+            ? `${id} is not a variant`
+            : result.status === 404
+              ? `No project "${id}"`
+              : result.status === 422
+                ? `Rejected: ${result.rejection.message}`
+                : 'the base changed meanwhile; try again',
+        );
+      }
+      return afterChange(result.project, `Adopted ${id} into ${result.project.id}.`);
     },
   },
   {

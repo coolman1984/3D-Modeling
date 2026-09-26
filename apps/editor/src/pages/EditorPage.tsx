@@ -35,6 +35,7 @@ import {
   FrameCorners,
   GearSix,
   GridFour,
+  GitFork,
   Keyboard,
   LineSegments,
   ListBullets,
@@ -86,6 +87,7 @@ import { WarehousePanel } from '../ui/Warehouse.js';
 import { ProductionPanel } from '../ui/Production.js';
 import { DepotPanel } from '../ui/Depot.js';
 import { RestaurantPanel } from '../ui/Restaurant.js';
+import { VariantsDialog } from '../ui/Variants.js';
 
 type ViewMode = 'plan' | '3d' | 'split';
 type LeftPanel = 'load' | 'warehouse' | 'production' | 'depot' | 'restaurant' | 'library' | 'objects' | 'space' | 'precision';
@@ -170,6 +172,7 @@ function Editor({ initial }: { initial: Project }) {
   const [playStep, setPlayStep] = useState<number | null>(null);
   const [right, setRight] = useState<RightTab>('properties');
   const [aiOpen, setAiOpen] = useState(false);
+  const [variantsOpen, setVariantsOpen] = useState(false);
   const [aiRunning, setAiRunning] = useState(false);
   const [editingType, setEditingType] = useState<Id | 'new' | null>(null);
   const [fitToken, setFitToken] = useState(0);
@@ -494,6 +497,10 @@ function Editor({ initial }: { initial: Project }) {
             { id: 'split', label: <><Columns size={15} />Split</> },
           ]}
         />
+        <button type="button" className="btn ghost" onClick={() => setVariantsOpen(true)} title="Compare alternatives of this plan">
+          <GitFork size={16} />
+          <span className="hide-narrow">Variants</span>
+        </button>
         <a className={`btn ghost${saving ? ' disabled' : ''}`} href={saving ? undefined : `#/p/${project.id}/report`} aria-disabled={saving} title="Printable report for the client">
           <FileText size={16} />
           <span className="hide-narrow">Client report</span>
@@ -810,6 +817,7 @@ function Editor({ initial }: { initial: Project }) {
         </button>
       </footer>
 
+      {variantsOpen && <VariantsDialog project={project} onClose={() => setVariantsOpen(false)} />}
       {editingType && <ItemTypeDialog key={editingType} pack={activity.pack} project={project} editing={editingType} onClose={() => setEditingType(null)} dispatch={dispatch} />}
     </div>
   );

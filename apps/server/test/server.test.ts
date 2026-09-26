@@ -40,6 +40,21 @@ async function until<T>(check: () => T | undefined | null | false, timeout = 10_
 }
 
 describe('store', () => {
+  it('opens a database made before variants and adds the link column without changing old projects', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    store.close();
+    const path = join(dir, 'old.db');
+    const old = new DatabaseSync(path);
+    old.exec(`CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, revision INTEGER NOT NULL, item_count INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      INSERT INTO projects VALUES ('p-old', 'Old', 0, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');`);
+    old.close();
+    const reopened = new Store(path);
+    expect(reopened.listProjects()).toEqual([expect.objectContaining({ id: 'p-old', variantOf: null })]);
+    reopened.close();
+    new Store(path).close();
+    store = new Store(join(dir, 'planner.db'));
+  });
+
   it('keeps every change as a revision with who and what', () => {
     const project = store.createProject(demoHall(), 'human');
     expect(project.id).toMatch(/^p-/);
@@ -99,6 +114,45 @@ describe('store', () => {
 });
 
 describe('agent tools', () => {
+  it('variants: an agent proposes in a linked copy, compares it, and a person adopts it as one revision', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'DC', activity: 'warehouse', width_m: 30, depth_m: 20, ceiling_m: 8 });
+    const id = /Created (p-[\w]+)/.exec(created.text)?.[1];
+    expect(id).toBeTruthy();
+    const made = runTool(ctx, 'create_variant', { project_id: id!, name: 'Three rows' });
+    const variant = /Created variant (p-[\w]+)/.exec(made.text)?.[1];
+    expect(variant).toBeTruthy();
+    expect(store.summary(variant!)).toMatchObject({ variantOf: id, name: 'Three rows' });
+
+    for (const x of [5, 10, 15]) {
+      const added = runTool(ctx, 'add_warehouse_rack', { project_id: variant!, x_m: x, y_m: 10, bays: 4, levels: 4, positions_per_level: 2 });
+      expect(added.isError).toBe(false);
+    }
+    const secondText = runTool(ctx, 'create_variant', { project_id: variant!, name: 'Four rows' }).text;
+    const second = /Created variant (p-[\w]+)/.exec(secondText)?.[1];
+    expect(second).toBeTruthy();
+    expect(store.summary(second!)?.variantOf).toBe(id);
+    expect(store.familyOf(second!).map((project) => project.id)).toEqual([id, variant, second]);
+
+    const comparison = runTool(ctx, 'compare_variants', { project_id: id! }).text;
+    expect(comparison).toContain(`BASE ${id} "DC"`);
+    expect(comparison).toContain('Pallet locations');
+    expect(comparison).toContain(`${variant} "Three rows"`);
+    expect(Object.keys(store.getProject(id!)!.items)).toHaveLength(0);
+
+    expect(runTool(ctx, 'adopt_variant', { variant_id: id }).isError).toBe(true);
+    const adopted = runTool({ store, actor: 'human' }, 'adopt_variant', { variant_id: variant });
+    expect(adopted.isError).toBe(false);
+    const base = store.getProject(id!)!;
+    expect(base.revision).toBe(1);
+    expect(Object.keys(base.items).length).toBeGreaterThan(0);
+    expect(base.name).toBe('DC');
+    expect(store.history(id!)[0]).toMatchObject({ actor: 'human', summary: 'Adopted variant “Three rows”' });
+
+    store.deleteProject(id!);
+    expect(store.summary(variant!)?.variantOf).toBeNull();
+  });
+
   it('creates a warehouse and adds an addressable rack through one revision', () => {
     const ctx = { store, actor: 'agent:test' };
     const created = runTool(ctx, 'create_project', { name: 'Warehouse', activity: 'warehouse', reference: true });
