@@ -1,9 +1,13 @@
 import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
-import { rackSpecOf, shapeOf, type RackSpec, type ShapeKey } from '@space-planner/starter';
+import { materialOf, materialsOf, rackSpecOf, rackStock, shapeOf, slotId, slotPlacement, type RackSpec, type ShapeKey } from '@space-planner/starter';
 import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Scissors, Square } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { stockColor, type StockView } from './Stock.js';
+import { cartonFace, cartonStack, corrugated, planks, printedCarton } from './textures.js';
 import { headingQuarter, type ControlSettings } from '../logic/controls.js';
 import type { Action } from '../logic/session.js';
 import { snapMove } from '../logic/snap.js';
@@ -26,6 +30,8 @@ interface Props {
   readonly look?: SceneLook | undefined;
   /** Start with full-height walls (a container shell) instead of walls cut at 1.10 m. */
   readonly fullWallsAtStart?: boolean;
+  /** Told when a stored pallet is clicked: its location id and rack row. */
+  readonly onSlot?: ((slot: string, rackId: Id) => void) | undefined;
 }
 
 export interface SceneLook {
@@ -34,6 +40,8 @@ export interface SceneLook {
   /** Leave out the south wall (the one nearest the starting camera) to look inside. */
   readonly cutaway?: boolean;
   readonly routePoints?: readonly Vec2[];
+  /** How rack stock is coloured, which material is picked out and which location is selected. */
+  readonly stock?: StockView;
 }
 
 const TICKS_PER_METRE = 10_000;
@@ -67,6 +75,19 @@ const COLORS = {
   error: 0xb93a2e,
   warning: 0x9a6400,
   grid: 0x1a1917,
+  rackUpright: 0x2f5a96,
+  rackBeam: 0xe07a2c,
+  palletWood: 0xc29a66,
+  forklift: 0xf0b429,
+  forkliftDark: 0x2c2b29,
+  carton: 0xefeae0,
+  dimStock: 0xe6e3dc,
+  containerSteel: 0x3d78a8,
+  containerFloor: 0xb88657,
+  warehouseFloor: 0xe7e4dd,
+  safetyYellow: 0xe8b923,
+  walkGreen: 0x3f8f5a,
+  dockPlate: 0x4a4844,
 };
 
 /**
@@ -95,12 +116,28 @@ function frameRoom(scene: THREE.Scene, camera: THREE.PerspectiveCamera, room: { 
 
 function lights(scene: THREE.Scene, background: number | null = 0xefede8): void {
   scene.background = background === null ? null : new THREE.Color(background);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b2a8, 1.6));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b2a8, 1.25));
+  const sun = new THREE.DirectionalLight(0xfff8ee, 1.9);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.02;
   scene.add(sun, sun.target);
+}
+
+/**
+ * Soft studio reflections and a tone curve that keeps the design colours: metal racking, printed
+ * cartons and steel shells read as materials instead of flat paint.
+ */
+function studio(renderer: THREE.WebGLRenderer, scene: THREE.Scene, reflections = true): void {
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 1;
+  // Building the reflection map blocks the page for a moment; one-off report pictures skip it.
+  if (!reflections) return;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.45;
+  pmrem.dispose();
 }
 
 /**
@@ -122,6 +159,7 @@ export function renderSnapshot(project: Project, issues: readonly Issue[], width
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const scene = new THREE.Scene();
     lights(scene);
+    studio(renderer, scene, false);
     const content = buildScene(project, issues, [], fullWalls, look);
     scene.add(content);
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 2000);
@@ -129,6 +167,7 @@ export function renderSnapshot(project: Project, issues: readonly Issue[], width
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
     disposeTree(content);
+    scene.environment?.dispose();
     return url;
   } catch {
     return null;
@@ -165,7 +204,16 @@ function cylinder(r: number, h: number, color: number, x = 0, y = h / 2, z = 0, 
  * A simple model for each shape, in the item's local frame: width along X, depth along Z,
  * front facing -Z (plan north at rotation 0), standing on Y = 0.
  */
-function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: RackSpec): THREE.Group {
+interface ModelExtra {
+  /** Text printed on a carton's large faces: "line|size". */
+  readonly print?: string | undefined;
+  /** Racks show the real stock layer instead of placeholder loads. */
+  readonly stocked?: boolean;
+  /** Draw as a loaded pallet with this load colour (a stock material on the floor). */
+  readonly pallet?: number | undefined;
+}
+
+function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: RackSpec, extra: ModelExtra = {}): THREE.Group {
   const g = new THREE.Group();
   const leg = Math.min(0.05, w / 8, d / 8);
   const legs = (height: number, color: number, inset = 0.04) => {
@@ -224,30 +272,56 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: Rac
       if (!rack) { g.add(box(w, h, d, COLORS.metal)); break; }
       const upright = mt(rack.uprightWidth);
       const bay = mt(rack.bayWidth);
+      // Level 1 is the floor; every level above stands on a pair of beams (same pitch as `slotPlacement`).
+      const pitch = h / rack.levels;
+      const post = Math.min(0.09, upright);
       for (let b = 0; b <= rack.bays; b++) {
         const x = -w / 2 + upright / 2 + b * (bay + upright);
-        for (const z of [-d / 2 + upright / 2, d / 2 - upright / 2]) g.add(box(upright, h, upright, COLORS.metal, x, h / 2, z));
+        for (const z of [-d / 2 + post / 2, d / 2 - post / 2]) g.add(box(post, h, post, COLORS.rackUpright, x, h / 2, z));
+        // Frame bracing between the front and back posts.
+        for (let k = 0; k < Math.max(2, Math.round(h / 1.2)); k++) g.add(box(0.03, 0.03, d - post, COLORS.rackUpright, x, 0.15 + (k * (h - 0.3)) / Math.max(1, Math.round(h / 1.2) - 1)));
       }
-      const loadColors = [COLORS.palletA, COLORS.palletB, COLORS.palletC];
-      const loadD = Math.max(0.1, d - upright * 2 - 0.04);
-      const loadH = Math.max(0.12, (h / (rack.levels + 0.25)) * 0.55);
-      // Group bays into at most 3 loads per level: distinct pallets on a typical row, capped so
-      // a template's mesh count stays bounded on a very long rack (every rack instance gets its
-      // own template with no cross-rack instancing, so a per-bay count multiplies by rack count).
-      const groups = Math.min(rack.bays, 3);
-      const baysPerGroup = Math.ceil(rack.bays / groups);
-      for (let level = 1; level <= rack.levels; level++) {
-        const y = (level / (rack.levels + 0.25)) * h;
-        for (const z of [-d / 2 + upright / 2, d / 2 - upright / 2]) g.add(box(w - upright, 0.08, 0.07, COLORS.metal, 0, y, z));
-        for (let gStart = 0; gStart < rack.bays; gStart += baysPerGroup) {
-          const gEnd = Math.min(rack.bays, gStart + baysPerGroup);
-          const x0 = -w / 2 + upright + gStart * (bay + upright);
-          const x1 = -w / 2 + upright + (gEnd - 1) * (bay + upright) + bay;
-          const gx = (x0 + x1) / 2;
-          const gw = (x1 - x0) * 0.94;
-          g.add(box(gw, loadH, loadD * 0.9, loadColors[(gStart / baysPerGroup + level) % loadColors.length]!, gx, y + 0.08 + loadH / 2));
+      for (let level = 2; level <= rack.levels; level++) {
+        const y = (level - 1) * pitch;
+        for (const z of [-d / 2 + post / 2, d / 2 - post / 2]) g.add(box(w - upright, 0.11, 0.05, COLORS.rackBeam, 0, y - 0.055, z));
+      }
+      if (!extra.stocked) {
+        // Placeholder loads for racks with no stock data: at most 3 per level keeps long rows cheap.
+        const loadColors = [COLORS.palletA, COLORS.palletB, COLORS.palletC];
+        const loadD = Math.max(0.1, d - post * 2 - 0.04);
+        const loadH = Math.max(0.12, Math.min(1.5, pitch - 0.3));
+        const groups = Math.min(rack.bays, 3);
+        const baysPerGroup = Math.ceil(rack.bays / groups);
+        for (let level = 1; level <= rack.levels; level++) {
+          const y = (level - 1) * pitch;
+          for (let gStart = 0; gStart < rack.bays; gStart += baysPerGroup) {
+            const gEnd = Math.min(rack.bays, gStart + baysPerGroup);
+            const x0 = -w / 2 + upright + gStart * (bay + upright);
+            const x1 = -w / 2 + upright + (gEnd - 1) * (bay + upright) + bay;
+            const gw = (x1 - x0) * 0.94;
+            g.add(box(gw, 0.14, loadD * 0.9, COLORS.palletWood, (x0 + x1) / 2, y + 0.07));
+            g.add(box(gw * 0.97, loadH - 0.14, loadD * 0.86, loadColors[(gStart / baysPerGroup + level) % loadColors.length]!, (x0 + x1) / 2, y + 0.14 + (loadH - 0.14) / 2));
+          }
         }
       }
+      break;
+    }
+    case 'forklift': {
+      // Front (forks) faces -Z like every model; body, counterweight and overhead guard behind.
+      const bodyD = d * 0.6;
+      const bodyZ = d / 2 - bodyD / 2;
+      const wheel = Math.min(0.28, h * 0.13);
+      g.add(box(w * 0.92, h * 0.34, bodyD, COLORS.forklift, 0, wheel + h * 0.17, bodyZ));
+      g.add(box(w * 0.94, h * 0.3, 0.32, COLORS.forkliftDark, 0, wheel + h * 0.15, d / 2 - 0.16));
+      g.add(box(w * 0.5, 0.08, 0.45, COLORS.forkliftDark, 0, wheel + h * 0.34 + 0.12, bodyZ + 0.05));
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(box(0.05, h * 0.52, 0.05, COLORS.forkliftDark, sx * (w * 0.42), wheel + h * 0.34 + h * 0.26, bodyZ + sz * bodyD * 0.38));
+      g.add(box(w * 0.9, 0.04, bodyD * 0.82, COLORS.forkliftDark, 0, h - 0.02, bodyZ));
+      const mastZ = d / 2 - bodyD - 0.06;
+      for (const sx of [-1, 1]) g.add(box(0.09, h * 1.02, 0.12, COLORS.forkliftDark, sx * w * 0.28, (h * 1.02) / 2, mastZ));
+      g.add(box(w * 0.66, 0.5, 0.05, COLORS.forkliftDark, 0, 0.35, mastZ - 0.08));
+      const forkL = d - bodyD - 0.2;
+      for (const sx of [-1, 1]) g.add(box(0.12, 0.05, forkL, COLORS.metal, sx * w * 0.2, 0.06, mastZ - 0.1 - forkL / 2));
+      for (const sx of [-1, 1]) for (const z of [bodyZ - bodyD * 0.3, d / 2 - 0.3]) g.add(box(0.2, wheel * 2, wheel * 2, COLORS.tyre, sx * (w / 2 - 0.1), wheel, z));
       break;
     }
     case 'plant': {
@@ -282,33 +356,94 @@ function buildModel(shape: ShapeKey, w: number, d: number, h: number, rack?: Rac
       }
       break;
     }
-    default:
-      g.add(box(w, h, d, COLORS.box));
+    default: {
+      if (extra.pallet !== undefined) {
+        // A stock material standing on the floor: wooden pallet, stretch-wrapped load on top.
+        g.add(box(w, 0.14, d, COLORS.palletWood));
+        const load = new THREE.Mesh(new THREE.BoxGeometry(w * 0.97, Math.max(0.05, h - 0.14), d * 0.95), new THREE.MeshStandardMaterial({ color: extra.pallet, map: cartonStack(), roughness: 0.6 }));
+        load.position.y = 0.14 + Math.max(0.05, h - 0.14) / 2;
+        load.castShadow = true;
+        load.receiveShadow = true;
+        g.add(load);
+        break;
+      }
+      const map = extra.print ? printedCarton(extra.print) : null;
+      const face = cartonFace();
+      if (!map) {
+        const plainBox = box(w, h, d, COLORS.box);
+        if (face) (plainBox.material as THREE.MeshStandardMaterial).map = face;
+        g.add(plainBox);
+        break;
+      }
+      // Print on the two large upright faces; box faces are ordered +x, −x, +y, −y, +z, −z.
+      const plain = new THREE.MeshStandardMaterial({ color: COLORS.carton, map: face, roughness: 0.85 });
+      const printed = new THREE.MeshStandardMaterial({ color: 0xffffff, map, roughness: 0.7 });
+      const onZ = w >= d;
+      const faces = onZ ? [plain, plain, plain, plain, printed, printed] : [printed, printed, plain, plain, plain, plain];
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), faces);
+      mesh.position.y = h / 2;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      g.add(mesh);
+    }
   }
   return g;
 }
 
+/**
+ * Fold a model's meshes into one geometry per look, so a rack row with 60 posts and beams costs
+ * two draw calls instead of sixty; every part keeps its place through its own matrix.
+ */
+function mergeTemplate(template: THREE.Group): Array<{ geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[]; castShadow: boolean; receiveShadow: boolean }> {
+  template.updateMatrixWorld(true);
+  const groups = new Map<string, { material: THREE.Material; geometries: THREE.BufferGeometry[]; castShadow: boolean; receiveShadow: boolean }>();
+  const parts: Array<{ geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[]; castShadow: boolean; receiveShadow: boolean }> = [];
+  template.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+    if (Array.isArray(mesh.material)) {
+      parts.push({ geometry, material: mesh.material, castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow });
+      return;
+    }
+    const m = mesh.material as THREE.MeshStandardMaterial;
+    const key = `${m.color?.getHex()}|${m.emissive?.getHex()}|${m.emissiveIntensity}|${m.map?.uuid ?? ''}|${m.transparent}|${m.opacity}|${mesh.castShadow}`;
+    const group = groups.get(key);
+    if (group) group.geometries.push(geometry);
+    else groups.set(key, { material: m, geometries: [geometry], castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow });
+  });
+  for (const { material, geometries, castShadow, receiveShadow } of groups.values()) {
+    const merged = geometries.length === 1 ? geometries[0]! : mergeGeometries(geometries);
+    if (merged) {
+      if (merged !== geometries[0]) geometries.forEach((x) => x.dispose());
+      parts.push({ geometry: merged, material, castShadow, receiveShadow });
+    } else geometries.forEach((geometry) => parts.push({ geometry, material, castShadow, receiveShadow }));
+  }
+  return parts;
+}
+
 /** Give every mesh of a model one colour (colour by stop, weight or loading step). */
-function paint(group: THREE.Object3D, color: number): void {
+function restyle(group: THREE.Object3D, change: (m: THREE.MeshStandardMaterial) => void): void {
   group.traverse((o) => {
     const mesh = o as THREE.Mesh;
-    if (mesh.isMesh) {
-      const m = (mesh.material as THREE.MeshStandardMaterial).clone();
-      m.color = new THREE.Color(color);
-      mesh.material = m;
-    }
+    if (!mesh.isMesh) return;
+    const one = (source: THREE.Material) => {
+      const m = (source as THREE.MeshStandardMaterial).clone();
+      change(m);
+      return m;
+    };
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(one) : one(mesh.material);
   });
 }
 
+function paint(group: THREE.Object3D, color: number): void {
+  restyle(group, (m) => (m.color = new THREE.Color(color)));
+}
+
 function tint(group: THREE.Object3D, color: number, strength: number): void {
-  group.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (mesh.isMesh) {
-      const m = (mesh.material as THREE.MeshStandardMaterial).clone();
-      m.emissive = new THREE.Color(color);
-      m.emissiveIntensity = strength;
-      mesh.material = m;
-    }
+  restyle(group, (m) => {
+    m.emissive = new THREE.Color(color);
+    m.emissiveIntensity = strength;
   });
 }
 
@@ -318,13 +453,18 @@ function disposeTree(object: THREE.Object3D): void {
     if (mesh.isMesh || (o as THREE.Line).isLine) {
       mesh.geometry.dispose();
       (o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).dispose();
-      (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => m.dispose());
+      (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => {
+        // Shared textures stay cached; per-wall copies (their own repeat) go with the scene.
+        const map = (m as THREE.MeshStandardMaterial).map;
+        if (map?.userData.owned) map.dispose();
+        m.dispose();
+      });
     }
   });
 }
 
 /** Wall pieces along one boundary edge, leaving gaps where doors hang on it. */
-function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THREE.Group): void {
+function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THREE.Group, skin?: (length: number) => THREE.Material): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const length = Math.hypot(dx, dy);
@@ -357,6 +497,10 @@ function wallEdge(project: Project, a: Vec2, b: Vec2, height: number, group: THR
     if (len <= 0.001 || top - bottom <= 0.001) continue;
     const mid = { x: a.x + dx * ((t0 + t1) / 2) + (outward.x * WALL_THICKNESS * TICKS_PER_METRE) / 2, y: a.y + dy * ((t0 + t1) / 2) + (outward.y * WALL_THICKNESS * TICKS_PER_METRE) / 2 };
     const wall = box(len + WALL_THICKNESS, top - bottom, WALL_THICKNESS, COLORS.wall);
+    if (skin) {
+      (wall.material as THREE.Material).dispose();
+      wall.material = skin(len + WALL_THICKNESS);
+    }
     wall.position.copy(at(mid, (top + bottom) / 2));
     wall.rotation.y = Math.atan2(dy, dx);
     group.add(wall);
@@ -368,20 +512,47 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
   const ceiling = project.space.ceilingHeight === undefined ? 3 : mt(project.space.ceilingHeight);
   const wallHeight = fullWalls ? ceiling : Math.min(1.1, ceiling);
 
+  const pack = project.space.meta?.pack;
+  const isContainer = pack === 'container';
+  const isWarehouse = pack === 'warehouse';
   const shape = new THREE.Shape(project.space.boundary.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
-  const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), material(COLORS.floor));
+  // Shape UVs are in metres, so a repeating texture keeps its real size on any floor.
+  const floorMaterial = isContainer
+    ? new THREE.MeshStandardMaterial({ color: COLORS.containerFloor, map: planks(), roughness: 0.8 })
+    : material(isWarehouse ? COLORS.warehouseFloor : COLORS.floor);
+  if (isWarehouse) floorMaterial.roughness = 0.55;
+  const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMaterial);
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   group.add(floor);
 
+  const lines = new Map<number, THREE.BufferGeometry[]>();
   for (const zone of project.space.zones ?? []) {
     const kind = zone.kind;
     const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind === 'bay' ? COLORS.bayLine : kind.includes('aisle') ? 0x7bb198 : 0x829fc3;
     const region = new THREE.Shape(zone.polygon.map((p) => new THREE.Vector2(mt(p.x), mt(p.y))));
-    const overlay = new THREE.Mesh(new THREE.ShapeGeometry(region), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.12 : 0.23, side: THREE.DoubleSide, depthWrite: false }));
+    const overlay = new THREE.Mesh(new THREE.ShapeGeometry(region), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.08 : isWarehouse ? 0.16 : 0.23, side: THREE.DoubleSide, depthWrite: false }));
     overlay.rotation.x = -Math.PI / 2;
     overlay.position.y = 0.009;
     group.add(overlay);
+    if (!isWarehouse || kind === 'storage') continue;
+    // Painted floor lines around warehouse zones: yellow for traffic, green walkways, red no-go.
+    const paint = kind === 'pedestrian' ? COLORS.walkGreen : kind === 'no-go' ? COLORS.error : COLORS.safetyYellow;
+    const list = lines.get(paint) ?? [];
+    zone.polygon.forEach((p, i) => {
+      const q = zone.polygon[(i + 1) % zone.polygon.length]!;
+      const length = mt(Math.hypot(q.x - p.x, q.y - p.y));
+      if (length < 0.01) return;
+      const strip = new THREE.BoxGeometry(length + 0.1, 0.004, 0.1);
+      strip.applyMatrix4(new THREE.Matrix4().compose(at({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, 0.012), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(q.y - p.y, q.x - p.x)), new THREE.Vector3(1, 1, 1)));
+      list.push(strip);
+    });
+    lines.set(paint, list);
+  }
+  for (const [color, geometries] of lines) {
+    const merged = mergeGeometries(geometries);
+    geometries.forEach((g) => g.dispose());
+    if (merged) group.add(new THREE.Mesh(merged, new THREE.MeshBasicMaterial({ color })));
   }
 
   // A light one-metre grid on the floor, as on the plan.
@@ -397,11 +568,40 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
     const a = b[i]!;
     const c = b[(i + 1) % b.length]!;
     if (look.cutaway && a.y === south && c.y === south) continue;
-    wallEdge(project, a, c, wallHeight, group);
+    wallEdge(project, a, c, wallHeight, group, isContainer ? (length) => {
+      // Corrugated steel: about one rib every 28 cm, on a copy so each wall keeps its own repeat.
+      const map = corrugated()?.clone() ?? null;
+      if (map) {
+        map.repeat.set(length / 0.28, 1);
+        map.userData.owned = true;
+        map.needsUpdate = true;
+      }
+      return new THREE.MeshStandardMaterial({ color: COLORS.containerSteel, map, roughness: 0.5, metalness: 0.35 });
+    } : undefined);
   }
 
   for (const door of project.space.doors) {
     const open = ((door.angle + (door.swing === 'left' ? 90_000 : -90_000)) / 1000) * (Math.PI / 180);
+    if (door.meta?.role) {
+      // A loading dock: a dock leveller plate inside the opening with yellow edges, no swinging leaf.
+      const along = (door.angle / 1000) * (Math.PI / 180);
+      const plateDepth = 2.2;
+      const centre = {
+        x: door.hinge.x + (Math.cos(along) * door.width) / 2 + Math.cos(open) * (plateDepth / 2) * TICKS_PER_METRE,
+        y: door.hinge.y + (Math.sin(along) * door.width) / 2 + Math.sin(open) * (plateDepth / 2) * TICKS_PER_METRE,
+      };
+      const plate = box(mt(door.width) * 0.8, 0.03, plateDepth, COLORS.dockPlate);
+      plate.position.copy(at(centre, 0.015));
+      plate.rotation.y = along;
+      group.add(plate);
+      for (const side of [-1, 1]) {
+        const edge = box(0.12, 0.035, plateDepth, COLORS.safetyYellow);
+        edge.position.copy(at({ x: centre.x + Math.cos(along) * side * (door.width * 0.4 + 600), y: centre.y + Math.sin(along) * side * (door.width * 0.4 + 600) }, 0.017));
+        edge.rotation.y = along;
+        group.add(edge);
+      }
+      continue;
+    }
     const leaf = box(mt(door.width), DOOR_HEIGHT, 0.04, COLORS.darkWood);
     const centre = { x: door.hinge.x + (Math.cos(open) * door.width) / 2, y: door.hinge.y + (Math.sin(open) * door.width) / 2 };
     leaf.position.copy(at(centre, DOOR_HEIGHT / 2));
@@ -429,7 +629,10 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
     if (issue.severity === 'error' || !severity.has(first)) severity.set(first, issue.severity);
   }
 
-  group.add(buildItems(project, severity, selectedIds, look));
+  const stocked = materialsOf(project).length > 0;
+  group.add(buildItems(project, severity, selectedIds, look, stocked));
+  const stock = stocked ? buildStock(project, look.stock ?? { colorBy: 'material', find: null, slot: null }) : null;
+  if (stock) group.add(stock);
   if (look.routePoints?.length) {
     const points = look.routePoints.map((p) => at(p, 0.07));
     const route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x2b54d0, depthTest: false }));
@@ -458,7 +661,7 @@ const STATE_TINT: Readonly<Record<Exclude<ItemState, 'normal'>, [number, number]
  * share one model whose meshes become `InstancedMesh`es, so 500 chairs cost a few draw calls
  * instead of 3 000 meshes. `userData.itemIds[instanceId]` maps a hit back to the item.
  */
-function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warning'>, selectedIds: readonly Id[], look: SceneLook): THREE.Group {
+function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warning'>, selectedIds: readonly Id[], look: SceneLook, stocked: boolean): THREE.Group {
   const group = new THREE.Group();
   group.name = 'items';
   const selected = new Set(selectedIds);
@@ -480,35 +683,104 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
   const unit = new THREE.Vector3(1, 1, 1);
   for (const { definition, tilt, state, color, items } of batches.values()) {
     const { w, d, h } = definition.size;
-    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), rackSpecOf(definition));
+    const print = typeof definition.meta?.print === 'string' ? definition.meta.print : undefined;
+    const asMaterial = materialOf(definition);
+    const pallet = asMaterial ? stockColor(asMaterial, look.stock?.colorBy ?? 'material') : undefined;
+    const template = buildModel(shapeOf(definition.category), mt(w), mt(d), mt(h), rackSpecOf(definition), { print, stocked, pallet });
     // A lying item: turn the upright model about its centre, then stand it on the floor again.
     const placedHeight = tilt === 'x' ? mt(w) : tilt === 'y' ? mt(d) : mt(h);
     const lay = new THREE.Matrix4()
       .makeTranslation(0, placedHeight / 2, 0)
       .multiply(tilt === 'x' ? new THREE.Matrix4().makeRotationZ(Math.PI / 2) : tilt === 'y' ? new THREE.Matrix4().makeRotationX(Math.PI / 2) : new THREE.Matrix4())
       .multiply(new THREE.Matrix4().makeTranslation(0, -mt(h) / 2, 0));
-    template.updateMatrixWorld(true);
     if (color !== undefined) paint(template, color);
     if (state !== 'normal') tint(template, ...STATE_TINT[state]);
     const ids = items.map((i) => i.id);
-    template.traverse((o) => {
-      const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      const local = lay.clone().multiply(mesh.matrixWorld);
-      const instanced = new THREE.InstancedMesh(mesh.geometry, mesh.material, items.length);
+    for (const part of mergeTemplate(template)) {
+      const instanced = new THREE.InstancedMesh(part.geometry, part.material, items.length);
       items.forEach((item, k) => {
         quaternion.setFromAxisAngle(up, (item.rotation / 1000) * (Math.PI / 180));
-        itemMatrix.compose(at(item.position, mt(item.elevation ?? 0)), quaternion, unit).multiply(local);
+        itemMatrix.compose(at(item.position, mt(item.elevation ?? 0)), quaternion, unit).multiply(lay);
         instanced.setMatrixAt(k, itemMatrix);
       });
       instanced.instanceMatrix.needsUpdate = true;
       instanced.computeBoundingSphere();
-      instanced.castShadow = mesh.castShadow;
-      instanced.receiveShadow = mesh.receiveShadow;
+      instanced.castShadow = part.castShadow;
+      instanced.receiveShadow = part.receiveShadow;
       instanced.userData.itemIds = ids;
       instanced.name = 'item';
       group.add(instanced);
-    });
+    }
+  }
+  return group;
+}
+
+/**
+ * Every stored pallet, from the racks' stock data: all wooden bases in one instanced mesh and all
+ * loads in another, coloured per instance, so ten thousand pallets are two draw calls. When one
+ * material is picked out, the rest fade to a pale grey.
+ */
+function buildStock(project: Project, view: StockView): THREE.Group | null {
+  const pallets: Array<{ slot: string; rackId: Id; center: Vec2; rotation: number; elevation: number; width: number; depth: number; loadHeight: number; color: number }> = [];
+  const heightOf = new Map<Id, number>();
+  for (const rack of Object.values(project.items).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    const spec = rackSpecOf(project.catalog[rack.definitionId]);
+    const stock = spec && rackStock(project, rack.id);
+    if (!spec || !stock) continue;
+    stock.forEach((levels, b) => levels.forEach((positions, l) => positions.forEach((material, p) => {
+      if (!material) return;
+      const slot = { rackId: rack.id, bay: b + 1, level: l + 1, position: p + 1 };
+      const place = slotPlacement(rack, spec, slot);
+      const definition = project.catalog[material];
+      if (!heightOf.has(material)) heightOf.set(material, definition ? mt(definition.size.h) : 1.2);
+      const info = materialOf(definition);
+      const picked = view.find === null || view.find === material;
+      pallets.push({
+        slot: slotId(slot),
+        rackId: rack.id,
+        center: place.center,
+        rotation: rack.rotation,
+        elevation: mt(place.elevation),
+        width: mt(place.width) * 0.84,
+        depth: mt(place.depth) * 0.84,
+        loadHeight: Math.max(0.2, Math.min(heightOf.get(material)! - 0.14, mt(place.height) - 0.32)),
+        color: picked ? stockColor(info, view.colorBy) : COLORS.dimStock,
+      });
+    })));
+  }
+  if (pallets.length === 0) return null;
+  const group = new THREE.Group();
+  group.name = 'stock';
+  const unitBox = new THREE.BoxGeometry(1, 1, 1);
+  const bases = new THREE.InstancedMesh(unitBox, new THREE.MeshStandardMaterial({ color: COLORS.palletWood, roughness: 0.9 }), pallets.length);
+  const loads = new THREE.InstancedMesh(unitBox.clone(), new THREE.MeshStandardMaterial({ color: 0xffffff, map: cartonStack(), roughness: 0.6 }), pallets.length);
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const tint = new THREE.Color();
+  pallets.forEach((p, k) => {
+    quaternion.setFromAxisAngle(up, (p.rotation / 1000) * (Math.PI / 180));
+    bases.setMatrixAt(k, matrix.compose(at(p.center, p.elevation + 0.07), quaternion, new THREE.Vector3(p.width, 0.14, p.depth)));
+    loads.setMatrixAt(k, matrix.compose(at(p.center, p.elevation + 0.14 + p.loadHeight / 2), quaternion, new THREE.Vector3(p.width * 0.97, p.loadHeight, p.depth * 0.95)));
+    loads.setColorAt(k, tint.setHex(p.color));
+  });
+  for (const mesh of [bases, loads]) {
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.slotIds = pallets.map((p) => p.slot);
+    mesh.userData.rackIds = pallets.map((p) => p.rackId);
+    group.add(mesh);
+  }
+  if (loads.instanceColor) loads.instanceColor.needsUpdate = true;
+  const selected = pallets.find((p) => p.slot === view.slot);
+  if (selected) {
+    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(selected.width + 0.12, selected.loadHeight + 0.26, selected.depth + 0.12)), new THREE.LineBasicMaterial({ color: COLORS.selected, depthTest: false }));
+    outline.position.copy(at(selected.center, selected.elevation + (selected.loadHeight + 0.14) / 2));
+    outline.rotation.y = (selected.rotation / 1000) * (Math.PI / 180);
+    outline.renderOrder = 22;
+    group.add(outline);
   }
   return group;
 }
@@ -518,7 +790,7 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
  * drag an item to slide it over the floor, Shift+drag to raise or lower it, Alt for precision;
  * click / Shift-click selects. Every drag is one saved change.
  */
-export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken, onHeading, look, fullWallsAtStart = false }: Props) {
+export function View3D({ project, saved, issues, selectedIds, controls: settings, dispatch, fitToken, onHeading, look, fullWallsAtStart = false, onSlot }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const three = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -531,8 +803,8 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   const [topView, setTopView] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The event handlers are set up once; they read the latest props through this ref.
-  const latest = useRef({ saved, selectedIds, settings, dispatch, onHeading });
-  latest.current = { saved, selectedIds, settings, dispatch, onHeading };
+  const latest = useRef({ saved, selectedIds, settings, dispatch, onHeading, onSlot });
+  latest.current = { saved, selectedIds, settings, dispatch, onHeading, onSlot };
 
   useEffect(() => {
     const host = hostRef.current;
@@ -552,6 +824,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
 
     const scene = new THREE.Scene();
     lights(scene, null);
+    studio(renderer, scene);
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -591,10 +864,19 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       ray.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
       return ray;
     };
-    const itemAt = (e: PointerEvent): Id | null => {
+    /** The nearest item or stored pallet under the pointer: a pallet in front of its rack wins. */
+    const hitAt = (e: PointerEvent): { item: Id } | { slot: string; rack: Id } | null => {
       const content = three.current?.content;
-      const hit = content ? rayAt(e).intersectObjects(content.children, true).find((h) => h.object.userData.itemIds && h.instanceId !== undefined) : undefined;
-      return hit ? ((hit.object.userData.itemIds as readonly Id[])[hit.instanceId!] ?? null) : null;
+      const hit = content ? rayAt(e).intersectObjects(content.children, true).find((h) => (h.object.userData.itemIds || h.object.userData.slotIds) && h.instanceId !== undefined) : undefined;
+      if (!hit) return null;
+      const data = hit.object.userData;
+      if (data.slotIds) return { slot: (data.slotIds as string[])[hit.instanceId!]!, rack: (data.rackIds as Id[])[hit.instanceId!]! };
+      const item = (data.itemIds as readonly Id[])[hit.instanceId!];
+      return item ? { item } : null;
+    };
+    const itemAt = (e: PointerEvent): Id | null => {
+      const hit = hitAt(e);
+      return hit && 'item' in hit ? hit.item : null;
     };
     const onPlane = (e: PointerEvent, height: number): THREE.Vector3 | null =>
       rayAt(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -height), new THREE.Vector3());
@@ -612,12 +894,18 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       moved: boolean;
     };
     let drag: Drag | null = null;
-    let click: { x: number; y: number; id: Id | null; additive: boolean; wasSelected: boolean } | null = null;
+    let click: { x: number; y: number; id: Id | null; additive: boolean; wasSelected: boolean; slot?: { slot: string; rack: Id } } | null = null;
 
     // Runs before the camera controls (capture phase), so grabbing an item never orbits the camera.
     const onDown = (e: PointerEvent) => {
       const additive = e.shiftKey || e.ctrlKey || e.metaKey;
-      const id = e.button === 0 ? itemAt(e) : null;
+      const hit = e.button === 0 ? hitAt(e) : null;
+      if (hit && 'slot' in hit && latest.current.onSlot) {
+        // A stored pallet: a click selects its location; dragging still orbits the camera.
+        click = { x: e.clientX, y: e.clientY, id: null, additive, wasSelected: false, slot: hit };
+        return;
+      }
+      const id = hit && 'item' in hit ? hit.item : null;
       const { saved: p, selectedIds: selection, dispatch: send } = latest.current;
       click = { x: e.clientX, y: e.clientY, id, additive, wasSelected: id !== null && selection.includes(id) };
       if (!id) return;
@@ -679,8 +967,12 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       }
       // A click (not a drag): pick the item under the pointer, or clear on empty space.
       if (!click || Math.hypot(e.clientX - click.x, e.clientY - click.y) > 4) return;
-      const { id, additive, wasSelected } = click;
+      const { id, additive, wasSelected, slot } = click;
       click = null;
+      if (slot) {
+        latest.current.onSlot?.(slot.slot, slot.rack);
+        return;
+      }
       if (id && wasSelected) send({ type: 'select', ids: [id], mode: additive ? 'toggle' : 'replace' });
       else if (!id && !additive) send({ type: 'select', ids: [] });
     };
@@ -697,6 +989,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       canvas.removeEventListener('pointerup', onUp);
       controls.dispose();
       if (three.current?.content) disposeTree(three.current.content);
+      scene.environment?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       three.current = null;

@@ -20,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -392,6 +392,63 @@ export const TOOLS: readonly ToolDef[] = [
       const project = load(ctx, input);
       if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
       return JSON.stringify(warehouseMetrics(project));
+    },
+  },
+  {
+    name: 'warehouse_stock',
+    description: 'Read what is stored in a warehouse: occupied and total pallet locations, units, and pallets per material (id, name, speed class). Give material_id to also list its locations (e.g. "W01-B02-L03-P01" = rack row W01, bay 2, level 3 from the floor, position 1).',
+    inputSchema: { type: 'object', properties: { project_id: projectId, material_id: { type: 'string' } }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      const s = stockMetrics(project);
+      const material = str(input, 'material_id', true);
+      return JSON.stringify({
+        positions: s.positions, occupied: s.occupied, occupancy: Math.round(s.occupancy * 1000) / 10, units: s.units, massKg: s.mass === undefined ? null : Math.round(s.mass / 1000), byVelocity: s.byVelocity,
+        materials: s.byMaterial.map((r) => ({ id: r.material.id, name: r.material.name, velocity: r.material.velocity ?? null, movesPerWeek: r.material.movesPerWeek ?? null, pallets: r.pallets, units: r.units })),
+        ...(material ? { locations: locationsOf(project, material).slice(0, 300) } : {}),
+      });
+    },
+  },
+  {
+    name: 'assign_stock',
+    description: 'Put materials into rack locations or empty them (material_id null), as one revision. Locations look like "W01-B02-L03-P01".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        changes: { type: 'array', minItems: 1, maxItems: 500, items: { type: 'object', properties: { location: { type: 'string' }, material_id: { type: ['string', 'null'] } }, required: ['location', 'material_id'], additionalProperties: false } },
+      },
+      required: ['project_id', 'changes'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const changes = list(input, 'changes').map((c) => {
+        const location = str(c, 'location');
+        if (!/^.+-B\d+-L\d+-P\d+$/.test(location)) throw new ToolError(`Location "${location}" should look like W01-B02-L03-P01.`);
+        const material = c.material_id === null ? null : str(c, 'material_id');
+        return { ...parseSlot(location), material };
+      });
+      const result = stockCommands(project, changes);
+      if (!result.ok) throw new ToolError(`Cannot store that (${result.problem.replace(/-/g, ' ')})${result.slot ? ` at rack ${result.slot.rackId} bay ${result.slot.bay} level ${result.slot.level} position ${result.slot.position}` : ''}.`);
+      const updated = commit(ctx, project, result.commands, `Updated ${changes.length} stock location${changes.length === 1 ? '' : 's'}`);
+      return `Updated ${changes.length} location(s), revision ${updated.revision}.`;
+    },
+  },
+  {
+    name: 'optimize_slotting',
+    description: 'Propose re-slotting the stock on hand so the busiest materials sit nearest the shipping dock and lowest; reports weekly forklift travel before and after. Set apply true to make it one revision.',
+    inputSchema: { type: 'object', properties: { project_id: projectId, dock_id: { type: 'string' }, apply: { type: 'boolean' } }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      const dock = str(input, 'dock_id', true);
+      const candidate = optimizeSlotting(project, dock ? { dockId: dock } : {});
+      const facts = JSON.stringify({ ...candidate.metrics, explanation: candidate.explanation, leftOver: candidate.leftOver.length });
+      if (input.apply !== true || candidate.commands.length === 0) return facts;
+      const updated = commit(ctx, project, [...candidate.commands], `Re-slotted stock (${candidate.metrics.saving ?? 0}% less forklift travel)`);
+      return `Applied, revision ${updated.revision}. ${facts}`;
     },
   },
   {

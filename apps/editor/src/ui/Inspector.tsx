@@ -63,6 +63,7 @@ import {
 } from '../logic/transform.js';
 import { CommitField, NumberField } from './Fields.js';
 import { CargoGroup, containerFacts } from './Container.js';
+import { RackLocations, type StockView } from './Stock.js';
 import { toTicks } from './units.js';
 
 /** Everything the review counts, shared by the inspector tab, the status bar and the summary box. */
@@ -120,6 +121,8 @@ export function PropertiesPanel({
   onOpenReview,
   onShow3D,
   onFocusIssue,
+  stockView,
+  onStockView,
 }: {
   project: Project;
   selectedIds: readonly Id[];
@@ -133,10 +136,12 @@ export function PropertiesPanel({
   onOpenReview: () => void;
   onShow3D: () => void;
   onFocusIssue: (issue: Issue) => void;
+  stockView?: StockView;
+  onStockView?: (view: StockView) => void;
 }) {
   const items = selectedIds.map((id) => project.items[id]).filter((i) => i !== undefined);
   if (items.length === 0) return <ProjectSummary project={project} metrics={metrics} activity={activity} summary={summary} onOpenReview={onOpenReview} />;
-  if (items.length === 1) return <OneItem project={project} id={items[0]!.id} controls={controls} issues={issues} dispatch={dispatch} onEditType={onEditType} onShow3D={onShow3D} onFocusIssue={onFocusIssue} cargo={activity.pack === 'container'} production={activity.pack === 'production'} />;
+  if (items.length === 1) return <OneItem project={project} id={items[0]!.id} controls={controls} issues={issues} dispatch={dispatch} onEditType={onEditType} onShow3D={onShow3D} onFocusIssue={onFocusIssue} cargo={activity.pack === 'container'} production={activity.pack === 'production'} stockView={stockView} onStockView={onStockView} />;
   return <ManyItems project={project} ids={items.map((i) => i.id)} controls={controls} dispatch={dispatch} />;
 }
 
@@ -228,9 +233,13 @@ function OneItem({
   onFocusIssue,
   cargo,
   production,
+  stockView,
+  onStockView,
 }: {
   cargo: boolean;
   production: boolean;
+  stockView?: StockView | undefined;
+  onStockView?: ((view: StockView) => void) | undefined;
   project: Project;
   id: Id;
   controls: ControlSettings;
@@ -326,6 +335,7 @@ function OneItem({
         </div>
       </Group>
       {cargo && <CargoGroup project={project} item={item} dispatch={dispatch} />}
+      {rackSpecOf(definition) && stockView && onStockView && <RackLocations project={project} item={item} view={stockView} onView={onStockView} dispatch={dispatch} />}
       {rackSpecOf(definition) && <RackGroup project={project} item={item} dispatch={dispatch} />}
       {production && stationKindOf(definition) && <FlowGroup project={project} item={item} dispatch={dispatch} />}
       {vehicleProfileOf(definition) && <DepotGroup project={project} item={item} />}

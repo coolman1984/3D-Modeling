@@ -81,6 +81,7 @@ import { ControlsPanel, GRID_OPTIONS, ObjectsPanel } from '../ui/Panels.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
 import { View3D, type SceneLook } from '../ui/View3D.js';
+import type { StockView } from '../ui/Stock.js';
 import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 import { WarehousePanel } from '../ui/Warehouse.js';
 import { ProductionPanel } from '../ui/Production.js';
@@ -163,6 +164,7 @@ function Editor({ initial }: { initial: Project }) {
   const [view, setView] = useState<ViewMode>(cargo ? 'split' : 'plan');
   const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : loadActivity(initial).pack === 'warehouse' ? 'warehouse' : loadActivity(initial).pack === 'production' ? 'production' : loadActivity(initial).pack === 'depot' ? 'depot' : loadActivity(initial).pack === 'restaurant' ? 'restaurant' : 'library');
   const [routeEndpoints, setRouteEndpoints] = useState<{ dockId: string; rackId: string } | null>(null);
+  const [stockView, setStockView] = useState<StockView>({ colorBy: 'material', find: null, slot: null });
   const [depotBayId, setDepotBayId] = useState<string | null>(null);
   const [tableRouteEndpoints, setTableRouteEndpoints] = useState<{ doorId: string; tableId: string } | null>(null);
   const [colorBy, setColorBy] = useState<ColorBy>('type');
@@ -428,9 +430,14 @@ function Editor({ initial }: { initial: Project }) {
     [isCargo, colorBy, shownProject],
   );
   const look = useMemo<SceneLook | undefined>(
-    () => (isCargo && colors ? { itemColors: colors.colors, hidden: hiddenAfter(shownProject, playStep), cutaway } : routePoints ? { routePoints } : undefined),
-    [isCargo, colors, shownProject, playStep, cutaway, routePoints],
+    () => (isCargo && colors ? { itemColors: colors.colors, hidden: hiddenAfter(shownProject, playStep), cutaway } : isWarehouse ? { ...(routePoints ? { routePoints } : {}), stock: stockView } : routePoints ? { routePoints } : undefined),
+    [isCargo, isWarehouse, colors, shownProject, playStep, cutaway, routePoints, stockView],
   );
+  const onSlot = useCallback((slot: string, rackId: string) => {
+    setStockView((v) => ({ ...v, slot }));
+    dispatch({ type: 'select', ids: [rackId] });
+    setRight('properties');
+  }, []);
 
   const toggleSnap = () => {
     if (controls.grid > 1) {
@@ -603,7 +610,7 @@ function Editor({ initial }: { initial: Project }) {
               </button>
             </div>
             {left === 'load' && isCargo && <LoadPanel project={project} dispatch={dispatch} />}
-            {left === 'warehouse' && isWarehouse && <WarehousePanel project={project} route={route} onRoute={(dockId, rackId) => setRouteEndpoints({ dockId, rackId })} onAddRack={() => { const rack = project.catalog['warehouse-rack-6']; if (rack) addItem(rack); }} dispatch={dispatch} />}
+            {left === 'warehouse' && isWarehouse && <WarehousePanel project={project} route={route} onRoute={(dockId, rackId) => setRouteEndpoints({ dockId, rackId })} onAddRack={() => { const rack = project.catalog['warehouse-rack-6']; if (rack) addItem(rack); }} stockView={stockView} onStockView={setStockView} dispatch={dispatch} />}
             {left === 'production' && isProduction && <ProductionPanel project={project} dispatch={dispatch} />}
             {left === 'depot' && isDepot && <DepotPanel project={project} entry={depotEntry} onCheck={setDepotBayId} dispatch={dispatch} />}
             {left === 'restaurant' && isRestaurant && <RestaurantPanel project={project} route={tableRoute} onRoute={(doorId, tableId) => setTableRouteEndpoints({ doorId, tableId })} />}
@@ -658,6 +665,7 @@ function Editor({ initial }: { initial: Project }) {
                 fitToken={fitToken}
                 onHeading={(q) => (heading.current = q)}
                 look={look}
+                onSlot={isWarehouse && !preview ? onSlot : undefined}
                 fullWallsAtStart={isCargo}
               />
               {isCargo && colors && (
@@ -742,6 +750,7 @@ function Editor({ initial }: { initial: Project }) {
                       }
                     }}
                     onFocusIssue={focusIssue}
+                    {...(isWarehouse ? { stockView, onStockView: setStockView } : {})}
                   />
                 )}
                 {right === 'review' && (

@@ -5,13 +5,16 @@ import { formatCount } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import type { Action } from '../logic/session.js';
 import { takenIds } from '../logic/transform.js';
+import { StockSection, type StockView } from './Stock.js';
 
 /** Warehouse controls in the existing Atrium left rail. Routes are derived, never saved. */
-export function WarehousePanel({ project, route, onRoute, onAddRack, dispatch }: {
+export function WarehousePanel({ project, route, onRoute, onAddRack, stockView, onStockView, dispatch }: {
   project: Project;
   route: RouteResult | null;
   onRoute: (dockId: string, rackId: string) => void;
   onAddRack: () => void;
+  stockView: StockView;
+  onStockView: (view: StockView) => void;
   dispatch: (action: Action) => void;
 }) {
   const docks = project.space.doors;
@@ -48,6 +51,7 @@ export function WarehousePanel({ project, route, onRoute, onAddRack, dispatch }:
         <div className="fact"><span>Docks</span><span>{metrics.docks}</span></div>
       </div>
       <button className="btn" type="button" onClick={onAddRack} style={{ margin: '18px 0 24px' }}>Add rack row</button>
+      <StockSection project={project} view={stockView} onView={onStockView} dispatch={dispatch} />
       <div className="kicker">Forklift route</div>
       <p className="sub">{DEFAULT_FORKLIFT.name}. Select a dock and a rack row.</p>
       <label className="stack">From dock
