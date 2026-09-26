@@ -19,6 +19,10 @@ test('variants: change an alternative only, compare it, then adopt it as one bas
   await expect(firstDialog.locator('thead th[data-variant]')).toHaveCount(1);
   await firstDialog.getByLabel('Variant name').fill('Five-bay first row');
   await firstDialog.getByTestId('new-variant').click();
+  await page.waitForURL((url) => {
+    const id = /#\/p\/([\w-]+)/.exec(url.toString())?.[1];
+    return Boolean(id && id !== baseId);
+  });
   await saved(page);
 
   const variantId = /#\/p\/([\w-]+)/.exec(page.url())![1]!;
