@@ -1,7 +1,8 @@
 import { boundsOf, containsPolygon, createProject, fromUnit, itemPolygon, roomSpace, rotate, type ItemDefinition, type ItemInstance, type Project, type Vec2 } from '@space-planner/core';
-import { findRoute, floorRaster, type MovementProfile, type RouteResult } from '@space-planner/industry';
+import { findRoute, floorRaster, simulateLine, type LineResult, type MovementProfile, type RouteResult, type StationSpec } from '@space-planner/industry';
 import { stepOf } from './container.js';
 import type { RuleResult } from './rules.js';
+import type { SimulationPort } from './optimization.js';
 
 const m = (n: number) => fromUnit(n, 'm');
 const cm = (n: number) => fromUnit(n, 'cm');
@@ -25,11 +26,11 @@ function station(id: string, name: string, w: number, d: number, h: number, kind
 export type StationKind = 'source' | 'machine' | 'buffer' | 'inspection' | 'sink';
 
 export const PRODUCTION_CATALOG: readonly ItemDefinition[] = [
-  station('source', 'Material source', 100, 100, 110, 'source'),
-  station('machine-a', 'Machine A', 200, 150, 160, 'machine', 90, 60),
+  station('source', 'Material source', 100, 100, 110, 'source', 0, 0, { cycleMs: 30_000 }),
+  station('machine-a', 'Machine A', 200, 150, 160, 'machine', 90, 60, { cycleMs: 60_000 }),
   station('buffer', 'WIP buffer', 150, 100, 90, 'buffer', 0, 0, { capacity: 20 }),
-  station('machine-b', 'Machine B', 250, 180, 170, 'machine', 90, 60),
-  station('inspection', 'Inspection station', 120, 100, 110, 'inspection', 70, 0),
+  station('machine-b', 'Machine B', 250, 180, 170, 'machine', 90, 60, { cycleMs: 90_000 }),
+  station('inspection', 'Inspection station', 120, 100, 110, 'inspection', 70, 0, { cycleMs: 30_000 }),
   station('sink', 'Finished goods', 100, 100, 110, 'sink'),
 ];
 
@@ -160,6 +161,45 @@ export function productionMetrics(project: Project): ProductionMetrics {
     totalSegments,
     floorArea,
   };
+}
+
+/** The placed flow as the deterministic simulator sees it. Spatial routes stay separate. */
+export function productionLineSpec(project: Project): StationSpec[] {
+  const order = flowOrder(project);
+  return order.map((item, index) => {
+    const definition = project.catalog[item.definitionId]!;
+    const kind = stationKindOf(definition);
+    const next = index + 1 < order.length ? [order[index + 1]!.id] : [];
+    const cycle = typeof definition.meta?.cycleMs === 'number' ? Math.round(definition.meta.cycleMs) : undefined;
+    const capacity = typeof definition.meta?.capacity === 'number' ? Math.round(definition.meta.capacity) : undefined;
+    const simulationKind = kind === 'source' ? 'source' : kind === 'buffer' ? 'buffer' : kind === 'sink' ? 'sink' : kind === 'machine' || kind === 'inspection' ? 'machine' : undefined;
+    if (!simulationKind) return { id: item.id, kind: 'machine' as const, next };
+    return {
+      id: item.id,
+      kind: simulationKind,
+      ...(cycle === undefined ? {} : { cycle }),
+      ...(capacity === undefined ? {} : { capacity }),
+      next,
+    };
+  });
+}
+
+export interface ProductionSimulationOptions {
+  /** Hours to simulate, normally one shift. */
+  readonly hours: number;
+}
+
+/**
+ * Operational simulation from entered cycle times only. Geometry never becomes a fake cycle time.
+ * The same project and hours always produce exactly the same result.
+ */
+export const productionSimulator: SimulationPort<ProductionSimulationOptions, LineResult> = {
+  id: 'production-line-des-v1',
+  run: (project, options) => simulateLine(productionLineSpec(project), Math.round(Math.max(0, options.hours) * 3_600_000)),
+};
+
+export function simulateProduction(project: Project, hours = 8): LineResult {
+  return productionSimulator.run(project, { hours });
 }
 
 export function checkProduction(project: Project): RuleResult[] {
