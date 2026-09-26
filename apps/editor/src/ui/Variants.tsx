@@ -72,7 +72,17 @@ export function VariantsDialog({ project, onClose }: { project: Project; onClose
     }
   };
 
-  const figureRows = rows?.[0]?.figures.map((f, k) => ({ label: f.label, better: f.better, cells: rows.map((r) => r.figures[k]) })) ?? [];
+  const figureRows = (() => {
+    if (!rows) return [];
+    const definitions = new Map<string, Figure>();
+    for (const row of rows) for (const figure of row.figures) if (!definitions.has(figure.id)) definitions.set(figure.id, figure);
+    return [...definitions.values()].map((definition) => ({
+      id: definition.id,
+      label: definition.label,
+      better: definition.better,
+      cells: rows.map((row) => row.figures.find((figure) => figure.id === definition.id)),
+    }));
+  })();
   const counts: Array<{ label: string; key: 'errors' | 'warnings' | 'rulesFailed' | 'rulesUnknown' }> = [
     { label: 'Errors', key: 'errors' },
     { label: 'Warnings', key: 'warnings' },
@@ -114,7 +124,7 @@ export function VariantsDialog({ project, onClose }: { project: Project; onClose
               {figureRows.map((row) => {
                 const best = bestOf(row.cells.map((c) => c?.value), row.better);
                 return (
-                  <tr key={row.label}>
+                  <tr key={row.id}>
                     <th>{row.label}</th>
                     {row.cells.map((c, i) => (
                       <td key={i} className={`num${i === best ? ' best' : ''}`}>
