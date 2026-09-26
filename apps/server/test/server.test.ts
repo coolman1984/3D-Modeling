@@ -124,7 +124,10 @@ describe('agent tools', () => {
     expect(variant).toBeTruthy();
     expect(store.summary(variant!)).toMatchObject({ variantOf: id, name: 'Three rows' });
 
-    runTool(ctx, 'add_rack_rows', { project_id: variant!, x_m: 5, y_m: 10, bays: 4, rows: 3, aisle_m: 3 });
+    for (const x of [5, 10, 15]) {
+      const added = runTool(ctx, 'add_warehouse_rack', { project_id: variant!, x_m: x, y_m: 10, bays: 4, levels: 4, positions_per_level: 2 });
+      expect(added.isError).toBe(false);
+    }
     const secondText = runTool(ctx, 'create_variant', { project_id: variant!, name: 'Four rows' }).text;
     const second = /Created variant (p-[\w]+)/.exec(secondText)?.[1];
     expect(second).toBeTruthy();
