@@ -6,6 +6,28 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-09
 
+### B1: fix the six source-review findings (bugs.md), each with a regression test
+
+`0c7e07c` · 2026-09-27
+
+What changed and why (decision 0020):
+1. High - ids that are built-in object names (constructor, toString, __proto__...): core apply
+   now uses own-property lookups, so a command naming a missing "constructor" type is a broken
+   reference instead of saving a project that can no longer be opened. The store also validates
+   the whole result before committing (422 if it could not be reopened). No schema change.
+2. High - restore needs baseRevision: POST /restore returns 400 without it and 409 with the
+   latest project when the caller's view is stale; restore_revision takes optional
+   base_revision; the editor sends it from all three restore buttons, shows the conflict and
+   disables restore while its own edits are unsaved.
+3. Medium - unsaved edits retry by themselves on reconnect and on a 2 s..30 s backoff; the
+   browser asks before closing a tab with unsaved edits; the banner says they are not saved yet.
+4. Medium - settings validated at PUT /api/settings (400, nothing saved); broken stored agents
+   skipped on load; a failed agent start always finishes its run and clears its timeout.
+5. Medium - deleting a project stops every active run of it (runner tracks project ids), not
+   only the newest 20 listed runs.
+
+…8 more lines in the commit.
+
 ### Docs: refresh generated status, changelog and work log after D2
 
 `9ec3ad6` · 2026-09-26

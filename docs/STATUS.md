@@ -5,8 +5,8 @@
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
 - **Branch:** `main`
-- **Last commit:** `9ec3ad6` Docs: refresh generated status, changelog and work log after D2
-- **Uncommitted files:** 21
+- **Last commit:** `0c7e07c` B1: fix the six source-review findings (bugs.md), each with a regression test
+- **Uncommitted files:** 0
 
 ## Current stage: B1 — fix the six findings in `bugs.md` (source review, 27 Sep 2026)
 
@@ -16,32 +16,11 @@ Where work stands. Read this first after an interruption, then `TASKS.md`.
 
 ## Uncommitted work
 
-```
- M README.md
- M TASKS.md
- M apps/editor/src/api.ts
- M apps/editor/src/logic/messages.ts
- M apps/editor/src/pages/EditorPage.tsx
- M apps/editor/src/ui/AgentPanel.tsx
- M apps/editor/src/ui/HistoryPanel.tsx
- M apps/server/src/agents.ts
- M apps/server/src/http.ts
- M apps/server/src/settings.ts
- M apps/server/src/store.ts
- M apps/server/src/tools.ts
- M apps/server/test/server.test.ts
- M packages/core/src/commands/apply.ts
-?? apps/editor/e2e/review.spec.ts
-?? apps/editor/src/logic/retry.ts
-?? apps/editor/test/retry.test.ts
-?? apps/server/test/review.test.ts
-?? bugs.md
-?? docs/decisions/0020-review-fixes.md
-?? packages/core/test/reserved-ids.test.ts
-```
+Nothing uncommitted.
 
 ## Recent checkpoints
 
+- `7e9631f` 2026-09-27 12:16 B1 committed and pushed (0c7e07c)
 - `7933955` 2026-09-27 12:04 B1: all six review findings fixed with tests
 - `9ec3ad6` 2026-09-26 16:40 Docs: refresh generated status, changelog and work log after D2
 - `3db5e56` 2026-09-26 16:23 D2: Samsung Egypt sample, site pack, 3D engine v2, graphics levels, Paradigm design, docs system
@@ -51,7 +30,6 @@ Where work stands. Read this first after an interruption, then `TASKS.md`.
 - `09f169c` 2026-09-25 22:08 Merge pull request #5 from coolman1984/claude/bold-wright-kdi8rf
 - `4a09669` 2026-09-25 19:39 Merge pull request #4 from coolman1984/claude/bold-wright-kdi8rf
 - `526bca7` 2026-09-25 18:40 T7: add warehouse planning foundation
-- `547b207` 2026-09-25 17:39 Merge pull request #2 from coolman1984/claude/quirky-shannon-hyya2z
 
 ## How to resume
 
