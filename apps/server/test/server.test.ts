@@ -301,7 +301,8 @@ describe('HTTP app', () => {
     expect(stale.body.project.revision).toBe(1);
     expect((await json(`/api/projects/${id}/commands`, { method: 'POST', body: JSON.stringify({ commands: [{ type: 'item.remove', id: 'x' }] }) })).status).toBe(422);
     expect((await json(`/api/projects/${id}/history`)).body).toHaveLength(2);
-    const restored = await json(`/api/projects/${id}/restore`, { method: 'POST', body: JSON.stringify({ revision: 0 }) });
+    // A restore names the revision this window last saw (1, after the add), so it can be refused if stale.
+    const restored = await json(`/api/projects/${id}/restore`, { method: 'POST', body: JSON.stringify({ revision: 0, baseRevision: 1 }) });
     expect(restored.body.project).toMatchObject({ revision: 2, items: {} });
     expect((await json('/api/projects/nope')).status).toBe(404);
     expect((await json('/api/projects', { method: 'POST', body: JSON.stringify({ width_m: -1, depth_m: 3 }) })).status).toBe(400);

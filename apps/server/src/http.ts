@@ -4,7 +4,7 @@ import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
 import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
-import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
+import { loadSettings, publicSettings, saveSettings, settingsProblems, type Settings } from './settings.js';
 import type { Store } from './store.js';
 import { runTool, toolSummaries } from './tools.js';
 
@@ -168,7 +168,8 @@ export function createApp(options: AppOptions): App {
   route('GET', '/api/projects/:id', (_q, res, [id]) => send(res, 200, projectOr404(id!)));
 
   route('DELETE', '/api/projects/:id', (_q, res, [id]) => {
-    runnerStopForProject(id!);
+    // Every active agent of the project, not only the newest listed runs (bugs.md finding 5).
+    runner.stopProject(id!);
     send(res, store.deleteProject(id!) ? 200 : 404, { ok: true });
   });
 
@@ -195,7 +196,11 @@ export function createApp(options: AppOptions): App {
 
   route('GET', '/api/projects/:id/history', (_q, res, [id], url) => {
     projectOr404(id!);
-    send(res, 200, store.history(id!, Math.min(500, Number(url.searchParams.get('limit') ?? 100) || 100)));
+    const raw = url.searchParams.get('limit');
+    const limit = raw === null ? 100 : Number(raw);
+    // A whole number 1..500; SQLite reads a negative LIMIT as "no limit" (bugs.md finding 6).
+    if (!Number.isInteger(limit) || limit < 1) throw new HttpError(400, 'limit must be a whole number from 1 to 500');
+    send(res, 200, store.history(id!, Math.min(500, limit)));
   });
 
   route('GET', '/api/projects/:id/revisions/:rev', (_q, res, [id, rev]) => {
@@ -206,9 +211,14 @@ export function createApp(options: AppOptions): App {
 
   route('POST', '/api/projects/:id/restore', async (req, res, [id]) => {
     const body = await readJson(req);
-    const result = store.restore(id!, Number(body.revision), 'human');
-    if (!result.ok) throw new HttpError(404, 'revision not found');
-    send(res, 200, { ok: true, project: result.project });
+    // The revision this window last saw is required, so a restore never lands on a newer plan unseen.
+    if (!Number.isInteger(body.revision) || !Number.isInteger(body.baseRevision)) {
+      throw new HttpError(400, 'revision and baseRevision (the revision you last saw) are required');
+    }
+    const result = store.restore(id!, body.revision as number, 'human', body.baseRevision as number);
+    if (result.ok) send(res, 200, { ok: true, project: result.project });
+    else if (result.status === 409) send(res, 409, { ok: false, conflict: true, project: result.project });
+    else throw new HttpError(404, 'revision not found');
   });
 
   route('GET', '/api/tools', (_q, res) => send(res, 200, toolSummaries()));
@@ -222,8 +232,10 @@ export function createApp(options: AppOptions): App {
   route('GET', '/api/settings', (_q, res) => send(res, 200, publicSettings(loadSettings(store))));
 
   route('PUT', '/api/settings', async (req, res) => {
-    const body = (await readJson(req)) as Partial<Settings>;
-    send(res, 200, publicSettings(saveSettings(store, body)));
+    const body = await readJson(req);
+    const problems = settingsProblems(body);
+    if (problems.length > 0) throw new HttpError(400, `settings not saved: ${problems.join('; ')}`);
+    send(res, 200, publicSettings(saveSettings(store, body as Partial<Settings>)));
   });
 
   route('GET', '/api/agents', (_q, res) => send(res, 200, runner.availability()));
@@ -253,10 +265,6 @@ export function createApp(options: AppOptions): App {
     clients.add(res);
     req.on('close', () => clients.delete(res));
   });
-
-  function runnerStopForProject(projectId: string) {
-    for (const run of store.listRuns(projectId)) if (run.status === 'running') runner.stop(run.id);
-  }
 
   /**
    * The API can start programs on this computer (agents), so only this app may call it:

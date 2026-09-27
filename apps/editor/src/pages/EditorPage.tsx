@@ -59,7 +59,8 @@ import { loadActivity, saveActivity, type Activity } from '../logic/activity.js'
 import { acceleratedStep, arrowSteps, copyOffset, keyIntent, loadControls, ownsKeys, saveControls, turnNudge, type ControlSettings } from '../logic/controls.js';
 import { formatCount, formatMetres } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
-import { REJECTION_MESSAGES } from '../logic/messages.js';
+import { REJECTION_MESSAGES, RESTORE_CONFLICT } from '../logic/messages.js';
+import { retryDelay } from '../logic/retry.js';
 import { findFreeSpot } from '../logic/placement.js';
 import { reduce, startSession, visibleProject, type Action } from '../logic/session.js';
 import {
@@ -226,6 +227,33 @@ function Editor({ initial }: { initial: Project }) {
       });
   }, [session.outbox, project.id, load, retry]);
 
+  // Edits that could not be saved are tried again on their own: on a growing timer while the
+  // server is away, and at once when the live connection comes back (bugs.md finding 3).
+  const attempts = useRef(0);
+  const pendingEdits = session.outbox.length;
+  useEffect(() => {
+    if (!offline) {
+      attempts.current = 0;
+      return;
+    }
+    if (pendingEdits === 0) return;
+    const timer = window.setTimeout(() => {
+      attempts.current += 1;
+      setRetry((n) => n + 1);
+    }, retryDelay(attempts.current));
+    return () => window.clearTimeout(timer);
+  }, [offline, retry, pendingEdits]);
+  // Closing or reloading the tab would lose edits that are not saved yet: ask first.
+  useEffect(() => {
+    if (pendingEdits === 0) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [pendingEdits]);
+
   // Live changes made by agents or other windows.
   const latest = useRef({ revision: project.revision, pending: session.outbox.length });
   latest.current = { revision: project.revision, pending: session.outbox.length };
@@ -257,6 +285,8 @@ function Editor({ initial }: { initial: Project }) {
       // Changes made before the live connection opened (or while it was down) are fetched now.
       open: () => {
         if (latest.current.pending === 0) fetchLatest('Updated with changes made elsewhere');
+        // Back online with edits waiting: send them now rather than at the next click.
+        else setRetry((n) => n + 1);
       },
     });
   }, [project.id, fetchLatest]);
@@ -597,7 +627,7 @@ function Editor({ initial }: { initial: Project }) {
         <div className="offline-bar" role="status">
           <WifiSlash size={15} />
           <span>
-            <strong style={{ fontWeight: 600 }}>Connection lost.</strong> Your last {formatCount(session.outbox.length)} {session.outbox.length === 1 ? 'change is' : 'changes are'} kept here and will be saved when the server is back.
+            <strong style={{ fontWeight: 600 }}>Connection lost.</strong> {formatCount(session.outbox.length)} {session.outbox.length === 1 ? 'change is' : 'changes are'} not saved yet. Trying again on its own; keep this tab open until it says Saved.
           </span>
           <span className="spacer" />
           <button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>
@@ -700,11 +730,13 @@ function Editor({ initial }: { initial: Project }) {
               <button
                 type="button"
                 className="btn light"
+                disabled={saving}
+                title={saving ? 'Wait until your latest changes are saved' : undefined}
                 onClick={() => {
                   const revision = preview.revision;
-                  void api.restore(project.id, revision).then((r) => {
+                  void api.restore(project.id, revision, project.revision).then((r) => {
                     setPreview(null);
-                    load(r.project, `Restored revision ${revision}`);
+                    load(r.project, r.ok ? `Restored revision ${revision}` : RESTORE_CONFLICT);
                   });
                 }}
               >
@@ -795,9 +827,9 @@ function Editor({ initial }: { initial: Project }) {
                     busy={saving}
                     previewing={preview?.revision ?? null}
                     onPreview={(revision) => void api.revision(project.id, revision).then((p) => setPreview({ revision, project: p }))}
-                    onRestored={(p, revision) => {
+                    onRestored={(p, revision, conflict) => {
                       setPreview(null);
-                      load(p, `Restored revision ${revision}`);
+                      load(p, conflict ? RESTORE_CONFLICT : `Restored revision ${revision}`);
                     }}
                   />
                 )}

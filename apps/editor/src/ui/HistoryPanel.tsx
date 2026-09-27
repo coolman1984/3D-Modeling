@@ -17,7 +17,8 @@ export function HistoryPanel({
   /** The revision shown read-only in the plan, if any. */
   previewing: number | null;
   onPreview: (revision: number) => void;
-  onRestored: (p: Project, revision: number) => void;
+  /** `conflict`: the project changed elsewhere first, so nothing was restored and `p` is the latest. */
+  onRestored: (p: Project, revision: number, conflict: boolean) => void;
 }) {
   const [items, setItems] = useState<RevisionInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export function HistoryPanel({
                       className="btn small"
                       disabled={busy}
                       onClick={() => {
-                        void api.restore(project.id, h.revision).then((r) => onRestored(r.project, h.revision));
+                        void api.restore(project.id, h.revision, project.revision).then((r) => onRestored(r.project, h.revision, !r.ok));
                       }}
                     >
                       Restore revision

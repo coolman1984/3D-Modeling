@@ -926,16 +926,21 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'restore_revision',
-    description: 'Bring back an earlier revision as a new revision (nothing is erased).',
+    description:
+      'Bring back an earlier revision as a new revision (nothing is erased). Pass base_revision (the revision you last read) so the restore is refused if someone changed the project since.',
     inputSchema: {
       type: 'object',
-      properties: { project_id: projectId, revision: { type: 'integer' } },
+      properties: { project_id: projectId, revision: { type: 'integer' }, base_revision: { type: 'integer' } },
       required: ['project_id', 'revision'],
       additionalProperties: false,
     },
     run: (ctx, input) => {
       const project = load(ctx, input);
-      const result = ctx.store.restore(project.id, Math.round(num(input, 'revision')), ctx.actor);
+      const base = num(input, 'base_revision', true);
+      const result = ctx.store.restore(project.id, Math.round(num(input, 'revision')), ctx.actor, base === undefined ? undefined : Math.round(base));
+      if (!result.ok && result.status === 409) {
+        throw new ToolError(`The project changed since revision ${String(base)}; it is now at revision ${result.project.revision}. Read it again (get_project) before restoring.`);
+      }
       if (!result.ok) throw new ToolError('no such revision');
       return afterChange(result.project, `Restored revision ${String(input.revision)}.`);
     },

@@ -37,6 +37,7 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0017 — Generated docs, work log and checkpoints](decisions/0017-docs-and-checkpoints.md)
 - [0018 — Graphics levels for the 3D view](decisions/0018-graphics-levels.md)
 - [0019 — "Paradigm" visual system replaces the warm Atrium palette](decisions/0019-paradigm-visual-system.md)
+- [0020 — Fixes from the 27 September source review (`bugs.md`)](decisions/0020-review-fixes.md)
 
 ## Generated
 

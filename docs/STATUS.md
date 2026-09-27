@@ -4,36 +4,58 @@
 
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
-- **Branch:** `claude/d1-sample-company`
-- **Last commit:** `3db5e56` D2: Samsung Egypt sample, site pack, 3D engine v2, graphics levels, Paradigm design, docs system
-- **Uncommitted files:** 0
+- **Branch:** `main`
+- **Last commit:** `9ec3ad6` Docs: refresh generated status, changelog and work log after D2
+- **Uncommitted files:** 21
 
-## Current stage: D2 — Samsung Electronics Egypt (Beni Suef) sample + 3D engine v2
+## Current stage: B1 — fix the six findings in `bugs.md` (source review, 27 Sep 2026)
 
-**Finish line:** the projects page offers two sample companies, each listed as its own group: (1) Nile Gate Logistics (containers + storage, existing) and (2) Samsung Electronics Egypt · Kom Abu Radi, Al Wasta, Beni Suef. The Samsung set holds an illustrative campus master plan (336,000 m² per public figures, buildings, gates, roads, staff bus and car parking, trees), the TV & monitor assembly hall, the mobile & tablet plant (~9,000 m², SMT lines), the finished-goods warehouse stocked with Samsung TVs/monitors/phones, an HR department floor (offices, interview rooms, records, onboarding room), a meeting & training centre, a town-hall events hall, the staff canteen and break areas, and an export container of TVs. The layout is labelled as illustrative (no public floor plans; public facts cited in decision 0016). The 3D view makes a visible quality jump for both samples: procedural PBR textures (concrete/epoxy/asphalt/grass/carpet/tile/cladding/ glass), sky and sun outdoors, ambient occlusion when the camera rests, better models (buses, cars, trees, buildings, partitions, office chairs, desks with screens, SMT machines, conveyors) — and is faster (render on demand, static shadows, shared materials). Everything goes through core commands and the store; no core change; `pnpm check` passes; browser-checked with screenshots.
+**Finish line:** each finding has a regression test that fails before its fix and passes after; old saves still open (no schema change); `pnpm check` passes; decision 0020 records the behaviour changes; README/TASKS/bugs.md updated; committed and pushed to `main`.
 
-22 done, 0 open.
+7 done, 0 open.
 
 ## Uncommitted work
 
-Nothing uncommitted.
+```
+ M README.md
+ M TASKS.md
+ M apps/editor/src/api.ts
+ M apps/editor/src/logic/messages.ts
+ M apps/editor/src/pages/EditorPage.tsx
+ M apps/editor/src/ui/AgentPanel.tsx
+ M apps/editor/src/ui/HistoryPanel.tsx
+ M apps/server/src/agents.ts
+ M apps/server/src/http.ts
+ M apps/server/src/settings.ts
+ M apps/server/src/store.ts
+ M apps/server/src/tools.ts
+ M apps/server/test/server.test.ts
+ M packages/core/src/commands/apply.ts
+?? apps/editor/e2e/review.spec.ts
+?? apps/editor/src/logic/retry.ts
+?? apps/editor/test/retry.test.ts
+?? apps/server/test/review.test.ts
+?? bugs.md
+?? docs/decisions/0020-review-fixes.md
+?? packages/core/test/reserved-ids.test.ts
+```
 
 ## Recent checkpoints
 
-- `8871fcf` 2026-09-26 16:24 D2 closed and pushed (3db5e56)
-- `60988a7` 2026-09-26 16:11 handoff: unit tests green
-- `c7e6680` 2026-09-26 16:08 handoff: preconditions and static checks ok
-- `7478ad6` 2026-09-26 16:02 handoff plan for Sonnet 5: docs/plans/handoff-d2-closeout.md
-- `ac567ef` 2026-09-26 15:58 Paradigm design (DESIGN.md, decision 0019) applied to all screens
-- `1c68445` 2026-09-26 15:34 arrow keys: visible auto step, view moves with nothing selected, tick box no longer steals arrows; clearer container colour-by
-- `caccae7` 2026-09-26 14:15 graphics levels: Fast/Balanced/High, auto step-down (decision 0018)
-- `da63d56` 2026-09-26 13:45 docs: decisions 0016/0017, README, TASKS, agents.md, Samsung e2e
-- `ea3a80d` 2026-09-26 13:38 fixed stale pack-list test and suite-load timeouts
-- `229c9a6` 2026-09-26 13:33 Resume after interruption: D2 work-in-progress snapshot
+- `7933955` 2026-09-27 12:04 B1: all six review findings fixed with tests
+- `9ec3ad6` 2026-09-26 16:40 Docs: refresh generated status, changelog and work log after D2
+- `3db5e56` 2026-09-26 16:23 D2: Samsung Egypt sample, site pack, 3D engine v2, graphics levels, Paradigm design, docs system
+- `b292f17` 2026-09-26 11:52 Merge pull request #11 from coolman1984/claude/d1-sample-company
+- `5a38fdf` 2026-09-26 03:31 Merge pull request #7 from coolman1984/claude/bold-wright-kdi8rf
+- `a2e1fee` 2026-09-26 03:14 Merge pull request #6 from coolman1984/claude/bold-wright-kdi8rf
+- `09f169c` 2026-09-25 22:08 Merge pull request #5 from coolman1984/claude/bold-wright-kdi8rf
+- `4a09669` 2026-09-25 19:39 Merge pull request #4 from coolman1984/claude/bold-wright-kdi8rf
+- `526bca7` 2026-09-25 18:40 T7: add warehouse planning foundation
+- `547b207` 2026-09-25 17:39 Merge pull request #2 from coolman1984/claude/quirky-shannon-hyya2z
 
 ## How to resume
 
 1. Read the open items above and the matching section of `TASKS.md`.
-2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/claude/d1-sample-company -- .`
+2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/main -- .`
 3. Run `pnpm typecheck` to see what the interrupted work left broken, then continue.
 4. Details: `docs/process/interruptions.md`.

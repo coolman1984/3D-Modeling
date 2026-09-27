@@ -73,7 +73,9 @@ export const api = {
     post<CommandResult>(`/api/projects/${id}/commands`, { commands, baseRevision, actor: 'human' }),
   history: (id: string) => request<RevisionInfo[]>(`/api/projects/${id}/history?limit=200`),
   revision: (id: string, revision: number) => request<Project>(`/api/projects/${id}/revisions/${revision}`),
-  restore: (id: string, revision: number) => post<{ ok: boolean; project: Project }>(`/api/projects/${id}/restore`, { revision }),
+  /** `baseRevision` is the revision this window last saw; a newer one on the server answers with a conflict. */
+  restore: (id: string, revision: number, baseRevision: number) =>
+    post<{ ok: true; project: Project } | { ok: false; conflict: true; project: Project }>(`/api/projects/${id}/restore`, { revision, baseRevision }),
   agents: () => request<AgentAvailability[]>('/api/agents'),
   runs: (id: string) => request<AgentRun[]>(`/api/projects/${id}/agent-runs`),
   startRun: (id: string, agent: string, prompt: string) => post<AgentRun>(`/api/projects/${id}/agent-runs`, { agent, prompt }),

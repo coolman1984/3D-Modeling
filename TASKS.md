@@ -1,5 +1,23 @@
 # TASKS
 
+## Now: B1 — fix the six findings in `bugs.md` (source review, 27 Sep 2026)
+
+**Finish line:** each finding has a regression test that fails before its fix and passes after;
+old saves still open (no schema change); `pnpm check` passes; decision 0020 records the
+behaviour changes; README/TASKS/bugs.md updated; committed and pushed to `main`.
+
+- [x] 1 High: reserved ids (`constructor`, `toString`, `__proto__`…) — own-property lookups in core `apply`; store validates the result before committing
+- [x] 2 High: restore needs `baseRevision`; 409 with the latest project on mismatch; editor shows it and blocks restore while edits are unsaved
+- [x] 3 Medium: offline edits retry on reconnect and on a backoff timer; warn before leaving with unsaved edits
+- [x] 4 Medium: settings validated at the HTTP boundary (400); bad stored agents ignored on load; a failed agent start always finishes its run
+- [x] 5 Medium: deleting a project stops every active run of that project (runner tracks project ids)
+- [x] 6 Low: history `limit` parsed and clamped to 1..500 (400 when invalid), also in `Store.history`
+- [x] Decision 0020, README, bugs.md status, `pnpm check` (392 unit tests, 22 browser journeys), commit, push
+
+Found along the way (B1):
+- Killed agent processes that finish after `Store.close()` threw "database is not open"; the store now ignores late run updates once closed.
+- A speed test (`warehouse.test.ts`, 100 rack rows, limit 2 s) took 2.3 s once while the machine was busy; alone it takes about 0.56 s. The limit was left as it is.
+
 ## Now: D2 — Samsung Electronics Egypt (Beni Suef) sample + 3D engine v2
 
 **Next agent: follow `docs/plans/handoff-d2-closeout.md` step by step, then stop.**

@@ -108,6 +108,9 @@ export function issueAmounts(issue: Issue): { gap: string; need: string } | null
 
 export const SEVERITY_WORD = { error: 'Error', warning: 'Warning', info: 'Unknown' } as const;
 
+/** A restore refused because the plan changed elsewhere first (bugs.md finding 2). */
+export const RESTORE_CONFLICT = 'The project was changed elsewhere, so nothing was restored. The latest version is loaded: check it, then restore again if you still want to.';
+
 export const REJECTION_MESSAGES: Readonly<Record<RejectCode, string>> = {
   'invalid-payload': 'That value is not accepted.',
   'unknown-command': 'Unknown action.',

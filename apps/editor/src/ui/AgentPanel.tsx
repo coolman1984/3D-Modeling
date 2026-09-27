@@ -256,7 +256,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
                 Keep changes
               </button>
               {from !== undefined && from < project.revision && (
-                <button type="button" className="btn" onClick={() => void api.restore(project.id, from).then(() => setDismissed(latest.id))}>
+                <button type="button" className="btn" onClick={() => void api.restore(project.id, from, project.revision).then((r) => r.ok && setDismissed(latest.id))}>
                   Undo this run
                 </button>
               )}

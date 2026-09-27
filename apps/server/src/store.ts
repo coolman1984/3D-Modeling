@@ -101,6 +101,8 @@ const MAX_LOG = 200_000;
  */
 export class Store extends EventEmitter<StoreEvents> {
   private readonly db: DatabaseSync;
+  /** Set by close(): a stopped agent that finishes afterwards must not touch the closed database. */
+  private closed = false;
 
   constructor(path: string) {
     super();
@@ -116,6 +118,7 @@ export class Store extends EventEmitter<StoreEvents> {
   }
 
   close(): void {
+    this.closed = true;
     this.db.close();
   }
 
@@ -182,27 +185,37 @@ export class Store extends EventEmitter<StoreEvents> {
     const command: Command = commands.length === 1 ? commands[0]! : { type: 'batch', commands };
     const outcome = apply(current, command);
     if (!outcome.ok) return { ok: false, status: 422, rejection: outcome.rejection };
+    // Never save what could not be opened again: the same check `getProject` runs on every read.
+    const problems = validateProject(outcome.project);
+    if (problems.length > 0) return { ok: false, status: 422, rejection: { code: 'invalid-payload', message: 'the change would leave a project that cannot be opened', problems } };
     const summary = options.summary?.trim() || describeCommands(commands);
     this.commit(outcome.project, options.actor, summary, commands);
     return { ok: true, project: outcome.project };
   }
 
-  /** Bring back an earlier revision as a new revision; nothing is erased. */
-  restore(id: string, revision: number, actor: string): ApplyResult {
+  /**
+   * Bring back an earlier revision as a new revision; nothing is erased. With `baseRevision`,
+   * refuse (409) when the project changed since the caller last saw it, as `applyCommands` does:
+   * restoring from a stale view must not replace a newer plan unseen (bugs.md finding 2).
+   */
+  restore(id: string, revision: number, actor: string, baseRevision?: number): ApplyResult {
     const current = this.getProject(id);
     const old = this.getRevision(id, revision);
     if (!current || !old) return { ok: false, status: 404 };
+    if (baseRevision !== undefined && baseRevision !== current.revision) return { ok: false, status: 409, project: current };
     const restored: Project = { ...old, revision: current.revision + 1 };
     this.commit(restored, actor, `Restored revision ${revision}`, []);
     return { ok: true, project: restored };
   }
 
+  /** The newest revisions first; limit is kept to 1..500 whatever the caller passes. */
   history(id: string, limit = 100): RevisionInfo[] {
+    const bounded = Number.isFinite(limit) ? Math.min(500, Math.max(1, Math.trunc(limit))) : 100;
     const rows = this.db
       .prepare(
         'SELECT revision, actor, summary, command_count, created_at FROM revisions WHERE project_id = ? ORDER BY revision DESC LIMIT ?',
       )
-      .all(id, limit) as Array<Record<string, string | number>>;
+      .all(id, bounded) as Array<Record<string, string | number>>;
     return rows.map((r) => ({
       revision: Number(r.revision),
       actor: String(r.actor),
@@ -254,6 +267,7 @@ export class Store extends EventEmitter<StoreEvents> {
   }
 
   appendRunLog(runId: string, line: string): void {
+    if (this.closed) return;
     const run = this.getRun(runId);
     if (!run) return;
     const log = (run.log + line + '\n').slice(-MAX_LOG);
@@ -262,6 +276,7 @@ export class Store extends EventEmitter<StoreEvents> {
   }
 
   finishRun(runId: string, status: Exclude<AgentRun['status'], 'running'>): void {
+    if (this.closed) return;
     const run = this.getRun(runId);
     if (!run || run.status !== 'running') return;
     this.db.prepare('UPDATE agent_runs SET status = ?, ended_at = ? WHERE id = ?').run(status, now(), runId);
