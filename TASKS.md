@@ -20,7 +20,7 @@ owner says yes).
 - [x] 3 Editor: "New shipment" form on the projects page; shipment group in the project list
 - [x] 4 Editor: shipment page — containers side by side in 3D, one play button, figures per container, open in editor
 - [x] 5 Browser journey test; decision 0021; README; `pnpm check`; commit
-- [ ] 6 Create the two cushion shipments (04/Oct, 05/Oct) in the owner's local app
+- [x] 6 Create the two cushion shipments (04/Oct, 05/Oct) in the owner's local app (04/Oct: 5 × 40′ HC, last 51% full; 05/Oct: 4 × 40′ HC, last 14% full; data folder backed up first)
 
 Found along the way (S1):
 - The extreme-point packer takes about 12 s for 1 260 identical pieces (pieces × corner points); thousands of cartons need the wall loader.
