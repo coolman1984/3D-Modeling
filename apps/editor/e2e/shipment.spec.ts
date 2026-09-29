@@ -59,9 +59,18 @@ test('a shipment: paste the production plan, see how many containers, view them 
 
   // The project list shows the shipment as one group; each container opens in the full editor.
   await page.getByTestId('open-container-2').click();
-  await expect(page.locator('h1.project-name')).toHaveText('Cushions 04/Oct · container 2 of 5');
+  // A container of 3 751 pieces takes a few seconds to open and check in a test browser without a graphics chip.
+  await expect(page.locator('h1.project-name')).toHaveText('Cushions 04/Oct · container 2 of 5', { timeout: 20_000 });
   await expect(page.getByTestId('shipment-link')).toContainText('Container 2 of 5 · Cushions 04/Oct');
   await expect(page.getByTestId('unpacked')).toHaveText('0');
+  // The shipment is one saved entry in the project list; clicking it opens the containers again.
   await page.goto('/#/');
-  await expect(page.locator('.proj-group-head', { hasText: 'Cushions 04/Oct' })).toContainText('5 containers');
+  await expect(page.getByTestId('continue')).toContainText('Cushions 04/Oct');
+  const row = page.locator('[data-shipment]', { hasText: 'Cushions 04/Oct' });
+  await expect(row).toContainText('5 containers');
+  await expect(row).toContainText('11,900');
+  await expect(page.locator('[data-project]', { hasText: 'container 2 of 5' })).toHaveCount(0);
+  await row.getByRole('link').click();
+  await expect(page.getByTestId('shipment-title')).toHaveText('Cushions 04/Oct');
+  await expect(page.getByTestId('shipment-3d')).toHaveAttribute('data-containers', '5');
 });

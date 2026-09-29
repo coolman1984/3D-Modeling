@@ -103,17 +103,27 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
     refresh();
     return subscribe({ projects: refresh, open: refresh });
   }, []);
-  const cards = useProjectCards(projects?.map((p) => p.id) ?? [], (projects ?? []).map((p) => `${p.id}@${p.revision}`).join(','));
+  // A shipment's containers are listed as one shipment, opened side by side; they hold thousands of
+  // pieces, so they are not loaded (or checked) just to draw the list.
+  const plain = (projects ?? []).filter((p) => !isShipped(p));
+  const shipments = shipmentsOf(projects ?? []);
+  const cards = useProjectCards(plain.map((p) => p.id), plain.map((p) => `${p.id}@${p.revision}`).join(','));
 
   const packOfProject = (p: ProjectSummary): PackId | null => cards.get(p.id)?.activity.pack ?? null;
   const words = query.trim().toLowerCase();
-  const rows = (projects ?? [])
+  const byName = <T extends { name: string }>(a: T, b: T) => (sort === 'name' ? (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) : 0);
+  const rows = plain
     .filter((p) => filter === 'all' || packOfProject(p) === filter)
     .filter((p) => !words || `${p.name} ${cards.get(p.id) ? packOf(cards.get(p.id)!.activity.pack).label : ''}`.toLowerCase().includes(words))
-    .sort((a, b) => (sort === 'name' ? (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) : 0));
-  const count = (f: Filter) => (projects ?? []).filter((p) => f === 'all' || packOfProject(p) === f).length;
+    .sort(byName);
+  const shownShipments = shipments
+    .filter(() => filter === 'all' || filter === 'container')
+    .filter((s) => !words || `${s.name} container shipment`.toLowerCase().includes(words))
+    .sort(byName);
+  const count = (f: Filter) => plain.filter((p) => f === 'all' || packOfProject(p) === f).length + (f === 'all' || f === 'container' ? shipments.length : 0);
   const recent = projects?.[0];
   const recentCard = recent ? cards.get(recent.id) : undefined;
+  const recentShipment = recent && isShipped(recent) ? shipments.find((s) => s.collection === recent.collection) : undefined;
 
   const [addingSample, setAddingSample] = useState(false);
   const addSample = (company: (typeof SAMPLE_COMPANIES)[number]) => {
@@ -146,15 +156,12 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
     </Menu>
   );
   // Sample companies first, each as its own group, then shipments (newest first), then the person's own projects.
-  const shipments = [...new Set(rows.map((p) => p.collection).filter((c): c is string => !!c?.startsWith(SHIPMENT_PREFIX)))];
-  const groups: Array<{ id: string; title: string; description: string; rows: ProjectSummary[]; shipment?: string }> = [
+  const allGroups: Array<{ id: string; title: string; description: string; rows: ProjectSummary[]; shipments?: ShipmentSummary[] }> = [
     ...SAMPLE_COMPANIES.map((c) => ({ id: c.id, title: c.name, description: c.description, rows: rows.filter((p) => p.collection === c.id) })),
-    ...shipments.map((s) => {
-      const members = rows.filter((p) => p.collection === s);
-      return { id: s, title: members[0]!.name.replace(/ · container \d+ of \d+$/, ''), description: 'Container shipment', rows: members, shipment: s.slice(SHIPMENT_PREFIX.length) };
-    }),
-    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !p.collection || (!SAMPLE_COMPANIES.some((c) => c.id === p.collection) && !p.collection.startsWith(SHIPMENT_PREFIX))) },
-  ].filter((g) => g.rows.length > 0);
+    { id: 'shipments', title: 'Container shipments', description: 'How many containers each production run needs, loaded and shown side by side.', rows: [], shipments: shownShipments },
+    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !p.collection || !SAMPLE_COMPANIES.some((c) => c.id === p.collection)) },
+  ];
+  const groups = allGroups.filter((g) => g.rows.length > 0 || (g.shipments?.length ?? 0) > 0);
   const grouped = groups.some((g) => g.id !== 'own');
 
   const importFile = (file: File) =>
@@ -209,12 +216,12 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
         )}
 
         {recent && !words && filter === 'all' && (
-          <a href={`#/p/${recent.id}`} className="continue" data-testid="continue">
+          <a href={recentShipment ? `#/s/${recentShipment.id}` : `#/p/${recent.id}`} className="continue" data-testid="continue">
             <div className="continue-text">
               <div className="kicker">Continue where you left off</div>
-              <div className="continue-name">{recent.name}</div>
+              <div className="continue-name">{recentShipment?.name ?? recent.name}</div>
               <div className="continue-meta">
-                {recentCard ? <CardMeta card={recentCard} items={recent.itemCount} /> : `${plural(recent.itemCount, 'item')}`}
+                {recentShipment ? `Container shipment · ${plural(recentShipment.containers, 'container')} · ${formatCount(recentShipment.pieces)} pieces` : recentCard ? <CardMeta card={recentCard} items={recent.itemCount} /> : `${plural(recent.itemCount, 'item')}`}
               </div>
               <span className="spacer" style={{ minHeight: 24 }} />
               <div className="continue-foot">
@@ -240,12 +247,14 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                   Revision {recent.revision} · {formatAgo(recent.updatedAt)}
                 </span>
                 <span className="continue-open">
-                  Open plan
+                  {recentShipment ? 'Open containers' : 'Open plan'}
                   <ArrowRight size={15} />
                 </span>
               </div>
             </div>
-            <div className="continue-art">{recentCard && <ProjectThumb project={recentCard.project} width={420} height={280} dark />}</div>
+            <div className="continue-art">
+              {recentShipment ? <ShipmentThumb count={recentShipment.containers} width={420} height={280} dark /> : recentCard && <ProjectThumb project={recentCard.project} width={420} height={280} dark />}
+            </div>
           </a>
         )}
         </section>
@@ -295,7 +304,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
               <div className="skeleton" style={{ height: 16, width: '40%' }} />
             </div>
           ))
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && shownShipments.length === 0 ? (
           <div className="center-empty">
             {projects && projects.length === 0 ? (
               <>
@@ -340,7 +349,29 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             </div>
             {groups.map((g) => (
               <section key={g.id} className="proj-group" data-group={g.id} aria-label={g.title}>
-                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} shipment={g.shipment} />}
+                {grouped && <GroupHead title={g.title} description={g.description} count={g.shipments ? plural(g.shipments.length, 'shipment') : plural(g.rows.length, 'project')} icon={g.shipments ? 'shipment' : g.id === 'own' ? 'own' : 'sample'} />}
+                {g.shipments?.map((s) => (
+                  <div className="proj-row" key={s.id} data-shipment={s.id}>
+                    <a href={`#/s/${s.id}`} className="proj-cols" data-testid={`open-shipment-${s.id}`}>
+                      <span className="thumb">
+                        <ShipmentThumb count={s.containers} width={96} height={62} />
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="proj-name">{s.name}</span>
+                        <span className="proj-sub">Opens the containers side by side</span>
+                      </span>
+                      <span className="opt">Container shipment</span>
+                      <span className="opt num">{plural(s.containers, 'container')}</span>
+                      <span className="opt num">{formatCount(s.pieces)}</span>
+                      <span className="opt proj-state state-ok">
+                        <Truck size={16} />
+                        Loaded
+                      </span>
+                      <span style={{ color: 'var(--ink-4)' }}>{formatAgo(s.updatedAt)}</span>
+                      <span />
+                    </a>
+                  </div>
+                ))}
                 {g.rows.map((p) => {
               const card = cards.get(p.id);
               const state = stateOf(card, p.itemCount);
@@ -380,8 +411,24 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
           <>
             {groups.map((g) => (
               <section key={g.id} className="proj-group" data-group={g.id} aria-label={g.title}>
-                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} shipment={g.shipment} />}
+                {grouped && <GroupHead title={g.title} description={g.description} count={g.shipments ? plural(g.shipments.length, 'shipment') : plural(g.rows.length, 'project')} icon={g.shipments ? 'shipment' : g.id === 'own' ? 'own' : 'sample'} />}
                 <div className="proj-grid">
+            {g.shipments?.map((s) => (
+              <a key={s.id} href={`#/s/${s.id}`} className="proj-card" data-shipment={s.id}>
+                <span className="proj-card-art">
+                  <ShipmentThumb count={s.containers} width={230} height={160} />
+                </span>
+                <span className="proj-card-title">
+                  <span className="serif">{s.name}</span>
+                  <span className="faint" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {formatAgo(s.updatedAt)}
+                  </span>
+                </span>
+                <span className="proj-sub" style={{ fontSize: 13, marginTop: 6 }}>
+                  Container shipment · {plural(s.containers, 'container')} · {formatCount(s.pieces)} pieces
+                </span>
+              </a>
+            ))}
             {g.rows.map((p) => {
               const card = cards.get(p.id);
               const state = stateOf(card, p.itemCount);
@@ -423,23 +470,71 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
 
 const SHIPMENT_PREFIX = 'shipment:';
 
-/** A group's heading in the project list: its name, what it shows, how many projects; a shipment links to its side-by-side view. */
-function GroupHead({ title, description, count, sample, shipment }: { title: string; description: string; count: number; sample: boolean; shipment?: string | undefined }) {
+/** A group's heading in the project list: its name, what it shows, how many it holds. */
+function GroupHead({ title, description, count, icon }: { title: string; description: string; count: string; icon: 'sample' | 'shipment' | 'own' }) {
   return (
     <header className="proj-group-head">
-      {shipment ? <Truck size={18} /> : sample ? <MapTrifold size={18} /> : <FolderOpen size={18} />}
+      {icon === 'shipment' ? <Truck size={18} /> : icon === 'sample' ? <MapTrifold size={18} /> : <FolderOpen size={18} />}
       <div>
         <div className="serif proj-group-title">{title}</div>
         {description && <div className="proj-group-desc">{description}</div>}
       </div>
-      <span className="proj-group-count">{shipment ? plural(count, 'container') : plural(count, 'project')}</span>
-      {shipment && (
-        <a className="btn small" href={`#/s/${shipment}`} data-testid={`view-shipment-${shipment}`}>
-          View side by side
-          <ArrowRight size={13} />
-        </a>
-      )}
+      <span className="proj-group-count">{count}</span>
     </header>
+  );
+}
+
+const isShipped = (p: ProjectSummary) => !!p.collection?.startsWith(SHIPMENT_PREFIX);
+
+/** A shipment as the project list shows it, from the summaries of its containers alone. */
+interface ShipmentSummary {
+  readonly id: string;
+  readonly collection: string;
+  readonly name: string;
+  readonly containers: number;
+  readonly pieces: number;
+  readonly updatedAt: string;
+}
+
+/** The shipments among the projects, most recently changed first (the list comes newest first). */
+function shipmentsOf(projects: readonly ProjectSummary[]): ShipmentSummary[] {
+  const byCollection = new Map<string, ProjectSummary[]>();
+  for (const p of projects) if (isShipped(p)) byCollection.set(p.collection!, [...(byCollection.get(p.collection!) ?? []), p]);
+  return [...byCollection].map(([collection, members]) => ({
+    id: collection.slice(SHIPMENT_PREFIX.length),
+    collection,
+    name: members[0]!.name.replace(/ · container \d+ of \d+$/, ''),
+    containers: members.length,
+    pieces: members.reduce((s, p) => s + p.itemCount, 0),
+    updatedAt: members[0]!.updatedAt,
+  }));
+}
+
+/** Containers side by side, as a small drawing: the shipment's picture in the list. */
+function ShipmentThumb({ count, width, height, dark = false }: { count: number; width: number; height: number; dark?: boolean }) {
+  const shown = Math.min(count, 8);
+  const gap = 0.45;
+  // 40-foot containers are about five times as long as they are wide.
+  const unit = Math.min((width * 0.8) / 5.1, (height * 0.84) / (shown + gap * (shown - 1)));
+  const w = unit * 5.1;
+  const x0 = (width - w) / 2;
+  const y0 = (height - unit * (shown + gap * (shown - 1))) / 2;
+  const ink = dark ? 'rgba(233,230,224,.85)' : '#0b0d12';
+  const soft = dark ? 'rgba(233,230,224,.35)' : 'rgba(11,13,18,.28)';
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      {Array.from({ length: shown }, (_, i) => {
+        const y = y0 + i * unit * (1 + gap);
+        return (
+          <g key={i}>
+            <rect x={x0} y={y} width={w} height={unit} fill="none" stroke={ink} strokeWidth={Math.max(1, unit / 14)} />
+            {Array.from({ length: 11 }, (_, k) => (
+              <line key={k} x1={x0 + (w * (k + 1)) / 12} x2={x0 + (w * (k + 1)) / 12} y1={y + unit * 0.2} y2={y + unit * 0.8} stroke={soft} strokeWidth={1} />
+            ))}
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
