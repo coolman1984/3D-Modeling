@@ -1458,12 +1458,16 @@ button.rule-row:hover { background: var(--page); }
 .shipment-tools { bottom: 16px; }
 .section-head { margin: 48px 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-mid); }
 .section-head h2 { font-size: 32px; letter-spacing: -0.02em; font-weight: 400; }
-.shipment-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.shipment-card { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-2); padding: 16px; display: grid; gap: 4px; align-content: start; }
-.shipment-card header { display: flex; align-items: center; gap: 10px; }
-.shipment-card header .serif { flex: 1; font-size: 20px; }
+.shipment-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+/* One column no wider than the card: without it the longest line (a chip, a part name) widens every row and spills out. */
+.shipment-card { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-2); padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; align-content: start; min-width: 0; }
+.shipment-card header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.shipment-card header .serif { flex: 1; font-size: 20px; white-space: nowrap; }
+.shipment-card header .chip { flex-basis: 100%; max-width: max-content; white-space: normal; height: auto; min-height: 21px; padding: 2px 7px; line-height: 1.35; }
+.shipment-card .fact > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.shipment-card .fact > span:last-child { flex: none; white-space: nowrap; }
 .shipment-no { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--on-dark); font-size: 13px; font-variant-numeric: tabular-nums; }
-.shipment-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.shipment-card footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .shipment-table { width: 100%; border-collapse: collapse; background: var(--white); border: 1px solid var(--line); font-size: 13px; }
 .shipment-table th { text-align: left; font-weight: 400; font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .shipment-table td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
