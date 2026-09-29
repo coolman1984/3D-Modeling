@@ -22,6 +22,9 @@ owner says yes).
 - [x] 5 Browser journey test; decision 0021; README; `pnpm check`; commit
 - [x] 6 Create the two cushion shipments (04/Oct, 05/Oct) in the owner's local app (04/Oct: 5 × 40′ HC, last 51% full; 05/Oct: 4 × 40′ HC, last 14% full; data folder backed up first)
 
+- [x] 7 Six-day plan (04-09/Oct, 77S85H from 07/Oct, parts in bags): the paste reader kept empty cells in place and the form picks the day; shipments 06-09/Oct created in the local app (3, 6, 3, 3 containers)
+- [x] 8 Push to GitHub (owner asked: merge and sync with main; origin/main had nothing new, fast-forward)
+
 Found along the way (S1):
 - The extreme-point packer takes about 12 s for 1 260 identical pieces (pieces × corner points); thousands of cartons need the wall loader.
 - Parts of the same size listed separately (cushion top and bottom) left half-empty walls mid-container; they now share walls.

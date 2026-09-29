@@ -6,36 +6,93 @@ export interface PartRow {
   readonly height: number;
   readonly quantity: number;
   readonly mayTilt: boolean;
+  /** Every plan column after the sizes (one per day), 0 where the cell is empty. */
+  readonly plan?: readonly number[];
+}
+
+/** A pasted production plan: its part rows and the headings of its plan columns (days). */
+export interface PastedPlan {
+  readonly columns: readonly string[];
+  readonly rows: readonly PartRow[];
 }
 
 const NUMBER = /^-?\d+(?:[.,]\d+)?$/;
+const isNumber = (cell: string) => NUMBER.test(cell.replace(/,/g, ''));
 const toNumber = (cell: string) => Number(cell.replace(/,/g, ''));
 
 /**
- * Part rows from cells copied out of a spreadsheet (tab-separated; runs of spaces also split).
- * The words before the first number are the name; the next three numbers are L, W and H in mm,
- * the one after them the quantity (0 when the plan cell is empty). A row whose name starts
- * without a model inherits the model of the row above, as merged cells in a plan do.
- * Rows without three sizes (headings, totals) are skipped.
+ * The cells of one pasted line, empty cells kept in place: a plan's quantities are known by their
+ * column. Spreadsheets copy tab-separated; where tabs became spaces (a chat or an e-mail), every
+ * four spaces are one cell border and a run of two or three is one.
  */
-export function parsePastedParts(text: string): PartRow[] {
+function cellsOf(line: string): string[] {
+  if (line.includes('\t')) return line.split('\t').map((c) => c.trim());
+  const cells: string[] = [];
+  let cell = '';
+  let spaces = 0;
+  const border = () => {
+    cells.push(cell.trim());
+    for (let k = 1; k < Math.max(1, Math.round(spaces / 4)); k++) cells.push('');
+    cell = '';
+  };
+  for (const ch of line) {
+    if (ch === ' ') {
+      spaces++;
+      continue;
+    }
+    if (spaces >= 2) border();
+    else if (spaces === 1) cell += ' ';
+    spaces = 0;
+    cell += ch;
+  }
+  if (spaces >= 2) border();
+  cells.push(cell.trim());
+  return cells;
+}
+
+/**
+ * A production plan copied out of a spreadsheet. In each row the words before the first number
+ * are the name, the next three numbers are L, W and H in mm, and every cell after them is a plan
+ * column (0 when empty). A row that starts with an empty cell inherits the model of the row above,
+ * as merged cells do. The heading row with an H column names the plan columns. Rows without
+ * three sizes (headings, totals) are skipped.
+ */
+export function parsePastedPlan(text: string): PastedPlan {
   const rows: PartRow[] = [];
+  let columns: string[] = [];
   let model = '';
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
-    const cells = line.split(/\t| {2,}/).map((c) => c.trim());
-    const first = cells.findIndex((c) => NUMBER.test(c.replace(/,/g, '')));
-    if (first < 0) continue;
-    const numbers = cells.slice(first).filter((c) => c !== '').map(toNumber);
-    if (numbers.length < 3 || numbers.slice(0, 3).some((n) => !(n > 0))) continue;
+    const cells = cellsOf(line);
+    const first = cells.findIndex(isNumber);
+    const sizes = first < 0 ? [] : cells.slice(first, first + 3);
+    if (sizes.length < 3 || !sizes.every((c) => isNumber(c) && toNumber(c) > 0)) {
+      const h = cells.findIndex((c) => /^h\b|^h\s*\(|^height/i.test(c));
+      if (h >= 0) columns = cells.slice(h + 1);
+      continue;
+    }
     const words = cells.slice(0, first);
     // A leading empty cell means the model column was merged with the row above.
     if (words.length > 1 && words[0] !== '') model = words[0]!;
     const own = words.filter((w) => w !== '');
     const name = words[0] === '' && model ? [model, ...own].join(' ') : own.join(' ');
-    rows.push({ name: name || `Part ${rows.length + 1}`, length: numbers[0]!, width: numbers[1]!, height: numbers[2]!, quantity: Math.max(0, Math.round(numbers[3] ?? 0)), mayTilt: true });
+    const plan = cells.slice(first + 3).map((c) => (isNumber(c) ? Math.max(0, Math.round(toNumber(c))) : 0));
+    rows.push({ name: name || `Part ${rows.length + 1}`, length: toNumber(sizes[0]!), width: toNumber(sizes[1]!), height: toNumber(sizes[2]!), quantity: plan[0] ?? 0, mayTilt: true, plan });
   }
-  return rows;
+  // As many plan columns as the widest row, named by the heading row where it has a name.
+  const count = Math.max(0, ...rows.map((r) => r.plan!.length));
+  const trimmed = rows.map((r) => ({ ...r, plan: Array.from({ length: count }, (_, k) => r.plan![k] ?? 0) }));
+  return { columns: Array.from({ length: count }, (_, k) => columns[k] || `Column ${k + 1}`), rows: trimmed };
+}
+
+/** The rows with their quantities taken from plan column `column` (a day). */
+export function rowsForColumn(rows: readonly PartRow[], column: number): PartRow[] {
+  return rows.map((r) => (r.plan ? { ...r, quantity: r.plan[column] ?? 0 } : r));
+}
+
+/** Part rows of a pasted plan, quantities from its first plan column. */
+export function parsePastedParts(text: string): PartRow[] {
+  return parsePastedPlan(text).rows.map(({ plan: _plan, ...r }) => r);
 }
 
 export type PlayMode = 'together' | 'in-turn';

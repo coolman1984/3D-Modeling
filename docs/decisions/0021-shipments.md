@@ -31,5 +31,11 @@ Decision 0010 left multi-container shipments open.
 - Loose parts only. Cartons or pallets are entered as parts with their own size and quantity.
 - The wall loader does not look at mass. With masses given, payload, load on top and balance are
   checked per container as usual; without them they are unknown.
+- A pasted production plan keeps its empty cells in place (tabs, or runs of four spaces where tabs
+  became spaces), so each quantity stays under its own day; the form picks the day to ship.
+- Parts shipped in bags are entered as loose parts at their listed size; the bag is not added.
+- One wall holds one part size: small parts do not fill the gaps above or beside big ones, so a
+  day can end with a nearly empty last container (09/Oct: 146 small pieces in the third one).
+  Combining days, or topping up gaps with small parts, is left to the planner for now.
 - Container projects with thousands of pieces make the project list's thumbnail and check pass
   slower. The shipment page runs its checks one container at a time after it appears.

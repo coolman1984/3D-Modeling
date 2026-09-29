@@ -4,7 +4,7 @@ import { ClipboardText, Plus, SpinnerGap, Trash, XCircle } from '@phosphor-icons
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { formatCount } from '../logic/format.js';
-import { parsePastedParts, type PartRow } from '../logic/shipment.js';
+import { parsePastedPlan, rowsForColumn, type PartRow } from '../logic/shipment.js';
 import { Dialog } from './Fields.js';
 
 const EMPTY: PartRow = { name: '', length: 0, width: 0, height: 0, quantity: 0, mayTilt: true };
@@ -21,6 +21,9 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
   const [typeId, setTypeId] = useState('40hc');
   const [rows, setRows] = useState<PartRow[]>([{ ...EMPTY }]);
   const [paste, setPaste] = useState('');
+  // The plan columns (days) of a pasted production plan, and the one the quantities come from.
+  const [columns, setColumns] = useState<readonly string[]>([]);
+  const [column, setColumn] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,13 +38,17 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
 
   const set = (i: number, patch: Partial<PartRow>) => setRows((all) => all.map((r, k) => (k === i ? { ...r, ...patch } : r)));
   const readPaste = () => {
-    const parsed = parsePastedParts(paste);
-    if (parsed.length === 0) {
+    const parsed = parsePastedPlan(paste);
+    if (parsed.rows.length === 0) {
       setError('No rows with three sizes were found in the pasted text.');
       return;
     }
     setError(null);
-    setRows(parsed);
+    // Start from the first day that has anything to ship.
+    const first = Math.max(0, parsed.columns.findIndex((_, k) => parsed.rows.some((r) => (r.plan?.[k] ?? 0) > 0)));
+    setColumns(parsed.columns);
+    setColumn(first);
+    setRows(rowsForColumn(parsed.rows, first));
     setPaste('');
   };
   const create = async () => {
@@ -50,7 +57,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
     setError(null);
     try {
       const created = await api.createShipment({
-        name: name.trim() || 'Shipment',
+        name: name.trim() || defaultName,
         container_type: typeId,
         parts: used.map((r, i) => ({ name: r.name.trim() || `Part ${i + 1}`, length_mm: r.length, width_mm: r.width, height_mm: r.height, quantity: Math.round(r.quantity), may_tilt: r.mayTilt })),
       });
@@ -62,6 +69,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
   };
   const num = (v: number) => (v ? String(v) : '');
   const type = CONTAINER_TYPES.find((t) => t.id === typeId)!;
+  const defaultName = columns.length > 1 ? `Shipment ${columns[column]}` : 'Shipment';
 
   return (
     <Dialog label="Plan a shipment" onClose={onClose} className="dialog shipment-dialog">
@@ -76,7 +84,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
         <div className="grid-2">
           <label className="stack">
             Shipment name
-            <input className="input" name="shipment-name" autoFocus placeholder="Cushions 05/Oct" value={name} onChange={(e) => setName(e.target.value)} />
+            <input className="input" name="shipment-name" autoFocus placeholder={columns.length > 1 ? defaultName : 'Cushions 05/Oct'} value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="stack">
             Container type
@@ -105,6 +113,28 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
             </button>
           </div>
         </details>
+
+        {columns.length > 1 && (
+          <label className="stack" style={{ maxWidth: 260 }}>
+            Quantities from
+            <select
+              className="input"
+              name="shipment-column"
+              value={column}
+              onChange={(e) => {
+                const k = Number(e.target.value);
+                setColumn(k);
+                setRows((all) => rowsForColumn(all, k));
+              }}
+            >
+              {columns.map((c, k) => (
+                <option key={k} value={k}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <table className="parts-table">
           <thead>
