@@ -57,14 +57,14 @@ Our loader's results for each day (loose pieces in bags, may lie on their side):
 | 04/Oct | 11 900 | 330.5 m³ | 11 | 6 | 5 | 4 + 2 × 20′ |
 | 05/Oct | 5 100 | 229.4 m³ | 8 | 4 | 4 | 3 + 1 × 20′ |
 | 06/Oct | 3 500 | 205.6 m³ | 7 | 4 | 3 | 2 + 2 × 20′ |
-| 07/Oct | 6 300 | 366.3 m³ | 13 | 6 | 6 | 5 + 1 × 20′ |
+| 07/Oct | 6 300 | 366.3 m³ | 12 | 6 | 6 (the last holds only 36) | 5 + 1 × 20′ |
 | 08/Oct | 2 800 | 160.7 m³ | 6 | 3 | 3 | 2 + 1 × 20′ |
-| 09/Oct | 2 400 | 137.7 m³ | 5 | 3 | 3 | 2 + 1 × 20′ |
-| **All six days together** | 32 000 | 1 430.2 m³ | 47 | 23 | **20** | 19 + 2 × 20′ |
+| 09/Oct | 2 400 | 137.7 m³ | 5 | 3 | **2** | — |
+| **All six days together** | 32 000 | 1 430.2 m³ | 46 | 23 | **20** | 19 + 2 × 20′ |
 
-Day by day, the plan needs 24 × 40′ HC. Shipped as one run, it needs 20, because the part-empty
-last containers of each day are filled. Where the last 40′ HC of a day is nearly empty (05/Oct,
-07/Oct, 08/Oct, 09/Oct), one 20′ carries the rest.
+The loader fills the room above half-full walls with the pieces left over (09/Oct went from 3 to
+2). Day by day, the plan needs 23 × 40′ HC. Shipped as one run, it needs 20. Where the last 40′ HC
+of a day is nearly empty (05/Oct: 140 long cushions; 07/Oct: 36), one 20′ carries the rest.
 
 ## Sources
 

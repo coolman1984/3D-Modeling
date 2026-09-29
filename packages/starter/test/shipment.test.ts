@@ -74,6 +74,23 @@ describe('shipments', () => {
     });
   });
 
+  it('fills the room above a half-full wall before starting another container (hand-computed)', () => {
+    // 20′ (589 × 235 × 239 cm). A: 12 upright 100 × 50 × 50 cm boxes = one 100 cm wall, 4 across ×
+    // 3 high, top at 150 cm over 200 cm of the width. Then 30 cm cubes: 16 walls of 7 × 7 = 784.
+    // Gaps: above A 3 × 6 × 2 = 36 cubes (100 × 200 × 89 cm), beside A 3 × 1 × 7 = 21 (100 × 35 × 239 cm).
+    const parts = (cubes: number) => [part('a', 1000, 500, 500, 12, false), part('cube', 300, 300, 300, cubes)];
+    const one = planShipment({ name: 'Gaps', containerType: '20gp', parts: parts(841) });
+    expect(one.containers.map((c) => c.pieces)).toEqual([{ a: 12, cube: 841 }]);
+    expectSound(one.containers[0]!.project);
+    // The cubes on top of A go in right after A, before the next wall closes it off.
+    const items = Object.values(one.containers[0]!.project.items);
+    const onA = items.filter((i) => i.definitionId === 'cube' && i.position.x < mm(1000));
+    expect(onA).toHaveLength(57);
+    const firstWallStep = Math.min(...items.filter((i) => i.definitionId === 'cube' && i.position.x > mm(1000)).map((i) => stepOf(i)!));
+    expect(Math.max(...onA.map((i) => stepOf(i)!))).toBeLessThan(firstWallStep);
+    expect(planShipment({ name: 'Gaps', containerType: '20gp', parts: parts(842) }).containers.map((c) => c.pieces)).toEqual([{ a: 12, cube: 841 }, { cube: 1 }]);
+  });
+
   it('parts too big for the container are named, not loaded', () => {
     const plan = planShipment({ name: 'Big', containerType: '20gp', parts: [part('beam', 7000, 100, 100, 5), part('box', 500, 500, 500, 1)] });
     expect(plan.tooBig).toEqual(['beam']);

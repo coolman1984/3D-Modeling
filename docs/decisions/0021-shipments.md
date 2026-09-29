@@ -34,8 +34,11 @@ Decision 0010 left multi-container shipments open.
 - A pasted production plan keeps its empty cells in place (tabs, or runs of four spaces where tabs
   became spaces), so each quantity stays under its own day; the form picks the day to ship.
 - Parts shipped in bags are entered as loose parts at their listed size; the bag is not added.
-- One wall holds one part size: small parts do not fill the gaps above or beside big ones, so a
-  day can end with a nearly empty last container (09/Oct: 146 small pieces in the third one).
-  Combining days, or topping up gaps with small parts, is left to the planner for now.
+- Gap filling (added 29 Sep, after the owner pointed at the empty space above a half-full wall):
+  when a container's walls are done and pieces are still waiting, the flat top of every wall is an
+  empty box on which the remaining pieces are stacked in columns. They get their loading steps right
+  after that wall, before the next wall closes it off. 09/Oct went from 3 containers to 2. Gaps
+  narrower than a piece stay empty, so a day can still end with a nearly empty container (07/Oct:
+  36 long cushions). Combining days is left to the planner.
 - Container projects with thousands of pieces make the project list's thumbnail and check pass
   slower. The shipment page runs its checks one container at a time after it appears.

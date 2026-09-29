@@ -102,6 +102,25 @@ function wallsOf(definition: ItemDefinition, length: Tick, width: Tick, height: 
   return walls;
 }
 
+/**
+ * The top of a (partly) filled wall across the container's width: flat stretches with the height of
+ * the pieces under them (0 where nothing stands). Each piece spans the wall's whole depth.
+ */
+function topOf(wall: Wall, count: number, width: Tick): Array<{ y0: Tick; y1: Tick; top: Tick }> {
+  const spots = wall.spots.slice(0, count);
+  const edges = [...new Set([0, width, ...spots.flatMap((s) => [s.y, s.y + s.o.w])])].filter((e) => e >= 0 && e <= width).sort((a, b) => a - b);
+  const out: Array<{ y0: Tick; y1: Tick; top: Tick }> = [];
+  for (let i = 0; i + 1 < edges.length; i++) {
+    const y0 = edges[i]!;
+    const y1 = edges[i + 1]!;
+    const top = spots.reduce((m, s) => (s.y <= y0 && s.y + s.o.w >= y1 ? Math.max(m, s.z + s.o.h) : m), 0);
+    const last = out.at(-1);
+    if (last && last.top === top) last.y1 = y1;
+    else out.push({ y0, y1, top });
+  }
+  return out;
+}
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'part';
 
 /**
@@ -155,8 +174,40 @@ export function planShipment(input: { readonly name: string; readonly containerT
     return fits.reduce((b, w) => (rate(w) > rate(b) || (rate(w) === rate(b) && w.depth < b.depth) ? w : b));
   };
 
-  type Placed = { stream: (typeof streams)[number]; wall: Wall; count: number; x: Tick };
+  // Every way a stream's piece may stand that goes through the doors, for filling gaps.
+  const turns = new Map(streams.map((s) => [s, orientationsOf(definitions.find((d) => d.id === s.ids[0])!).filter((o) => o.w <= door.width && o.h <= door.height)]));
+
+  type Spot = { readonly x: Tick; readonly y: Tick; readonly z: Tick; readonly o: Orientation };
+  type Placed = { stream: (typeof streams)[number]; wall: Wall; count: number; x: Tick; fill: Array<{ stream: (typeof streams)[number]; spot: Spot }> };
   const loads: Array<{ walls: Placed[]; used: Tick }> = [];
+
+  /**
+   * Fill the room left above the walls of a finished container with pieces still waiting: above a
+   * half-full last wall, or above walls that stop short of the roof. A wall's top is flat along its
+   * depth, so each flat stretch across the width is an empty box standing on pieces (or the floor);
+   * pieces go in it in columns, bottom layer first, so each rests fully on the one below.
+   */
+  const fillGaps = (load: { walls: Placed[] }) => {
+    for (const placed of load.walls) {
+      for (const flat of topOf(placed.wall, placed.count, width)) {
+        const room = { l: placed.wall.depth, w: flat.y1 - flat.y0, h: height - flat.top };
+        for (const s of order) {
+          if (s.left <= 0) continue;
+          const fit = (o: Orientation) => Math.floor(room.l / o.l) * Math.floor(room.w / o.w) * Math.floor(room.h / o.h);
+          const o = turns.get(s)!.reduce<Orientation | undefined>((b, t) => (fit(t) > (b ? fit(b) : 0) ? t : b), undefined);
+          if (!o) continue;
+          const spots: Spot[] = [];
+          for (let k = 0; (k + 1) * o.h <= room.h; k++)
+            for (let j = 0; (j + 1) * o.w <= room.w; j++)
+              for (let i = 0; (i + 1) * o.l <= room.l; i++) spots.push({ x: placed.x + i * o.l, y: flat.y0 + j * o.w, z: flat.top + k * o.h, o });
+          const n = Math.min(spots.length, s.left);
+          for (const spot of spots.slice(0, n)) placed.fill.push({ stream: s, spot });
+          s.left -= n;
+          break;
+        }
+      }
+    }
+  };
   while (order.some((s) => s.left > 0)) {
     const load = { walls: [] as Placed[], used: 0 };
     for (;;) {
@@ -166,7 +217,7 @@ export function planShipment(input: { readonly name: string; readonly containerT
         const wall = pick(s, length - load.used);
         if (!wall) continue;
         const count = Math.min(wall.spots.length, s.left);
-        load.walls.push({ stream: s, wall, count, x: load.used });
+        load.walls.push({ stream: s, wall, count, x: load.used, fill: [] });
         load.used += wall.depth;
         s.left -= count;
         placed = true;
@@ -175,6 +226,7 @@ export function planShipment(input: { readonly name: string; readonly containerT
       if (!placed) break;
     }
     if (load.walls.length === 0) break; // nothing fits an empty container (cannot happen once too-big parts are out)
+    if (order.some((s) => s.left > 0)) fillGaps(load);
     loads.push(load);
   }
 
@@ -192,27 +244,39 @@ export function planShipment(input: { readonly name: string; readonly containerT
     const pieces: Record<string, number> = {};
     const items: Record<string, ItemInstance> = {};
     let step = 0;
-    for (const { stream, wall, count, x } of load.walls) {
+    const put = (stream: (typeof streams)[number], s: Spot, step: number) => {
+      const id = nextPart(stream);
+      pieces[id] = (pieces[id] ?? 0) + 1;
+      const itemId = `${id}-${pieces[id]}`;
+      items[itemId] = {
+        id: itemId,
+        definitionId: id,
+        position: { x: Math.round(s.x + s.o.l / 2), y: Math.round(s.y + s.o.w / 2) },
+        rotation: s.o.rotation,
+        locked: false,
+        ...(s.z > 0 ? { elevation: s.z } : {}),
+        ...(s.o.tilt ? { tilt: s.o.tilt } : {}),
+        meta: { step },
+      };
+    };
+    for (const { stream, wall, count, x, fill } of load.walls) {
       let lastZ = -1;
-      wall.spots.slice(0, count).forEach((s) => {
+      for (const s of wall.spots.slice(0, count)) {
         if (s.z !== lastZ) {
           step++;
           lastZ = s.z;
         }
-        const id = nextPart(stream);
-        pieces[id] = (pieces[id] ?? 0) + 1;
-        const itemId = `${id}-${pieces[id]}`;
-        items[itemId] = {
-          id: itemId,
-          definitionId: id,
-          position: { x: Math.round(x + s.o.l / 2), y: Math.round(s.y + s.o.w / 2) },
-          rotation: s.o.rotation,
-          locked: false,
-          ...(s.z > 0 ? { elevation: s.z } : {}),
-          ...(s.o.tilt ? { tilt: s.o.tilt } : {}),
-          meta: { step },
-        };
-      });
+        put(stream, { ...s, x }, step);
+      }
+      // Pieces on top of this wall go in before the next wall closes it off, layer by layer.
+      lastZ = -1;
+      for (const { stream: s, spot } of [...fill].sort((a, b) => a.spot.z - b.spot.z)) {
+        if (spot.z !== lastZ) {
+          step++;
+          lastZ = spot.z;
+        }
+        put(s, spot, step);
+      }
     }
     const base = newContainer(`${input.name} · container ${index + 1} of ${loads.length}`, input.containerType);
     const catalog = Object.fromEntries(
