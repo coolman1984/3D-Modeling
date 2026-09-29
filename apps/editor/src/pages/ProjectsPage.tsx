@@ -27,6 +27,7 @@ import {
   SpinnerGap,
   SquaresFour,
   Trash,
+  Truck,
   Warning,
   XCircle,
 } from '@phosphor-icons/react';
@@ -34,6 +35,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, subscribe, type ProjectSummary } from '../api.js';
 import { formatAgo, formatCount, formatMetres, plural } from '../logic/format.js';
 import { Dialog, LineTabs, Menu, NumberField, Segmented, useToast } from '../ui/Fields.js';
+import { ShipmentDialog } from '../ui/ShipmentDialog.js';
 import { ProjectThumb, SiteHeader, useProjectCards, type ProjectCard } from '../ui/Site.js';
 
 type Filter = 'all' | PackId;
@@ -67,6 +69,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [planning, setPlanning] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('edited');
   const [query, setQuery] = useState('');
@@ -142,10 +145,15 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
       }
     </Menu>
   );
-  // Sample companies first, each as its own group, then the person's own projects.
-  const groups = [
+  // Sample companies first, each as its own group, then shipments (newest first), then the person's own projects.
+  const shipments = [...new Set(rows.map((p) => p.collection).filter((c): c is string => !!c?.startsWith(SHIPMENT_PREFIX)))];
+  const groups: Array<{ id: string; title: string; description: string; rows: ProjectSummary[]; shipment?: string }> = [
     ...SAMPLE_COMPANIES.map((c) => ({ id: c.id, title: c.name, description: c.description, rows: rows.filter((p) => p.collection === c.id) })),
-    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !p.collection || !SAMPLE_COMPANIES.some((c) => c.id === p.collection)) },
+    ...shipments.map((s) => {
+      const members = rows.filter((p) => p.collection === s);
+      return { id: s, title: members[0]!.name.replace(/ · container \d+ of \d+$/, ''), description: 'Container shipment', rows: members, shipment: s.slice(SHIPMENT_PREFIX.length) };
+    }),
+    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !p.collection || (!SAMPLE_COMPANIES.some((c) => c.id === p.collection) && !p.collection.startsWith(SHIPMENT_PREFIX))) },
   ].filter((g) => g.rows.length > 0);
   const grouped = groups.some((g) => g.id !== 'own');
 
@@ -171,6 +179,10 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
               <FolderOpen size={17} />
               Open file
+            </button>
+            <button type="button" className="btn" onClick={() => setPlanning(true)} data-testid="plan-shipment">
+              <Truck size={17} />
+              Plan shipment
             </button>
             <button type="button" className="btn primary" onClick={() => setCreating(true)}>
               <Plus size={17} />
@@ -328,7 +340,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             </div>
             {groups.map((g) => (
               <section key={g.id} className="proj-group" data-group={g.id} aria-label={g.title}>
-                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} />}
+                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} shipment={g.shipment} />}
                 {g.rows.map((p) => {
               const card = cards.get(p.id);
               const state = stateOf(card, p.itemCount);
@@ -368,7 +380,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
           <>
             {groups.map((g) => (
               <section key={g.id} className="proj-group" data-group={g.id} aria-label={g.title}>
-                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} />}
+                {grouped && <GroupHead title={g.title} description={g.description} count={g.rows.length} sample={g.id !== 'own'} shipment={g.shipment} />}
                 <div className="proj-grid">
             {g.rows.map((p) => {
               const card = cards.get(p.id);
@@ -404,20 +416,29 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
         {toast}
       </div>
       {creating && <CreateDialog onClose={() => setCreating(false)} open={open} />}
+      {planning && <ShipmentDialog onClose={() => setPlanning(false)} opened={(s) => (window.location.hash = `#/s/${s}`)} />}
     </div>
   );
 }
 
-/** A sample company's heading in the project list: its name, what it shows, how many projects. */
-function GroupHead({ title, description, count, sample }: { title: string; description: string; count: number; sample: boolean }) {
+const SHIPMENT_PREFIX = 'shipment:';
+
+/** A group's heading in the project list: its name, what it shows, how many projects; a shipment links to its side-by-side view. */
+function GroupHead({ title, description, count, sample, shipment }: { title: string; description: string; count: number; sample: boolean; shipment?: string | undefined }) {
   return (
     <header className="proj-group-head">
-      {sample ? <MapTrifold size={18} /> : <FolderOpen size={18} />}
+      {shipment ? <Truck size={18} /> : sample ? <MapTrifold size={18} /> : <FolderOpen size={18} />}
       <div>
         <div className="serif proj-group-title">{title}</div>
         {description && <div className="proj-group-desc">{description}</div>}
       </div>
-      <span className="proj-group-count">{plural(count, 'project')}</span>
+      <span className="proj-group-count">{shipment ? plural(count, 'container') : plural(count, 'project')}</span>
+      {shipment && (
+        <a className="btn small" href={`#/s/${shipment}`} data-testid={`view-shipment-${shipment}`}>
+          View side by side
+          <ArrowRight size={13} />
+        </a>
+      )}
     </header>
   );
 }

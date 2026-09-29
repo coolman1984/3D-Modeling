@@ -7,11 +7,12 @@ import {
   extremePointPacker,
   loadsOnTop,
   plannedCounts,
+  shipmentOf,
   stepOf,
   stopOf,
   type Candidate,
 } from '@space-planner/starter';
-import { ArrowLineDown, Pause, Play, Sparkle, Trash } from '@phosphor-icons/react';
+import { ArrowLineDown, ArrowRight, Pause, Play, Sparkle, Trash } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState } from 'react';
 import { formatCentimetres, formatCount, formatMass, formatPercent } from '../logic/format.js';
 import type { Action } from '../logic/session.js';
@@ -21,7 +22,7 @@ import { sizeLine, TypeArt } from './ItemTypes.js';
 export type ColorBy = 'type' | 'stop' | 'weight' | 'step';
 
 /** Calm categorical colours for types and stops; weight and steps use one blue ramp. */
-const CATEGORICAL = [0xc8a97e, 0x8fa6c9, 0xa9c29b, 0xd9a28c, 0xb7a6cf, 0x9cc5c1, 0xd4c48a, 0xc9a0b4];
+export const CATEGORICAL = [0xc8a97e, 0x8fa6c9, 0xa9c29b, 0xd9a28c, 0xb7a6cf, 0x9cc5c1, 0xd4c48a, 0xc9a0b4];
 const NONE = 0xd3d7de;
 const ramp = (t: number) => {
   // From a pale blue-grey to the accent blue.
@@ -78,7 +79,9 @@ export function colorsOf(project: Project, by: ColorBy): ColorLegend {
 export function LoadPanel({ project, dispatch }: { project: Project; dispatch: (a: Action) => void }) {
   const meta = project.space.meta ?? {};
   const type = containerType(typeof meta.containerType === 'string' ? meta.containerType : null);
-  const m = containerMetrics(project);
+  const shipment = shipmentOf(project);
+  // Measures every piece: once per change, not on every render (load playback re-renders often).
+  const m = useMemo(() => containerMetrics(project), [project]);
   const plan = new Map(plannedCounts(project).map((c) => [c.definition.id, c]));
   const placed = new Map<Id, number>();
   for (const item of Object.values(project.items)) placed.set(item.definitionId, (placed.get(item.definitionId) ?? 0) + 1);
@@ -100,6 +103,17 @@ export function LoadPanel({ project, dispatch }: { project: Project; dispatch: (
         <div className="section-title">
           <span className="kicker">Container</span>
         </div>
+        {shipment && (
+          <a className="shipment-link" href={`#/s/${shipment.id}`} data-testid="shipment-link">
+            <span>
+              Container {shipment.index} of {shipment.count} · {shipment.name}
+            </span>
+            <span className="go">
+              All side by side
+              <ArrowRight size={13} />
+            </span>
+          </a>
+        )}
         <div className="load-head">
           <div className="serif">{type?.label ?? 'Custom container'}</div>
           <div className="muted">
@@ -394,7 +408,8 @@ export function ContainerViewTools({
           setPlaying(false);
         } else onStep(step + 1);
       },
-      step === null ? 0 : 450,
+      // About 25 seconds for a whole load, but never faster than the eye can follow a small one.
+      step === null ? 0 : Math.max(40, Math.min(450, Math.round(25_000 / Math.max(1, steps)))),
     );
     return () => clearTimeout(timer);
   }, [playing, step, steps, onStep]);

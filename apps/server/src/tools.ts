@@ -21,6 +21,7 @@ import {
   type Wall,
 } from '@space-planner/core';
 import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -808,6 +809,48 @@ export const TOOLS: readonly ToolDef[] = [
       if (chosen.commands.length === 0) return `Nothing to place.\n${text}`;
       const updated = commit(ctx, project, [...chosen.commands], str(input, 'summary', true) || `Packed ${chosen.commands.length} pieces (${chosen.label.toLowerCase()})`);
       return afterChange(updated, `Applied "${chosen.label}".`) + '\n' + describeRules(updated).join('\n');
+    },
+  },
+  {
+    name: 'plan_shipment',
+    description:
+      'Work out how many containers a production run needs and load them: give the parts (sizes in millimetres as listed, L × W × H, and quantities) and a container type. Creates one loaded container project per container, grouped as one shipment (the editor shows them side by side with load playback). Parts are loaded wall by wall from the front wall to the doors; may_tilt (default true) lets a part lie on its side.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Shipment name, e.g. "Cushions 05/Oct".' },
+        container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'Default 40hc.' },
+        parts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              length_mm: { type: 'number' },
+              width_mm: { type: 'number' },
+              height_mm: { type: 'number' },
+              quantity: { type: 'number' },
+              mass_kg: { type: 'number', description: 'Per piece, if known.' },
+              may_tilt: { type: 'boolean' },
+            },
+            required: ['name', 'length_mm', 'width_mm', 'height_mm', 'quantity'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['name', 'parts'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      let created;
+      try {
+        created = createShipment(ctx.store, readShipmentInput(input), ctx.actor);
+      } catch (error) {
+        if (error instanceof ShipmentInputError) throw new ToolError(error.message);
+        throw error;
+      }
+      const lines = created.containers.map((c) => `- ${c.id} ${c.name}: ${Object.entries(c.pieces).map(([id, n]) => `${n} × ${id}`).join(', ')}`);
+      return `${created.explanation}\nShipment ${created.shipment}:\n${lines.join('\n')}${created.tooBig.length ? `\nToo big for this container: ${created.tooBig.join(', ')}.` : ''}`;
     },
   },
   {

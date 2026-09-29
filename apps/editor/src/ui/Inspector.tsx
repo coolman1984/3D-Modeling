@@ -26,7 +26,7 @@ import {
   X,
   XCircle,
 } from '@phosphor-icons/react';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { activityOf, type Activity } from '../logic/activity.js';
 import { copyOffset, type ControlSettings } from '../logic/controls.js';
 import { nextId } from '../logic/ids.js';
@@ -152,7 +152,9 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
   const types = new Set(Object.values(project.items).map((i) => i.definitionId)).size;
   const columns = project.space.obstacles.filter((o) => o.kind === 'column').length;
   const areaPerSeat = metrics.seats > 0 ? toSquareMetres(metrics.floorArea) / metrics.seats : undefined;
-  const facts: Array<[string, ReactNode]> = activity.pack === 'container' ? containerFacts(project) : activity.pack === 'warehouse' ? (() => {
+  // Container figures measure every piece; worked out once per change, not on every render (load playback re-renders often).
+  const cargoFacts = useMemo(() => (activity.pack === 'container' ? containerFacts(project) : null), [activity.pack, project]);
+  const facts: Array<[string, ReactNode]> = cargoFacts ? cargoFacts : activity.pack === 'warehouse' ? (() => {
     const w = warehouseMetrics(project);
     return [
       ['Warehouse', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],

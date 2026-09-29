@@ -1433,3 +1433,41 @@ button.rule-row:hover { background: var(--page); }
 .hero-band .error-text { color: #f5a59b; }
 .hero-band .continue { margin-top: 48px; background: var(--dark-2); border: 1px solid var(--dark-line); }
 .continue-open { border-radius: var(--r-0); background: var(--on-dark); }
+/* Shipments: plan dialog, side-by-side page (S1) */
+.shipment-dialog { width: 860px; }
+.paste-box { border: 1px solid var(--line); border-radius: var(--r-1); background: var(--white); padding: 8px 10px; display: grid; gap: 8px; }
+.paste-box summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12.5px; color: var(--ink-2); }
+.paste-box textarea { height: auto; min-height: 84px; padding: 8px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; resize: vertical; }
+.parts-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.parts-table th { text-align: left; font-weight: 400; color: var(--ink-3); font-size: 11px; padding: 0 4px 6px; }
+.parts-table th.num { text-align: right; }
+.parts-table td { padding: 3px 4px; border-top: 1px solid var(--line-soft); }
+.parts-table td .input { height: 30px; width: 100%; }
+.parts-table td .input.num { text-align: right; width: 84px; }
+.parts-table td:first-child .input { min-width: 220px; }
+.shipment-answer { padding: 14px 16px; border: 1px solid var(--accent-line); border-radius: var(--r-2); background: var(--accent-soft); font-size: 13px; color: var(--ink-2); display: grid; gap: 6px; }
+.shipment-answer-count { display: flex; align-items: center; gap: 14px; color: var(--ink); }
+.shipment-answer-count .big { font-family: var(--serif); font-size: 44px; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.proj-group-head .btn.small { align-self: center; flex: none; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-3); }
+.back-link:hover { color: var(--accent); }
+.shipment-title { margin-top: 12px; font-size: 56px; }
+.shipment-lede { max-width: none; color: var(--ink-2); }
+.shipment-lede strong { font-weight: 500; color: var(--ink); }
+.shipment-stage { position: relative; height: min(68vh, 720px); min-height: 420px; margin-top: 28px; border: 1px solid var(--line); border-radius: var(--r-3); overflow: hidden; background: var(--page); }
+.shipment-tools { bottom: 16px; }
+.section-head { margin: 48px 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-mid); }
+.section-head h2 { font-size: 32px; letter-spacing: -0.02em; font-weight: 400; }
+.shipment-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.shipment-card { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-2); padding: 16px; display: grid; gap: 4px; align-content: start; }
+.shipment-card header { display: flex; align-items: center; gap: 10px; }
+.shipment-card header .serif { flex: 1; font-size: 20px; }
+.shipment-no { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--on-dark); font-size: 13px; font-variant-numeric: tabular-nums; }
+.shipment-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.shipment-table { width: 100%; border-collapse: collapse; background: var(--white); border: 1px solid var(--line); font-size: 13px; }
+.shipment-table th { text-align: left; font-weight: 400; font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.shipment-table td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); }
+.shipment-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.shipment-table strong { font-weight: 500; }
+.shipment-link { display: grid; gap: 4px; margin: 4px 0 14px; padding: 10px 12px; border: 1px solid var(--accent-line); border-radius: var(--r-2); background: var(--accent-soft); font-size: 12.5px; color: var(--ink-2); }
+.shipment-link .go { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); }

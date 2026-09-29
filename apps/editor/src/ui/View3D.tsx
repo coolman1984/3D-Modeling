@@ -1,7 +1,7 @@
 import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2, type Zone } from '@space-planner/core';
 import { detectPack, materialOf, materialsOf, rackSpecOf, rackStock, shapeOf, slotId, slotPlacement, type PackId } from '@space-planner/starter';
 import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Gauge, Scissors, Square } from '@phosphor-icons/react';
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -752,6 +752,8 @@ interface Stage {
   outdoor: boolean | null;
   profile: (typeof QUALITY_PROFILES)[Quality];
   still: StillPass | null;
+  /** Every item's instanced mesh with its full matrices, so playback can hide items without a rebuild. */
+  pieces: Array<{ mesh: THREE.InstancedMesh; shown: Float32Array }>;
   disposeEnv: () => void;
   /** Ask for a frame; renders stop when nothing moves. */
   invalidate: () => void;
@@ -844,7 +846,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       window.clearTimeout(stillTimer);
       if (!frame) frame = requestAnimationFrame(draw);
     };
-    three.current = { renderer, scene, camera, controls, content: null, sun: null, outdoor: null, profile, still: null, disposeEnv: () => undefined, invalidate };
+    three.current = { renderer, scene, camera, controls, content: null, sun: null, outdoor: null, profile, still: null, pieces: [], disposeEnv: () => undefined, invalidate };
 
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = host;
@@ -1068,7 +1070,15 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outdoor, quality]);
 
-  // Rebuild the model whenever the project, issues or selection change.
+  // Rebuild the model whenever the project, issues, selection or look change. Load playback only
+  // changes which items are hidden, so that part of the look is applied separately below.
+  const hidden = look?.hidden;
+  const buildLook = useMemo(() => {
+    if (!look) return undefined;
+    const { hidden: _hidden, ...rest } = look;
+    return rest;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [look?.itemColors, look?.cutaway, look?.routePoints, look?.stock]);
   useEffect(() => {
     const t = three.current;
     if (!t) return;
@@ -1076,13 +1086,36 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
       t.scene.remove(t.content);
       disposeTree(t.content);
     }
-    t.content = buildScene(project, issues, selectedIds, fullWalls, look);
+    t.content = buildScene(project, issues, selectedIds, fullWalls, buildLook);
+    t.pieces = [];
+    t.content.traverse((o) => {
+      const mesh = o as THREE.InstancedMesh;
+      if (mesh.isInstancedMesh && mesh.userData.itemIds) t.pieces.push({ mesh, shown: new Float32Array(mesh.instanceMatrix.array) });
+    });
     t.scene.add(t.content);
     t.renderer.shadowMap.needsUpdate = true;
     t.invalidate();
-    hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length - (look?.hidden?.size ?? 0)));
     hostRef.current?.setAttribute('data-selected', selectedIds.join(' '));
-  }, [project, issues, selectedIds, fullWalls, look, quality]);
+  }, [project, issues, selectedIds, fullWalls, buildLook, quality]);
+
+  // Hidden items (load playback) get an empty matrix; shown ones their own again. Thousands of
+  // items change in a millisecond or two, where a rebuild took most of a second.
+  useEffect(() => {
+    const t = three.current;
+    if (!t) return;
+    for (const { mesh, shown } of t.pieces) {
+      const ids = mesh.userData.itemIds as readonly Id[];
+      const matrices = mesh.instanceMatrix.array as Float32Array;
+      for (let k = 0; k < ids.length; k++) {
+        if (hidden?.has(ids[k]!)) matrices.fill(0, k * 16, k * 16 + 16);
+        else matrices.set(shown.subarray(k * 16, k * 16 + 16), k * 16);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    t.renderer.shadowMap.needsUpdate = true;
+    t.invalidate();
+    hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length - (hidden?.size ?? 0)));
+  }, [hidden, project, issues, selectedIds, fullWalls, buildLook, quality]);
 
   // Frame the room when asked, and when the room itself changes size.
   const room = boundsOf(project.space.boundary);
@@ -1217,6 +1250,265 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
             <Gauge size={15} />
             {QUALITY_LABEL[quality]}
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/** Metres between two containers standing side by side. */
+const SHIPMENT_GAP = 2.4;
+
+/** A number floating over a container's door end, always facing the camera. */
+function numberLabel(text: string): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const g = canvas.getContext('2d');
+  if (g) {
+    g.fillStyle = '#0b0d12';
+    g.fillRect(8, 8, 112, 112);
+    g.fillStyle = '#f4f5f7';
+    g.font = '500 64px Geist Variable, system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, 64, 68);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false }));
+  sprite.scale.set(0.9, 0.9, 1);
+  sprite.renderOrder = 30;
+  return sprite;
+}
+
+/**
+ * Where each container of a shipment stands: side by side northwards, container 1 nearest the
+ * camera, a gap between them. Returns the north offset of each, in ticks, and the whole extent.
+ */
+export function shipmentLayout(projects: readonly Project[]): { offsets: number[]; bounds: { minX: number; minY: number; maxX: number; maxY: number } } {
+  const offsets: number[] = [];
+  let y = 0;
+  let maxX = 0;
+  for (const p of projects) {
+    const b = boundsOf(p.space.boundary);
+    offsets.push(y - b.minY);
+    y += b.maxY - b.minY + SHIPMENT_GAP * TICKS_PER_METRE;
+    maxX = Math.max(maxX, b.maxX);
+  }
+  return { offsets, bounds: { minX: 0, minY: 0, maxX, maxY: Math.max(0, y - SHIPMENT_GAP * TICKS_PER_METRE) } };
+}
+
+/**
+ * The containers of a shipment in one 3D scene, side by side, each drawn exactly as the editor
+ * draws it (colours, cut-away, load playback through `looks`). Read-only: orbit, zoom, fit, top
+ * view and save a picture; a container is changed in its own editor.
+ */
+export function ShipmentView3D({ projects, looks, hidden }: { projects: readonly Project[]; looks: readonly SceneLook[]; hidden: ReadonlyArray<ReadonlySet<Id>> }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const three = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: OrbitControls; sun: THREE.DirectionalLight; content: THREE.Group | null; labels: THREE.Sprite[]; pieces: Array<{ mesh: THREE.InstancedMesh; container: number; shown: Float32Array }>; invalidate: () => void; disposeEnv: () => void } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [topView, setTopView] = useState(false);
+  const layout = shipmentLayout(projects);
+  const span = Math.max(mt(layout.bounds.maxX - layout.bounds.minX), mt(layout.bounds.maxY - layout.bounds.minY), 2);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true, powerPreference: 'high-performance' });
+    } catch {
+      setError('This browser cannot show the 3D view.');
+      return;
+    }
+    // The same graphics level as the editor; no graphics chip means the lightest one.
+    const profile = QUALITY_PROFILES[isSoftwareRenderer(renderer) ? 'fast' : (loadQuality() ?? DEFAULT_QUALITY)];
+    renderer.setPixelRatio(Math.min(profile.pixelRatio, window.devicePixelRatio));
+    renderer.shadowMap.enabled = profile.shadows;
+    renderer.shadowMap.type = profile.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    host.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    const sun = addLights(scene, false, profile);
+    const disposeEnv = addEnvironment(renderer, scene, false, profile.reflections, 30);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    let frame = 0;
+    const draw = () => {
+      frame = 0;
+      const moving = controls.update();
+      renderer.render(scene, camera);
+      if (moving) frame = requestAnimationFrame(draw);
+    };
+    const invalidate = () => {
+      if (!frame) frame = requestAnimationFrame(draw);
+    };
+    controls.addEventListener('change', invalidate);
+    three.current = { renderer, scene, camera, controls, sun, content: null, labels: [], pieces: [], invalidate, disposeEnv };
+    const resize = () => {
+      const { clientWidth: w, clientHeight: h } = host;
+      if (w === 0 || h === 0) return;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      invalidate();
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(host);
+    resize();
+    renderer.domElement.addEventListener('wheel', invalidate, { passive: true });
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      controls.removeEventListener('change', invalidate);
+      renderer.domElement.removeEventListener('wheel', invalidate);
+      controls.dispose();
+      const t = three.current;
+      if (t?.content) disposeTree(t.content);
+      t?.labels.forEach((l) => {
+        l.material.map?.dispose();
+        l.material.dispose();
+      });
+      disposeEnv();
+      renderer.dispose();
+      renderer.domElement.remove();
+      three.current = null;
+    };
+  }, []);
+
+  // Rebuild the containers when a load or a colour changes; playback only hides pieces (below).
+  useEffect(() => {
+    const t = three.current;
+    if (!t) return;
+    if (t.content) {
+      t.scene.remove(t.content);
+      disposeTree(t.content);
+    }
+    t.labels.forEach((l) => {
+      l.material.map?.dispose();
+      l.material.dispose();
+    });
+    const content = new THREE.Group();
+    const labels: THREE.Sprite[] = [];
+    const pieces: Array<{ mesh: THREE.InstancedMesh; container: number; shown: Float32Array }> = [];
+    projects.forEach((p, i) => {
+      const place = new THREE.Group();
+      place.position.z = -mt(layout.offsets[i]!);
+      const { hidden: _h, ...look } = looks[i] ?? {};
+      const scene = buildScene(p, [], [], true, look);
+      scene.traverse((o) => {
+        const mesh = o as THREE.InstancedMesh;
+        if (mesh.isInstancedMesh && mesh.userData.itemIds) pieces.push({ mesh, container: i, shown: new Float32Array(mesh.instanceMatrix.array) });
+      });
+      place.add(scene);
+      const b = boundsOf(p.space.boundary);
+      const label = numberLabel(String(i + 1));
+      label.position.set(mt(b.maxX) + 0.9, mt(p.space.ceilingHeight ?? 25_000) * 0.55, -mt((b.minY + b.maxY) / 2));
+      place.add(label);
+      labels.push(label);
+      content.add(place);
+    });
+    t.content = content;
+    t.labels = labels;
+    t.pieces = pieces;
+    t.scene.add(content);
+    t.renderer.shadowMap.needsUpdate = true;
+    t.invalidate();
+    hostRef.current?.setAttribute('data-containers', String(projects.length));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, looks]);
+
+  // Load playback: a hidden piece gets an empty matrix, a shown one its own again. Thousands of
+  // pieces change in a millisecond or two, where rebuilding the scene took a few hundred.
+  useEffect(() => {
+    const t = three.current;
+    if (!t) return;
+    for (const { mesh, container, shown } of t.pieces) {
+      const ids = mesh.userData.itemIds as readonly Id[];
+      const gone = hidden[container];
+      const matrices = mesh.instanceMatrix.array as Float32Array;
+      for (let k = 0; k < ids.length; k++) {
+        if (gone?.has(ids[k]!)) matrices.fill(0, k * 16, k * 16 + 16);
+        else matrices.set(shown.subarray(k * 16, k * 16 + 16), k * 16);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    t.renderer.shadowMap.needsUpdate = true;
+    t.invalidate();
+    hostRef.current?.setAttribute('data-items', String(projects.reduce((s, p, i) => s + Object.keys(p.items).length - (hidden[i]?.size ?? 0), 0)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hidden, projects, looks]);
+
+  const aspect = () => {
+    const host = hostRef.current;
+    return host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 1.6;
+  };
+  const frameAll = (above: boolean) => {
+    const t = three.current;
+    if (!t) return;
+    const centre = frameRoom(t.camera, t.sun, layout.bounds, aspect(), false);
+    if (above) t.camera.position.set(centre.x, span * 1.25, centre.z + 0.001);
+    t.controls.target.copy(centre);
+    t.controls.update();
+    t.renderer.shadowMap.needsUpdate = true;
+    t.invalidate();
+    setTopView(above);
+  };
+  const layoutKey = `${projects.length}|${layout.bounds.maxX}|${layout.bounds.maxY}`;
+  useEffect(() => frameAll(false), [layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const savePicture = () => {
+    const t = three.current;
+    if (!t) return;
+    t.renderer.render(t.scene, t.camera);
+    t.renderer.domElement.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'Shipment - 3D.png';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  };
+  const orbit = (degrees: number) => {
+    const t = three.current;
+    if (!t) return;
+    const offset = t.camera.position.clone().sub(t.controls.target);
+    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), (degrees * Math.PI) / 180);
+    t.camera.position.copy(t.controls.target).add(offset);
+    t.controls.update();
+    t.invalidate();
+  };
+  const tools: Array<{ label: string; icon: ReactElement; onClick: () => void; on?: boolean; sep?: boolean }> = [
+    { label: 'Fit view', icon: <CornersOut size={15} />, onClick: () => frameAll(false) },
+    { label: 'Orbit left', icon: <ArrowCounterClockwise size={15} />, onClick: () => orbit(-45) },
+    { label: 'Orbit right', icon: <ArrowClockwise size={15} />, onClick: () => orbit(45), sep: true },
+    { label: 'Perspective', icon: <Cube size={15} />, onClick: () => frameAll(false), on: !topView },
+    { label: 'Top view', icon: <Square size={15} />, onClick: () => frameAll(true), on: topView, sep: true },
+    { label: 'Save image', icon: <Camera size={15} />, onClick: savePicture },
+  ];
+  return (
+    <div className="view3d" ref={hostRef} data-testid="shipment-3d" aria-label="Containers side by side in 3D">
+      {error ? (
+        <p className="view3d-error">{error}</p>
+      ) : (
+        <div className="floating-tools" role="toolbar" aria-label="3D view tools">
+          {tools.map((t) => (
+            <span key={t.label} style={{ display: 'contents' }}>
+              <button type="button" title={t.label} aria-label={t.label} aria-pressed={t.on} className={t.on ? 'on' : ''} onClick={t.onClick}>
+                {t.icon}
+              </button>
+              {t.sep && <span className="sep" />}
+            </span>
+          ))}
         </div>
       )}
     </div>

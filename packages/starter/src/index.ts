@@ -105,6 +105,7 @@ export * from './hall.js';
 export * from './optimization.js';
 export * from './container.js';
 export * from './packer.js';
+export * from './shipment.js';
 export * from './warehouse.js';
 export * from './production.js';
 export * from './depot.js';

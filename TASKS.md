@@ -1,5 +1,35 @@
 # TASKS
 
+## Now: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
+
+Request (Samsung cushions, production plan 04/Oct and 05/Oct): "how many containers do we need",
+shown in the program side by side, with every existing container detail and the stuffing playback.
+
+**Finish line (done means):** from the projects page a person enters parts (name, L × W × H mm,
+quantity, may lie on its side, optional mass) and a container type; the program works out how many
+containers the parts need and creates one normal container project per container, loaded, with
+loading steps, grouped as one shipment. A shipment page shows every container of the shipment side
+by side in 3D with one play button for the stuffing, per-container figures, and a way to open each
+container in the full editor (details, colours, cut-away, playback and report as today). The cushion
+request is reproducible (hand-computed: 1 260 × 55QN80H or 4 920 × 32F6000 per 40′ HC).
+Old saves still open; `pnpm check` passes; decision record; README; committed (push only after the
+owner says yes).
+
+- [x] 1 Starter: `planShipment` — wall-by-wall loader for large runs of identical parts, split over as many containers as needed; reference numbers + property tests (every container passes the container rules, every piece placed once)
+- [x] 2 Server: `POST /api/shipments` + agent tool `plan_shipment`; projects of one shipment share a collection
+- [x] 3 Editor: "New shipment" form on the projects page; shipment group in the project list
+- [x] 4 Editor: shipment page — containers side by side in 3D, one play button, figures per container, open in editor
+- [x] 5 Browser journey test; decision 0021; README; `pnpm check`; commit
+- [ ] 6 Create the two cushion shipments (04/Oct, 05/Oct) in the owner's local app
+
+Found along the way (S1):
+- The extreme-point packer takes about 12 s for 1 260 identical pieces (pieces × corner points); thousands of cartons need the wall loader.
+- Parts of the same size listed separately (cushion top and bottom) left half-empty walls mid-container; they now share walls.
+- Load playback rebuilt the whole 3D scene every step, and the container panels re-measured every piece every render: about 1 s per step on a 2 440-piece container (CDP profile). Playback now hides instances and the figures are cached (0.2-0.4 s blocked per 8 s).
+- The shipment page first ran the full checks on every container before showing anything (5.6 s for 5 containers); checks now run one container at a time after the page appears.
+- Container projects with thousands of pieces also slow the project list's thumbnails and checks (not changed).
+- Push to GitHub waits for the owner's yes.
+
 ## Now: B1 — fix the six findings in `bugs.md` (source review, 27 Sep 2026)
 
 **Finish line:** each finding has a regression test that fails before its fix and passes after;

@@ -169,6 +169,17 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'pack_container', { project_id: (store.createProject(demoHall(), 'human')).id }).isError).toBe(true);
   });
 
+  it('lets an agent plan a shipment: how many containers, each loaded, as the agent', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const result = runTool(ctx, 'plan_shipment', { name: 'Boxes', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 100, may_tilt: false }] });
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain('100 pieces need 2 × 20′ standard');
+    expect(result.text).toMatch(/Boxes · container 1 of 2: 88 × box/);
+    expect(store.listProjects().filter((p) => p.collection?.startsWith('shipment:'))).toHaveLength(2);
+    expect(store.history(store.listProjects()[0]!.id)[0]).toMatchObject({ actor: 'agent:test' });
+    expect(runTool(ctx, 'plan_shipment', { name: 'Bad', parts: [{ name: 'Box', length_mm: 0, width_mm: 1, height_mm: 1, quantity: 1 }] }).text).toBe('Error: parts[0].length_mm must be a number above 0 up to 20000');
+  });
+
   it('keeps a container\'s data when the room is changed through set_room', () => {
     const ctx = { store, actor: 'agent:test' };
     const id = /Created (p-[\w]+)/.exec(runTool(ctx, 'create_project', { name: 'C', activity: 'container', container_type: '40hc' }).text)![1]!;
@@ -333,6 +344,35 @@ describe('HTTP app', () => {
     expect((await json('/api/samples/unknown', { method: 'POST', body: '{}' })).status).toBe(404);
     store.createProject(demoHall(), 'human');
     expect(store.listProjects()[0]).toMatchObject({ collection: null });
+  });
+
+  it('plans a shipment as loaded container projects in one group, container 1 listed first', async () => {
+    const cushion = { name: '55QN80H Cushion Top', length_mm: 1335, width_mm: 110, height_mm: 400, quantity: 1750 };
+    const created = await json('/api/shipments', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Cushions 04/Oct', container_type: '40hc', parts: [cushion, { ...cushion, name: '55QN80H Cushion Bot' }] }),
+    });
+    expect(created.status).toBe(201);
+    // 3 500 cushions at 1 260 per 40′ high cube (hand-computed in the starter tests).
+    expect(created.body.containers.map((c: { pieces: Record<string, number> }) => Object.values(c.pieces).reduce((s, n) => s + n, 0))).toEqual([1260, 1260, 980]);
+    expect(created.body.containers.map((c: { pieces: unknown }) => c.pieces)).toEqual([
+      { '55qn80h-cushion-top': 1260 },
+      { '55qn80h-cushion-top': 490, '55qn80h-cushion-bot': 770 },
+      { '55qn80h-cushion-bot': 980 },
+    ]);
+    const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
+    expect(list.slice(0, 3).map((p) => p.name)).toEqual(['Cushions 04/Oct · container 1 of 3', 'Cushions 04/Oct · container 2 of 3', 'Cushions 04/Oct · container 3 of 3']);
+    expect(new Set(list.slice(0, 3).map((p) => p.collection))).toEqual(new Set([`shipment:${created.body.shipment}`]));
+    const first = (await json(`/api/projects/${created.body.containers[0].id}`)).body as Project;
+    expect(first.space.meta).toMatchObject({ pack: 'container', shipment: created.body.shipment, shipmentIndex: 1, shipmentCount: 3 });
+    expect(first.catalog['55qn80h-cushion-top']!.meta).toMatchObject({ quantity: 1260, allowTilt: true });
+
+    const bad = (body: unknown) => json('/api/shipments', { method: 'POST', body: JSON.stringify(body) });
+    expect((await bad({ name: 'x', parts: [] })).status).toBe(400);
+    expect((await bad({ name: 'x', container_type: 'nope', parts: [cushion] })).status).toBe(400);
+    expect((await bad({ name: 'x', parts: [{ ...cushion, length_mm: -5 }] })).body.error).toBe('parts[0].length_mm must be a number above 0 up to 20000');
+    expect((await bad({ name: 'x', parts: [{ ...cushion, quantity: 'many' }] })).status).toBe(400);
+    expect((await bad({ name: 'x', parts: [{ ...cushion, quantity: 150_000 }, { ...cushion, quantity: 60_000 }] })).body.error).toBe('the parts add up to 210000 pieces; one shipment takes at most 200000');
   });
 
   it('pushes live events when anything changes', async () => {

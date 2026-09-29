@@ -85,6 +85,12 @@ x from the front wall to the doors at the east end; the roof is the ceiling.
 4. `get_project` / `check_project` report payload, support (70% of the base), load on top,
    orientation, stacking groups, unloading order (last in, first out), balance and unplaced pieces,
    each with the source of its threshold.
+5. `plan_shipment` answers "how many containers": give the parts (`length_mm`, `width_mm`,
+   `height_mm` as listed, `quantity`, optional `mass_kg`, `may_tilt`, default true) and a
+   `container_type` (default `40hc`). It creates one loaded container project per container, grouped
+   as one shipment, and returns the pieces in each. Parts are loaded wall by wall from the front wall
+   to the doors; parts of the same size share walls. The editor shows the shipment side by side at
+   `#/s/<shipment id>`.
 
 ## Warehouse planning
 

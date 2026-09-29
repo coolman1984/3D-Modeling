@@ -5,6 +5,7 @@ import { deserializeProject, type Command } from '@space-planner/core';
 import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { loadSettings, publicSettings, saveSettings, settingsProblems, type Settings } from './settings.js';
+import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
 import type { Store } from './store.js';
 import { runTool, toolSummaries } from './tools.js';
 
@@ -163,6 +164,17 @@ export function createApp(options: AppOptions): App {
     if (!company) throw new HttpError(404, 'no such sample company');
     const created = company.build().reverse().map(({ project, summary }) => store.createProject(project, 'Sample data', summary, company.id));
     send(res, 201, created.reverse().map((p) => ({ id: p.id, name: p.name })));
+  });
+
+  // How many containers a production run needs: one loaded container project each, grouped as one shipment.
+  route('POST', '/api/shipments', async (req, res) => {
+    const body = await readJson(req);
+    try {
+      send(res, 201, createShipment(store, readShipmentInput(body), 'human'));
+    } catch (error) {
+      if (error instanceof ShipmentInputError) throw new HttpError(400, error.message);
+      throw error;
+    }
   });
 
   route('GET', '/api/projects/:id', (_q, res, [id]) => send(res, 200, projectOr404(id!)));
