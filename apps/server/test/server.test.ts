@@ -332,9 +332,9 @@ describe('HTTP app', () => {
     expect(list[0]).toMatchObject({ collection: 'nile-gate' });
   });
 
-  it('lists both sample companies and adds the Samsung one as its own group, campus first', async () => {
+  it('lists the sample companies and adds the Samsung one as its own group, campus first', async () => {
     const companies = (await json('/api/samples')).body as Array<{ id: string; name: string }>;
-    expect(companies.map((c) => c.id)).toEqual(['samsung-egypt', 'nile-gate']);
+    expect(companies.map((c) => c.id)).toEqual(['samsung-egypt', 'nile-gate', 'nile-vision']);
     const added = await json('/api/samples/samsung-egypt', { method: 'POST', body: '{}' });
     expect(added.status).toBe(201);
     expect(added.body).toHaveLength(10);

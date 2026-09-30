@@ -75,6 +75,7 @@
 | سجل الشغل — صفحة «فين وصلنا» بتتحدث لوحدها، تاريخ كل التعديلات، ونسخ حفظ للشغل اللي لسه ما خلصش عشان أي انقطاع ما يضيعش حاجة | ✅ |
 | ش١ — الشحنات: كام حاوية محتاج، الحاويات جنب بعض مجسمة، تشغيل التحميل، ولزق خطة الإنتاج من الإكسل | ✅ |
 | E1 — Link to plant (GMES): tag items and zones with the plant tree, checks that name the missing station, the layout snapshot sent or downloaded, and a live view of the stations ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
+| E2 — Sample company Nile Vision (plant, final assembly lines, SMT and THT) whose stations carry their GMES code, and **Link by code** ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
 | ت١١ الحسابات والشركات | 🗓️ مخطط ([الخطة](docs/03-industrial-packs-plan.md)) |
 
 ## 🛠️ للمطورين

@@ -81,6 +81,53 @@ export function tagZoneCommand(project: Project, zoneId: Id, node: PlantNode | n
   return { type: 'space.set', space: { ...project.space, zones: retagged } };
 }
 
+export interface AutoLink {
+  /** Tag commands for everything that could be linked unambiguously (apply them as one batch: one revision). */
+  readonly commands: Command[];
+  /** Codes that were linked. */
+  readonly linked: string[];
+  /** Codes that match more than one active node of the right kind: a person must choose. */
+  readonly ambiguous: string[];
+  /** Codes that are not in the plant tree (a storage block that is not a plant node, or a station GMES does not have). */
+  readonly missing: string[];
+}
+
+const ITEM_NODE_TYPES: readonly PlantNodeType[] = ['station', 'equipment'];
+const ZONE_NODE_TYPES: readonly PlantNodeType[] = ['plant', 'area', 'line'];
+
+/**
+ * "Link by code": every item or zone that carries an `eco.code` but no valid plant tag is tagged with the active node of that code
+ * (items: a station or equipment; zones: a plant, area or line). A node type the thing already names (`eco.type`) must match.
+ * Things that already have a valid tag are left alone; ambiguous and unknown codes are reported, never guessed.
+ */
+export function autoLinkCommands(project: Project, tree: PlantTree): AutoLink {
+  const commands: Command[] = [];
+  const linked: string[] = [], ambiguous: string[] = [], missing: string[] = [];
+  const find = (code: string, allowed: readonly PlantNodeType[], named: unknown): PlantNode[] =>
+    tree.filter((n) => n.active && n.code === code && allowed.includes(n.type) && (typeof named !== 'string' || named === n.type));
+  const sorted = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  for (const item of Object.values(project.items).sort(sorted)) {
+    const code = item.meta?.[ECO_CODE];
+    if (typeof code !== 'string' || ecoTagOf(item.meta)?.kind === 'plant_node') continue;
+    const found = find(code, ITEM_NODE_TYPES, item.meta?.[ECO_TYPE]);
+    if (found.length === 1) { commands.push({ type: 'item.meta', id: item.id, meta: withPlantTag(item.meta, found[0]!) }); linked.push(code); }
+    else (found.length > 1 ? ambiguous : missing).push(code);
+  }
+  const zones = project.space.zones ?? [];
+  let changed = false;
+  const retagged = zones.map((zone): Zone => {
+    const code = zone.meta?.[ECO_CODE];
+    if (typeof code !== 'string' || ecoTagOf(zone.meta)?.kind === 'plant_node') return zone;
+    const found = find(code, ZONE_NODE_TYPES, zone.meta?.[ECO_TYPE]);
+    if (found.length !== 1) { (found.length > 1 ? ambiguous : missing).push(code); return zone; }
+    changed = true;
+    linked.push(code);
+    return { ...zone, meta: withPlantTag(zone.meta, found[0]!)! };
+  });
+  if (changed) commands.push({ type: 'space.set', space: { ...project.space, zones: retagged } });
+  return { commands, linked, ambiguous, missing };
+}
+
 /** Stations of a line in the order of the operations, when their codes follow `<line>-<op>` with a number; otherwise by code. */
 export function stationsOfLine(tree: PlantTree, line: PlantNode): PlantNode[] {
   const op = (n: PlantNode): number | undefined => {

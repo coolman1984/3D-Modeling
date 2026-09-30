@@ -45,3 +45,8 @@ stations stand, and show what the stations are doing now. The core must stay pur
   remembered for the life of the server process.
 - The stations of a line are ordered by the number after the line code when the codes look like `<line>-<op>`; the routing's real
   operation sequence is GMES's to say and is not in `eco.plant_node.v1`.
+
+## Addendum (WP-S4): the Nile Vision sample and "Link by code"
+
+- `packages/starter/src/nileVision.ts` adds the sample company "Nile Vision Electronics": the plant (areas and storage by code), final assembly lines FA-1 and FA-2 (18 operations and a repair bench each, in the order of the routing, stations 2 m along the line with 3 m for the material handler) and the SMT line and THT cell. It is laid out here, not copied from the scenario book's coordinates: the book's final assembly row is wider than the hall it stands in, and this plan must pass its own checks (validity, stations inside the floor, the handler reaches the next station).
+- Every station and area carries `eco.code` only. The tag itself (`eco.ref`) is made when the plant tree is imported: `autoLinkCommands(project, tree)` tags each item or zone with the one active node of that code (and of the kind it names in `eco.type`), one batch, one revision, undoable. A valid tag is never replaced; two nodes with one code, an inactive node, or a code that is not a plant node (storage blocks) are reported and never guessed.

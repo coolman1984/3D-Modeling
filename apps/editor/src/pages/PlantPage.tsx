@@ -1,6 +1,6 @@
 import { apply, type Command, type Project } from '@space-planner/core';
-import { checkPlantLink, ecoTagOf, tagItemCommand, tagZoneCommand, type PlantNode, type PlantNodeType, type PlantTree } from '@space-planner/starter';
-import { ArrowUUpLeft, CaretLeft, CloudArrowDown, DownloadSimple, PaperPlaneTilt, UploadSimple } from '@phosphor-icons/react';
+import { autoLinkCommands, checkPlantLink, ecoTagOf, tagItemCommand, tagZoneCommand, type PlantNode, type PlantNodeType, type PlantTree } from '@space-planner/starter';
+import { ArrowUUpLeft, CaretLeft, CloudArrowDown, DownloadSimple, PaperPlaneTilt, Plugs, UploadSimple } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { ecoApi, type EcoStatus } from '../eco/ecoApi.js';
@@ -111,6 +111,24 @@ export function PlantPage({ projectId }: { projectId: string }) {
     if (!command) return;
     const local = apply(project, command);
     await send([command], local.ok ? local.inverse : undefined);
+  };
+  /** Tag everything that carries a GMES code (the Nile Vision sample does) with the node of that code, as one revision. */
+  const linkByCode = async () => {
+    if (!project) return;
+    const link = autoLinkCommands(project, tree);
+    const parts = [
+      link.linked.length ? `${link.linked.length} linked` : null,
+      link.ambiguous.length ? `${link.ambiguous.length} share a code in the plant tree and were left: ${link.ambiguous.join(', ')}` : null,
+      link.missing.length ? `${link.missing.length} have a code that is not a plant node: ${link.missing.join(', ')}` : null,
+    ].filter(Boolean).join('; ');
+    if (link.commands.length === 0) {
+      setTagNote({ tone: 'error', text: link.missing.length + link.ambiguous.length ? `Nothing could be linked by code. ${parts}.` : 'Nothing to link: no item or zone carries a GMES code that is not linked yet.' });
+      return;
+    }
+    const batch = { type: 'batch' as const, commands: link.commands };
+    const local = apply(project, batch);
+    await send([batch], local.ok ? local.inverse : undefined);
+    setTagNote({ tone: 'ok', text: `Link by code: ${parts}.` });
   };
   const undoTag = async () => {
     const last = undo.at(-1);
@@ -239,6 +257,7 @@ export function PlantPage({ projectId }: { projectId: string }) {
         <h2>Tag the plan</h2>
         <p className="muted">Pick the plant node each zone and item stands for. Every tag is one revision of the plan and can be undone.</p>
         <div className="eco-row">
+          <button type="button" className="btn" disabled={tree.length === 0} onClick={() => void linkByCode()}><Plugs size={15} />Link by code</button>
           <button type="button" className="btn" disabled={undo.length === 0} onClick={() => void undoTag()}><ArrowUUpLeft size={15} />Undo last tag{undo.length ? ` (${undo.length})` : ''}</button>
         </div>
         <Notice note={tagNote} />
