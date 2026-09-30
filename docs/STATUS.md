@@ -4,52 +4,32 @@
 
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
-- **Branch:** `main`
-- **Last commit:** `2e314d2` Docs: refresh generated status, changelog and work log after B1
-- **Uncommitted files:** 8
+- **Branch:** `ccr-294d598e-rw6r5x`
+- **Last commit:** `a51145d` Shipment page: container cards keep their content inside
+- **Uncommitted files:** 4
 
 ## Current stage: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
 
 **Finish line (done means):** from the projects page a person enters parts (name, L × W × H mm, quantity, may lie on its side, optional mass) and a container type; the program works out how many containers the parts need and creates one normal container project per container, loaded, with loading steps, grouped as one shipment. A shipment page shows every container of the shipment side by side in 3D with one play button for the stuffing, per-container figures, and a way to open each container in the full editor (details, colours, cut-away, playback and report as today). The cushion request is reproducible (hand-computed: 1 260 × 55QN80H or 4 920 × 32F6000 per 40′ HC). Old saves still open; `pnpm check` passes; decision record; README; committed (push only after the owner says yes).
 
-2 done, 4 open.
-
-Open items:
-
-- [ ] 3 Editor: "New shipment" form on the projects page; shipment group in the project list
-- [ ] 4 Editor: shipment page — containers side by side in 3D, one play button, figures per container, open in editor
-- [ ] 5 Browser journey test; decision 0021; README; `pnpm check`; commit
-- [ ] 6 Create the two cushion shipments (04/Oct, 05/Oct) in the owner's local app
+8 done, 0 open.
 
 ## Uncommitted work
 
 ```
- M TASKS.md
- M apps/server/src/http.ts
- M apps/server/src/tools.ts
- M apps/server/test/server.test.ts
- M packages/starter/src/index.ts
-?? apps/server/src/shipments.ts
-?? packages/starter/src/shipment.ts
-?? packages/starter/test/shipment.test.ts
+ M apps/editor/src/logic/shipment.ts
+ M apps/editor/src/ui/ShipmentDialog.tsx
+ M packages/starter/src/shipment.ts
+ M packages/starter/test/shipment.test.ts
 ```
 
 ## Recent checkpoints
 
-- `d6f0aee` 2026-09-29 11:36 S1 steps 1-2: wall loader and shipments API
-- `2e314d2` 2026-09-27 15:45 Docs: refresh generated status, changelog and work log after B1
-- `0c7e07c` 2026-09-27 12:15 B1: fix the six source-review findings (bugs.md), each with a regression test
-- `9ec3ad6` 2026-09-26 16:40 Docs: refresh generated status, changelog and work log after D2
-- `3db5e56` 2026-09-26 16:23 D2: Samsung Egypt sample, site pack, 3D engine v2, graphics levels, Paradigm design, docs system
-- `b292f17` 2026-09-26 11:52 Merge pull request #11 from coolman1984/claude/d1-sample-company
-- `5a38fdf` 2026-09-26 03:31 Merge pull request #7 from coolman1984/claude/bold-wright-kdi8rf
-- `a2e1fee` 2026-09-26 03:14 Merge pull request #6 from coolman1984/claude/bold-wright-kdi8rf
-- `09f169c` 2026-09-25 22:08 Merge pull request #5 from coolman1984/claude/bold-wright-kdi8rf
-- `4a09669` 2026-09-25 19:39 Merge pull request #4 from coolman1984/claude/bold-wright-kdi8rf
+None yet on `ccr-294d598e-rw6r5x` (`pnpm checkpoint` makes one).
 
 ## How to resume
 
 1. Read the open items above and the matching section of `TASKS.md`.
-2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/main -- .`
+2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/ccr-294d598e-rw6r5x -- .`
 3. Run `pnpm typecheck` to see what the interrupted work left broken, then continue.
 4. Details: `docs/process/interruptions.md`.

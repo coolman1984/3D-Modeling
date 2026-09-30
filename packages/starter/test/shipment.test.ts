@@ -91,6 +91,32 @@ describe('shipments', () => {
     expect(planShipment({ name: 'Gaps', containerType: '20gp', parts: parts(842) }).containers.map((c) => c.pieces)).toEqual([{ a: 12, cube: 841 }, { cube: 1 }]);
   });
 
+  it('heavy cargo fills a container by weight: 23 tile pallets need two 40′ high cubes, not one (hand-computed)', () => {
+    // A pallet of porcelain tiles: 1 100 × 1 100 × 1 000 mm, 40 cartons × 32 kg + a 25 kg pallet = 1 305 kg.
+    // By space a 40′ high cube takes 40: 2 across (2 200 of 2 350 mm) × 2 high (2 000 of 2 690 mm) × 10 walls (11 000 of 12 030 mm).
+    // By weight it takes floor(26 500 / 1 305) = 20. So 23 pallets need 20 + 3, and the first is at 26 100 kg of 26 500.
+    const pallet = (quantity: number, massKg?: number): ShipmentPart => ({ ...part('pallet', 1100, 1100, 1000, quantity, false), ...(massKg === undefined ? {} : { mass: massKg * 1000 }) });
+    expect(planShipment({ name: 'Tiles', containerType: '40hc', parts: [pallet(23)] }).containers.map((c) => c.pieces.pallet)).toEqual([23]);
+    const plan = planShipment({ name: 'Tiles', containerType: '40hc', parts: [pallet(23, 1305)] });
+    expect(plan.containers.map((c) => c.pieces.pallet)).toEqual([20, 3]);
+    plan.containers.forEach((c) => expectSound(c.project));
+    const first = plan.containers[0]!.project;
+    const mass = Object.values(first.items).reduce((m, i) => m + first.catalog[i.definitionId]!.mass!, 0);
+    expect(mass).toBe(26_100_000);
+    expect(new Map(checkContainer(first).map((r) => [r.code, r.status])).get('payload')).toBe('pass');
+    expect(plan.explanation).toBe('23 pieces need 2 × 40′ high cube; the last one is 9% full along its length. Weight is the limit: 1 container(s) reach the 26.5 t payload before they are full.');
+    // A 20′ standard is full by space first (2 × 2 × 5 walls = 20 of floor(28 200 / 1 305) = 21): the same 20 + 3, no weight note.
+    const twenty = planShipment({ name: 'Tiles', containerType: '20gp', parts: [pallet(23, 1305)] });
+    expect(twenty.containers.map((c) => c.pieces.pallet)).toEqual([20, 3]);
+    expect(twenty.explanation).not.toContain('Weight');
+  });
+
+  it('a piece heavier than the payload is named, not loaded', () => {
+    const plan = planShipment({ name: 'Press', containerType: '20gp', parts: [{ ...part('press', 2000, 2000, 2000, 1, false), mass: 30_000_000 }] });
+    expect(plan.tooBig).toEqual(['press']);
+    expect(plan.containers).toEqual([]);
+  });
+
   it('parts too big for the container are named, not loaded', () => {
     const plan = planShipment({ name: 'Big', containerType: '20gp', parts: [part('beam', 7000, 100, 100, 5), part('box', 500, 500, 500, 1)] });
     expect(plan.tooBig).toEqual(['beam']);

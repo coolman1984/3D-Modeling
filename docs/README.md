@@ -38,6 +38,8 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0018 — Graphics levels for the 3D view](decisions/0018-graphics-levels.md)
 - [0019 — "Paradigm" visual system replaces the warm Atrium palette](decisions/0019-paradigm-visual-system.md)
 - [0020 — Fixes from the 27 September source review (`bugs.md`)](decisions/0020-review-fixes.md)
+- [0021 — Shipments: how many containers, side by side](decisions/0021-shipments.md)
+- [0022 — Portable copy for networks that block npm](decisions/0022-portable-copy.md)
 
 ## Generated
 

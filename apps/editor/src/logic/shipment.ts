@@ -6,6 +6,8 @@ export interface PartRow {
   readonly height: number;
   readonly quantity: number;
   readonly mayTilt: boolean;
+  /** Weight of one piece in kg; unknown when not given (then only space limits a container). */
+  readonly massKg?: number | undefined;
   /** Every plan column after the sizes (one per day), 0 where the cell is empty. */
   readonly plan?: readonly number[];
 }

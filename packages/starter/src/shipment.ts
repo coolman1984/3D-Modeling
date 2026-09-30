@@ -145,21 +145,28 @@ export function planShipment(input: { readonly name: string; readonly containerT
     meta: { stackable: true, allowTilt: p.allowTilt === true },
   }));
   const options = new Map(definitions.map((d) => [d.id, wallsOf(d, length, width, height, door)]));
-  const tooBig = input.parts.filter((p) => p.quantity > 0 && options.get(p.id)!.length === 0).map((p) => p.id);
+  // The payload caps a container as surely as its length: heavy cargo (tiles, steel, paper) fills it by weight first.
+  const payload = type?.maxPayload;
+  const tooBig = input.parts
+    .filter((p) => p.quantity > 0 && (options.get(p.id)!.length === 0 || (p.mass !== undefined && payload !== undefined && p.mass > payload)))
+    .map((p) => p.id);
   const rate = (w: Wall) => w.spots.length / w.depth;
 
   // Parts of the same size and handling (a cushion's top and bottom) share walls: a crew finishes
   // a wall with the next part instead of leaving it half empty. One stream per size, in input order.
-  const streams: Array<{ key: string; ids: string[]; left: number }> = [];
+  const streams: Array<{ key: string; ids: string[]; left: number; mass: number | undefined }> = [];
   for (const p of input.parts) {
     if (p.quantity <= 0 || tooBig.includes(p.id)) continue;
-    const key = `${p.length}x${p.width}x${p.height}|${p.allowTilt === true}`;
+    const key = `${p.length}x${p.width}x${p.height}|${p.allowTilt === true}|${p.mass ?? '-'}`;
     const stream = streams.find((s) => s.key === key);
     if (stream) {
       stream.ids.push(p.id);
       stream.left += Math.round(p.quantity);
-    } else streams.push({ key, ids: [p.id], left: Math.round(p.quantity) });
+    } else streams.push({ key, ids: [p.id], left: Math.round(p.quantity), mass: p.mass });
   }
+  /** How many more pieces of this stream the load's payload takes (no limit when the weight is unknown). */
+  const byWeight = (s: (typeof streams)[number], load: { mass: number }): number =>
+    s.mass === undefined || s.mass <= 0 || payload === undefined ? Infinity : Math.floor((payload - load.mass) / s.mass);
   const wallsFor = (s: (typeof streams)[number]) => options.get(s.ids[0]!)!;
   // Streams with the deepest best wall go first; the shallow ones fill the gaps at the end.
   const bestDepth = (s: (typeof streams)[number]) => wallsFor(s).reduce((b, w) => (rate(w) > rate(b) ? w : b)).depth;
@@ -179,7 +186,7 @@ export function planShipment(input: { readonly name: string; readonly containerT
 
   type Spot = { readonly x: Tick; readonly y: Tick; readonly z: Tick; readonly o: Orientation };
   type Placed = { stream: (typeof streams)[number]; wall: Wall; count: number; x: Tick; fill: Array<{ stream: (typeof streams)[number]; spot: Spot }> };
-  const loads: Array<{ walls: Placed[]; used: Tick }> = [];
+  const loads: Array<{ walls: Placed[]; used: Tick; mass: number; full: boolean }> = [];
 
   /**
    * Fill the room left above the walls of a finished container with pieces still waiting: above a
@@ -187,7 +194,7 @@ export function planShipment(input: { readonly name: string; readonly containerT
    * depth, so each flat stretch across the width is an empty box standing on pieces (or the floor);
    * pieces go in it in columns, bottom layer first, so each rests fully on the one below.
    */
-  const fillGaps = (load: { walls: Placed[] }) => {
+  const fillGaps = (load: { walls: Placed[]; mass: number; full: boolean }) => {
     for (const placed of load.walls) {
       for (const flat of topOf(placed.wall, placed.count, width)) {
         const room = { l: placed.wall.depth, w: flat.y1 - flat.y0, h: height - flat.top };
@@ -200,26 +207,34 @@ export function planShipment(input: { readonly name: string; readonly containerT
           for (let k = 0; (k + 1) * o.h <= room.h; k++)
             for (let j = 0; (j + 1) * o.w <= room.w; j++)
               for (let i = 0; (i + 1) * o.l <= room.l; i++) spots.push({ x: placed.x + i * o.l, y: flat.y0 + j * o.w, z: flat.top + k * o.h, o });
-          const n = Math.min(spots.length, s.left);
+          const room2 = byWeight(s, load);
+          const n = Math.min(spots.length, s.left, room2);
+          if (room2 < Math.min(spots.length, s.left)) load.full = true;
+          if (n <= 0) continue;
           for (const spot of spots.slice(0, n)) placed.fill.push({ stream: s, spot });
           s.left -= n;
+          if (s.mass !== undefined) load.mass += n * s.mass;
           break;
         }
       }
     }
   };
   while (order.some((s) => s.left > 0)) {
-    const load = { walls: [] as Placed[], used: 0 };
+    const load = { walls: [] as Placed[], used: 0, mass: 0, full: false };
     for (;;) {
       let placed = false;
       for (const s of order) {
         if (s.left <= 0) continue;
         const wall = pick(s, length - load.used);
         if (!wall) continue;
-        const count = Math.min(wall.spots.length, s.left);
+        const room = byWeight(s, load);
+        if (room < Math.min(wall.spots.length, s.left)) load.full = true;
+        const count = Math.min(wall.spots.length, s.left, room);
+        if (count <= 0) continue;
         load.walls.push({ stream: s, wall, count, x: load.used, fill: [] });
         load.used += wall.depth;
         s.left -= count;
+        if (s.mass !== undefined) load.mass += count * s.mass;
         placed = true;
         break;
       }
@@ -297,7 +312,10 @@ export function planShipment(input: { readonly name: string; readonly containerT
       ? 'Nothing to load: give the parts a quantity.'
       : `${total} pieces need ${containers.length} × ${type?.label ?? input.containerType}` +
         (containers.length > 0 ? `; the last one is ${Math.round((containers.at(-1)!.usedLength / length) * 100)}% full along its length.` : '.') +
-        (tooBig.length > 0 ? ` ${tooBig.length} part type(s) are too big for this container.` : '');
+        (tooBig.length > 0 ? ` ${tooBig.length} part type(s) are too big for this container.` : '') +
+        (loads.some((l) => l.full) && payload !== undefined
+          ? ` Weight is the limit: ${loads.filter((l) => l.full).length} container(s) reach the ${Math.round(payload / 100_000) / 10} t payload before they are full.`
+          : '');
   return { containers, tooBig, explanation };
 }
 
