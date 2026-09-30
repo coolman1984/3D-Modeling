@@ -5,20 +5,41 @@
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
 - **Branch:** `ccr-294d598e-rw6r5x`
-- **Last commit:** `8607b78` Shipments respect the payload: heavy cargo fills a container by weight before space
-- **Uncommitted files:** 2
+- **Last commit:** `e3d8c06` Shipments spread heavy loads instead of piling them at the front wall (balance)
+- **Uncommitted files:** 23
 
 ## Current stage: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
 
-**Finish line (done means):** from the projects page a person enters parts (name, L × W × H mm, quantity, may lie on its side, optional mass) and a container type; the program works out how many containers the parts need and creates one normal container project per container, loaded, with loading steps, grouped as one shipment. A shipment page shows every container of the shipment side by side in 3D with one play button for the stuffing, per-container figures, and a way to open each container in the full editor (details, colours, cut-away, playback and report as today). The cushion request is reproducible (hand-computed: 1 260 × 55QN80H or 4 920 × 32F6000 per 40′ HC). Old saves still open; `pnpm check` passes; decision record; README; committed (push only after the owner says yes).
+**Finish line (done means):** from the projects page a person enters parts (name, L × W × H mm, quantity, may lie on its side, optional mass) and a container type; the program works out how many containers the parts need and creates one normal container project per container, loaded, with loading steps, grouped as one shipment. A shipment page shows every container of the shipment side by side in 3D with one play button for the stuffing, per-container figures, and a way to open each container in the full editor (details, colours, cut-away, playback and report as today). The cushion request is reproducible (hand-computed: 1 260 × TV55B or 4 920 × TV32C per 40′ HC). Old saves still open; `pnpm check` passes; decision record; README; committed (push only after the owner says yes).
 
 8 done, 0 open.
 
 ## Uncommitted work
 
 ```
- M packages/starter/src/shipment.ts
+ D packages/starter/src/samsung.ts
+ D packages/starter/test/samsung.test.ts
+ M README.md
+ M TASKS.md
+ M apps/editor/e2e/sample.spec.ts
+ M apps/editor/e2e/shipment.spec.ts
+ M apps/editor/src/ui/ShipmentDialog.tsx
+ M apps/editor/src/ui/models3d.ts
+ M apps/editor/test/shipment.test.ts
+ M apps/server/src/shipments.ts
+ M apps/server/test/server.test.ts
+ M docs/agents.md
+ M docs/decisions/0015-sample-company-and-slotting.md
+ M docs/decisions/0021-shipments.md
+ M docs/plans/handoff-d2-closeout.md
+ M packages/starter/src/index.ts
+ M packages/starter/src/sampleCompanies.ts
+ M packages/starter/src/samples.ts
+ M packages/starter/src/stock.ts
  M packages/starter/test/shipment.test.ts
+A  packages/starter/src/horizon.ts
+A  packages/starter/test/horizon.test.ts
+RM docs/decisions/0016-samsung-sample-and-3d-v2.md -> docs/decisions/0016-electronics-sample-and-3d-v2.md
 ```
 
 ## Recent checkpoints

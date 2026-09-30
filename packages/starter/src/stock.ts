@@ -10,7 +10,7 @@ import { DEFAULT_FORKLIFT, dockApproach, rackSpecOf, type RackSpec } from './war
  * the save instead of thousands of items that the core would report as overlapping their rack.
  *
  * Bay entry `s01` = levels bottom-up joined by `|`, positions west to east joined by `,`, each a
- * material id or empty: `"Q60D55,Q60D55,|CU70043,,|,,"`.
+ * material id or empty: `"Q655,Q655,|CU70043,,|,,"`.
  */
 
 const cm = (v: number) => fromUnit(v, 'cm');
@@ -28,7 +28,7 @@ export interface Material {
   readonly id: Id;
   readonly name: string;
   readonly sku: string;
-  /** Product family shown in lists, e.g. "QLED TV". */
+  /** Product family shown in lists, e.g. "Quantum-dot TV". */
   readonly line?: string;
   readonly velocity?: Velocity;
   /** Pallet moves in and out per week, all pallets of this material together. */

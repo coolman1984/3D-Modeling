@@ -7,18 +7,18 @@ describe('shipment form', () => {
     const text = [
       '        Part size            Production Plan    ',
       'Model    Item Ref.    L (mm)    W(mm)    H(mm)    04/Oct    05/Oct',
-      '77S85H    BN69-25994A Cushion Side    500    152    200        ',
-      '    BN69-25993A Cushion Top    1872    152    350        ',
-      '55QN80H    BN69-28085A Cushion Top    1335    110    400    1750    1750',
-      '    BN69-28085A Cushion Bot    1335    110    400    1750    1750',
-      '32F6000    BN69-26767A Cushion Top    788    102    185    4200    800',
+      'TV77A    CS-7701 Cushion Side    500    152    200        ',
+      '    CS-7702 Cushion Top    1872    152    350        ',
+      'TV55B    CS-5501 Cushion Top    1335    110    400    1750    1750',
+      '    CS-5501 Cushion Bot    1335    110    400    1750    1750',
+      'TV32C    CS-3201 Cushion Top    788    102    185    4200    800',
     ].join('\n');
     expect(parsePastedParts(text)).toEqual([
-      { name: '77S85H BN69-25994A Cushion Side', length: 500, width: 152, height: 200, quantity: 0, mayTilt: true },
-      { name: '77S85H BN69-25993A Cushion Top', length: 1872, width: 152, height: 350, quantity: 0, mayTilt: true },
-      { name: '55QN80H BN69-28085A Cushion Top', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true },
-      { name: '55QN80H BN69-28085A Cushion Bot', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true },
-      { name: '32F6000 BN69-26767A Cushion Top', length: 788, width: 102, height: 185, quantity: 4200, mayTilt: true },
+      { name: 'TV77A CS-7701 Cushion Side', length: 500, width: 152, height: 200, quantity: 0, mayTilt: true },
+      { name: 'TV77A CS-7702 Cushion Top', length: 1872, width: 152, height: 350, quantity: 0, mayTilt: true },
+      { name: 'TV55B CS-5501 Cushion Top', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true },
+      { name: 'TV55B CS-5501 Cushion Bot', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true },
+      { name: 'TV32C CS-3201 Cushion Top', length: 788, width: 102, height: 185, quantity: 4200, mayTilt: true },
     ]);
   });
 
@@ -27,28 +27,28 @@ describe('shipment form', () => {
     const text = [
       '        Part size            Production Plan                    ',
       'Model    Item Ref.    L (mm)    W(mm)    H(mm)    04/Oct    05/Oct    06/Oct    07/Oct    08/Oct    09/Oct',
-      '77S85H    BN69-25994A Cushion Side    500    152    200                1400    1400    1200',
-      '    BN69-25993A Cushion Top    1872    152    350                700    700    600',
-      '    BN69-25993A Cushion Bot    1872    152    350                700    700    600',
-      '55QN80H    BN69-28085A Cushion Top    1335    110    400    1750    1750    1750    1750        ',
-      '    BN69-28085A Cushion Bot    1335    110    400    1750    1750    1750    1750        ',
-      '32F6000    BN69-26767A Cushion Top    788    102    185    4200    800                ',
-      '    BN69-26767A Cushion Bot    788    102    185    4200    800                ',
+      'TV77A    CS-7701 Cushion Side    500    152    200                1400    1400    1200',
+      '    CS-7702 Cushion Top    1872    152    350                700    700    600',
+      '    CS-7702 Cushion Bot    1872    152    350                700    700    600',
+      'TV55B    CS-5501 Cushion Top    1335    110    400    1750    1750    1750    1750        ',
+      '    CS-5501 Cushion Bot    1335    110    400    1750    1750    1750    1750        ',
+      'TV32C    CS-3201 Cushion Top    788    102    185    4200    800                ',
+      '    CS-3201 Cushion Bot    788    102    185    4200    800                ',
     ].join('\n');
     const plan = parsePastedPlan(text);
     expect(plan.columns).toEqual(['04/Oct', '05/Oct', '06/Oct', '07/Oct', '08/Oct', '09/Oct']);
     expect(plan.rows.map((r) => [r.name, r.plan])).toEqual([
-      ['77S85H BN69-25994A Cushion Side', [0, 0, 0, 1400, 1400, 1200]],
-      ['77S85H BN69-25993A Cushion Top', [0, 0, 0, 700, 700, 600]],
-      ['77S85H BN69-25993A Cushion Bot', [0, 0, 0, 700, 700, 600]],
-      ['55QN80H BN69-28085A Cushion Top', [1750, 1750, 1750, 1750, 0, 0]],
-      ['55QN80H BN69-28085A Cushion Bot', [1750, 1750, 1750, 1750, 0, 0]],
-      ['32F6000 BN69-26767A Cushion Top', [4200, 800, 0, 0, 0, 0]],
-      ['32F6000 BN69-26767A Cushion Bot', [4200, 800, 0, 0, 0, 0]],
+      ['TV77A CS-7701 Cushion Side', [0, 0, 0, 1400, 1400, 1200]],
+      ['TV77A CS-7702 Cushion Top', [0, 0, 0, 700, 700, 600]],
+      ['TV77A CS-7702 Cushion Bot', [0, 0, 0, 700, 700, 600]],
+      ['TV55B CS-5501 Cushion Top', [1750, 1750, 1750, 1750, 0, 0]],
+      ['TV55B CS-5501 Cushion Bot', [1750, 1750, 1750, 1750, 0, 0]],
+      ['TV32C CS-3201 Cushion Top', [4200, 800, 0, 0, 0, 0]],
+      ['TV32C CS-3201 Cushion Bot', [4200, 800, 0, 0, 0, 0]],
     ]);
     expect(rowsForColumn(plan.rows, 3).map((r) => r.quantity)).toEqual([1400, 700, 700, 1750, 1750, 0, 0]);
     // The same plan copied straight from the spreadsheet (tabs, empty cells between them).
-    const tabbed = parsePastedPlan('Model\tItem\tL\tW\tH\t04/Oct\t05/Oct\n77S85H\tSide\t500\t152\t200\t\t1400');
+    const tabbed = parsePastedPlan('Model\tItem\tL\tW\tH\t04/Oct\t05/Oct\nTV77A\tSide\t500\t152\t200\t\t1400');
     expect(tabbed.columns).toEqual(['04/Oct', '05/Oct']);
     expect(tabbed.rows[0]!.plan).toEqual([0, 1400]);
   });

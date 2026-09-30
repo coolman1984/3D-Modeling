@@ -38,17 +38,17 @@ test('sample company: add it, re-slot the main DC, find a material and empty one
   await expect(page.getByTestId('view3d').locator('canvas')).toBeVisible();
 });
 
-test('second sample company: Samsung Egypt lists as its own group and its campus opens outdoors in 3D', async ({ page }) => {
+test('second sample company: Horizon Electronics lists as its own group and its campus opens outdoors in 3D', async ({ page }) => {
   await page.goto('/#/');
   await page.getByTestId('add-sample').click();
-  await page.getByTestId('add-sample-samsung-egypt').click();
-  await expect(page.getByRole('status').filter({ hasText: 'Added Samsung Electronics Egypt · Beni Suef · 10 projects' })).toBeVisible();
-  const group = page.locator('[data-group="samsung-egypt"]');
+  await page.getByTestId('add-sample-horizon-electronics').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Added Horizon Electronics · industrial zone (invented) · 10 projects' })).toBeVisible();
+  const group = page.locator('[data-group="horizon-electronics"]');
   await expect(group.locator('.proj-group-count')).toHaveText('10 projects');
 
   const list = await (await page.request.get('/api/projects')).json() as Array<{ id: string; name: string; collection: string | null }>;
-  const campus = list.find((p) => p.collection === 'samsung-egypt' && p.name.includes('campus'))!;
-  expect(list.filter((p) => p.collection === 'samsung-egypt')).toHaveLength(10);
+  const campus = list.find((p) => p.collection === 'horizon-electronics' && p.name.includes('campus'))!;
+  expect(list.filter((p) => p.collection === 'horizon-electronics')).toHaveLength(10);
 
   await page.goto(`/#/p/${campus.id}`);
   await expect(page.locator('[data-item-id]').first()).toBeVisible();

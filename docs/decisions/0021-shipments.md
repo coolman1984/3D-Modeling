@@ -4,7 +4,7 @@
 
 ## Context
 
-A customer request (Samsung TV cushions, production plan for 04/Oct and 05/Oct): "how many
+A customer request (TV cushions, production plan for 04/Oct and 05/Oct): "how many
 containers do we need", shown in the program with the containers side by side, every container
 detail, and the stuffing playback. Until now a container project held one container, and the
 extreme-point packer (decision 0010) placed a few hundred mixed pieces. It took about 12 s for 1 260

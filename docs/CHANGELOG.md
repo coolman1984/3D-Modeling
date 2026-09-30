@@ -6,6 +6,19 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-09
 
+### Shipments spread heavy loads instead of piling them at the front wall (balance)
+
+`e3d8c06` · 2026-09-30
+
+A tile container that reached its payload with half its floor free still had its pallets stacked two high against
+the front wall: the centre of mass sat 27 % off the middle, the balance rule allows 10 %, and the last container (3
+pallets) was 45 % off. A weighed single-part load that does not need the whole container now goes in as few layers as
+the floor allows, centred along the length, its last partial row centred across the width. Loads without weights are
+unchanged (walls from the front wall to the doors), so every existing plan is the same.
+Test (hand-computed): 20 pallets of 1 305 kg one high over 10 walls, 11 000 mm, 515 mm free at each end; the last 3 in
+2 walls; both containers pass balance; turning the spread off fails it.
+pnpm typecheck ok; pnpm test all pass; pnpm e2e 23 of 23.
+
 ### Shipments respect the payload: heavy cargo fills a container by weight before space
 
 `8607b78` · 2026-09-30

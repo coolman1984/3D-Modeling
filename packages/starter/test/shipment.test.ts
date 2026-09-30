@@ -35,10 +35,10 @@ describe('shipments', () => {
     expect(plan.explanation).toBe('100 pieces need 2 × 20′ standard; the last one is 17% full along its length.');
   });
 
-  it('55QN80H cushions 1335 × 110 × 400 mm: 1 260 per 40′ high cube (hand-computed)', () => {
+  it('TV55B cushions 1335 × 110 × 400 mm: 1 260 per 40′ high cube (hand-computed)', () => {
     // Walls 400 mm deep: 21 across (2 310 of 2 350 mm) × 2 standing on end (2 670 of 2 690 mm) = 42;
     // 30 walls = 12 000 of 12 030 mm → 1 260. So 3 500 pieces need 1 260 + 1 260 + 980.
-    const plan = planShipment({ name: '55QN80H', containerType: '40hc', parts: [part('qn', 1335, 110, 400, 3500)] });
+    const plan = planShipment({ name: 'TV55B', containerType: '40hc', parts: [part('qn', 1335, 110, 400, 3500)] });
     expect(plan.containers.map((c) => c.pieces.qn)).toEqual([1260, 1260, 980]);
     expect(plan.containers[0]!.usedLength).toBe(mm(12_000));
     // Two layers per wall, one loading step each.
@@ -61,11 +61,11 @@ describe('shipments', () => {
     const plan = planShipment({
       name: 'Cushions 05/Oct',
       containerType: '40hc',
-      parts: [part('55qn80h', 1335, 110, 400, 3500), part('32f6000', 788, 102, 185, 1600)],
+      parts: [part('tv55b', 1335, 110, 400, 3500), part('tv32c', 788, 102, 185, 1600)],
     });
     expect(plan.containers.length).toBe(4);
     const total = (id: string) => plan.containers.reduce((s, c) => s + (c.pieces[id] ?? 0), 0);
-    expect([total('55qn80h'), total('32f6000')]).toEqual([3500, 1600]);
+    expect([total('tv55b'), total('tv32c')]).toEqual([3500, 1600]);
     expect(plan.containers[3]!.usedLength / mm(12_030)).toBeLessThan(0.15);
     plan.containers.forEach((c, i) => {
       expectSound(c.project);

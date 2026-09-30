@@ -113,5 +113,5 @@ export * from './restaurant.js';
 export * from './stock.js';
 export * from './samples.js';
 export * from './site.js';
-export * from './samsung.js';
+export * from './horizon.js';
 export * from './sampleCompanies.js';

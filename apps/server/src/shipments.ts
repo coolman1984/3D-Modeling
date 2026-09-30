@@ -39,7 +39,7 @@ export function readShipmentInput(body: Record<string, unknown>): ShipmentInput 
     if (typeof raw !== 'object' || raw === null) throw new ShipmentInputError(`parts[${i}] must be an object`);
     const p = raw as Record<string, unknown>;
     const label = typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 120) : `Part ${i + 1}`;
-    // Readable, unique cargo-type ids: "55qn80h-cushion-top", then "-2" for a repeat.
+    // Readable, unique cargo-type ids: "tv55b-cushion-top", then "-2" for a repeat.
     const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'part';
     let id = base;
     for (let n = 2; ids.has(id); n++) id = `${base}-${n}`;

@@ -873,7 +873,7 @@ function flags(g: THREE.Group, w: number, h: number): void {
   kinds.forEach((kind, k) => {
     const x = -w / 2 + (w / 3) * (k + 0.5);
     g.add(cyl(0.05, 0.07, h, M.chrome(), x, h / 2, 0, 10));
-    const cloth = mesh(new THREE.PlaneGeometry(1.8, 1.2, 8, 1), mat(`flag:${kind}`, () => new THREE.MeshStandardMaterial({ map: flagTexture(kind, 'SAMSUNG'), side: THREE.DoubleSide, roughness: 0.8 })), x + 0.92, h - 0.8, 0, false);
+    const cloth = mesh(new THREE.PlaneGeometry(1.8, 1.2, 8, 1), mat(`flag:${kind}`, () => new THREE.MeshStandardMaterial({ map: flagTexture(kind, 'HORIZON'), side: THREE.DoubleSide, roughness: 0.8 })), x + 0.92, h - 0.8, 0, false);
     const p = cloth.geometry.attributes.position!;
     for (let i = 0; i < p.count; i++) p.setZ(i, Math.sin((p.getX(i) + 0.9) * 2.4) * 0.12);
     cloth.geometry.computeVertexNormals();

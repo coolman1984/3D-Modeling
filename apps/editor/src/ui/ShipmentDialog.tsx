@@ -103,7 +103,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
             <ClipboardText size={15} />
             Paste rows from a spreadsheet
           </summary>
-          <textarea className="input" name="shipment-paste" rows={4} placeholder={'Name    L    W    H    Quantity\n55QN80H Cushion Top    1335    110    400    1750'} value={paste} onChange={(e) => setPaste(e.target.value)} />
+          <textarea className="input" name="shipment-paste" rows={4} placeholder={'Name    L    W    H    Quantity\nTV55B Cushion Top    1335    110    400    1750'} value={paste} onChange={(e) => setPaste(e.target.value)} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span className="spacer faint" style={{ fontSize: 12 }}>
               The words before the first number are the name; then L, W, H in mm and the quantity.
