@@ -74,6 +74,7 @@
 | ب١ — إصلاح ٦ أخطاء من مراجعة الكود: مشروع ما يتقفلش أبداً، الرجوع لنسخة قديمة ما يمسحش شغل حد تاني، التعديلات بتتحفظ لوحدها لما النت يرجع، والوكلاء بيقفوا كلهم لما المشروع يتمسح | ✅ |
 | سجل الشغل — صفحة «فين وصلنا» بتتحدث لوحدها، تاريخ كل التعديلات، ونسخ حفظ للشغل اللي لسه ما خلصش عشان أي انقطاع ما يضيعش حاجة | ✅ |
 | ش١ — الشحنات: كام حاوية محتاج، الحاويات جنب بعض مجسمة، تشغيل التحميل، ولزق خطة الإنتاج من الإكسل | ✅ |
+| E1 — Link to plant (GMES): tag items and zones with the plant tree, checks that name the missing station, the layout snapshot sent or downloaded, and a live view of the stations ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
 | ت١١ الحسابات والشركات | 🗓️ مخطط ([الخطة](docs/03-industrial-packs-plan.md)) |
 
 ## 🛠️ للمطورين
