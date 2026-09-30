@@ -40,6 +40,7 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0020 — Fixes from the 27 September source review (`bugs.md`)](decisions/0020-review-fixes.md)
 - [0021 — Shipments: how many containers, side by side](decisions/0021-shipments.md)
 - [0022 — Portable copy for networks that block npm](decisions/0022-portable-copy.md)
+- [0023 — Link to plant: tags in meta, the layout snapshot, the live view from the browser](decisions/0023-gmes-link.md)
 
 ## Generated
 

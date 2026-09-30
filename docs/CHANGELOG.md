@@ -6,6 +6,15 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-09
 
+### Space Planner: the electronics sample is an invented company (no real company, site or part numbers)
+
+`de6ed6b` · 2026-09-30
+
+The repository is public and the owner presents it to other factories; a sample
+named after a real company and its real site and part numbers could cause trouble.
+Renamed to Horizon Electronics (invented), product and part codes invented, docs
+and decision 0016 rewritten; saved shipment slugs follow the new codes.
+
 ### Shipments spread heavy loads instead of piling them at the front wall (balance)
 
 `e3d8c06` · 2026-09-30

@@ -4,6 +4,7 @@ import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
 import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
+import { EcoError, ecoRoutes, type FetchLike } from './eco/routes.js';
 import { loadSettings, publicSettings, saveSettings, settingsProblems, type Settings } from './settings.js';
 import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
 import type { Store } from './store.js';
@@ -14,6 +15,8 @@ export interface AppOptions {
   readonly dataDir: string;
   /** Built editor to serve; when missing only the API is served. */
   readonly staticDir?: string;
+  /** How calls to GMES are made (tests pass a fake; the default is the platform's fetch). */
+  readonly ecoFetch?: FetchLike;
   readonly mcpScript: string;
 }
 
@@ -249,6 +252,19 @@ export function createApp(options: AppOptions): App {
     if (problems.length > 0) throw new HttpError(400, `settings not saved: ${problems.join('; ')}`);
     send(res, 200, publicSettings(saveSettings(store, body as Partial<Settings>)));
   });
+
+  // The link to GMES (plant tree, layout snapshot, live view key): see eco/routes.ts. Calls out only on the person's command.
+  for (const r of ecoRoutes({ store, ...(options.ecoFetch ? { fetch: options.ecoFetch } : {}) })) {
+    route(r.method, r.pattern, async (req, res, params) => {
+      try {
+        const out = await r.handler({ body: r.method === 'GET' ? {} : await readJson(req), params });
+        send(res, out.status ?? 200, out.body);
+      } catch (error) {
+        if (error instanceof EcoError) throw new HttpError(error.status, error.message);
+        throw error;
+      }
+    });
+  }
 
   route('GET', '/api/agents', (_q, res) => send(res, 200, runner.availability()));
 

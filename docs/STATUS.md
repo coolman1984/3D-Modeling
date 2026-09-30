@@ -5,8 +5,8 @@
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
 - **Branch:** `ccr-294d598e-rw6r5x`
-- **Last commit:** `e3d8c06` Shipments spread heavy loads instead of piling them at the front wall (balance)
-- **Uncommitted files:** 23
+- **Last commit:** `de6ed6b` Space Planner: the electronics sample is an invented company (no real company, site or part numbers)
+- **Uncommitted files:** 35
 
 ## Current stage: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
 
@@ -17,29 +17,41 @@ Where work stands. Read this first after an interruption, then `TASKS.md`.
 ## Uncommitted work
 
 ```
- D packages/starter/src/samsung.ts
- D packages/starter/test/samsung.test.ts
- M README.md
- M TASKS.md
- M apps/editor/e2e/sample.spec.ts
- M apps/editor/e2e/shipment.spec.ts
- M apps/editor/src/ui/ShipmentDialog.tsx
- M apps/editor/src/ui/models3d.ts
- M apps/editor/test/shipment.test.ts
- M apps/server/src/shipments.ts
- M apps/server/test/server.test.ts
- M docs/agents.md
- M docs/decisions/0015-sample-company-and-slotting.md
- M docs/decisions/0021-shipments.md
- M docs/plans/handoff-d2-closeout.md
- M packages/starter/src/index.ts
- M packages/starter/src/sampleCompanies.ts
- M packages/starter/src/samples.ts
- M packages/starter/src/stock.ts
- M packages/starter/test/shipment.test.ts
-A  packages/starter/src/horizon.ts
-A  packages/starter/test/horizon.test.ts
-RM docs/decisions/0016-samsung-sample-and-3d-v2.md -> docs/decisions/0016-electronics-sample-and-3d-v2.md
+A  apps/editor/e2e/plant-link.spec.ts
+A  apps/editor/e2e/plant-nile-vision.spec.ts
+A  apps/editor/src/eco/LivePlan.tsx
+A  apps/editor/src/eco/eco.css
+A  apps/editor/src/eco/ecoApi.ts
+A  apps/editor/src/eco/live.ts
+A  apps/editor/src/pages/PlantPage.tsx
+A  apps/editor/test/live.test.ts
+A  apps/server/src/eco/contract.ts
+A  apps/server/src/eco/ids.ts
+A  apps/server/src/eco/link.ts
+A  apps/server/src/eco/plant.ts
+A  apps/server/src/eco/routes.ts
+A  apps/server/src/eco/schemas.ts
+A  apps/server/src/eco/schemas/eco.envelope.v1.schema.json
+A  apps/server/src/eco/schemas/eco.layout.snapshot.v1.schema.json
+A  apps/server/src/eco/schemas/eco.plant_node.v1.schema.json
+A  apps/server/src/eco/secret.ts
+A  apps/server/src/eco/snapshot.ts
+A  apps/server/src/eco/store-port.ts
+A  apps/server/test/eco.test.ts
+A  docs/decisions/0023-gmes-link.md
+A  packages/starter/src/nileVision.ts
+A  packages/starter/src/plantLink.ts
+A  packages/starter/test/nileVision.test.ts
+A  packages/starter/test/plantLink.test.ts
+M  .gitattributes
+M  README.md
+M  apps/editor/src/App.tsx
+M  apps/editor/src/pages/EditorPage.tsx
+M  apps/server/src/http.ts
+M  apps/server/tsconfig.json
+M  packages/starter/src/index.ts
+UU apps/server/test/server.test.ts
+UU packages/starter/src/sampleCompanies.ts
 ```
 
 ## Recent checkpoints

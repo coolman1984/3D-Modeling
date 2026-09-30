@@ -42,6 +42,7 @@ import {
   Package,
   Magnet,
   MapTrifold,
+  Plugs,
   Ruler,
   SidebarSimple,
   Sparkle,
@@ -553,6 +554,10 @@ function Editor({ initial }: { initial: Project }) {
         <a className={`btn ghost${saving ? ' disabled' : ''}`} href={saving ? undefined : `#/p/${project.id}/report`} aria-disabled={saving} title="Printable report for the client">
           <FileText size={16} />
           <span className="hide-narrow">Client report</span>
+        </a>
+        <a className={`btn ghost${saving ? ' disabled' : ''}`} href={saving ? undefined : `#/p/${project.id}/plant`} aria-disabled={saving} title="Link this plan to the plant of manufacturing (GMES)">
+          <Plugs size={16} />
+          <span className="hide-narrow">Plant link</span>
         </a>
         <button type="button" className={`btn${aiOpen ? ' accent' : ''}`} aria-pressed={aiOpen} onClick={() => setAiOpen((o) => !o)}>
           <Sparkle size={15} />
