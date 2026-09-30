@@ -130,13 +130,13 @@ describe('agent tools', () => {
   it('lets an agent read stock, move a pallet and re-slot a stocked warehouse, each as one revision', () => {
     const ctx = { store, actor: 'agent:test' };
     const dc = store.createProject(nileGateRamadanDC(), 'Sample data');
-    const stock = JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q60D55' }).text);
+    const stock = JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q655' }).text);
     expect(stock.positions).toBe(1680);
     const from = stock.locations[0] as string;
-    const moved = runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: from, material_id: null }, { location: 'E04-B02-L03-P01', material_id: 'Q60D55' }] });
+    const moved = runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: from, material_id: null }, { location: 'E04-B02-L03-P01', material_id: 'Q655' }] });
     expect(moved.isError).toBe(false);
-    expect(JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q60D55' }).text).locations).toContain('E04-B02-L03-P01');
-    expect(runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: 'W01-B99-L01-P01', material_id: 'Q60D55' }] }).isError).toBe(true);
+    expect(JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q655' }).text).locations).toContain('E04-B02-L03-P01');
+    expect(runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: 'W01-B99-L01-P01', material_id: 'Q655' }] }).isError).toBe(true);
     const proposal = JSON.parse(runTool(ctx, 'optimize_slotting', { project_id: dc.id }).text);
     expect(proposal.saving).toBeGreaterThan(10);
     expect(store.getProject(dc.id)?.revision).toBe(1);
@@ -332,40 +332,40 @@ describe('HTTP app', () => {
     expect(list[0]).toMatchObject({ collection: 'nile-gate' });
   });
 
-  it('lists the sample companies and adds the Samsung one as its own group, campus first', async () => {
+  it('lists the sample companies and adds the Horizon one as its own group, campus first', async () => {
     const companies = (await json('/api/samples')).body as Array<{ id: string; name: string }>;
-    expect(companies.map((c) => c.id)).toEqual(['samsung-egypt', 'nile-gate', 'nile-vision']);
-    const added = await json('/api/samples/samsung-egypt', { method: 'POST', body: '{}' });
+    expect(companies.map((c) => c.id)).toEqual(['horizon-electronics', 'nile-gate', 'nile-vision']);
+    const added = await json('/api/samples/horizon-electronics', { method: 'POST', body: '{}' });
     expect(added.status).toBe(201);
     expect(added.body).toHaveLength(10);
     const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
     expect(list[0]!.name).toContain('campus');
-    expect(list.filter((p) => p.collection === 'samsung-egypt')).toHaveLength(10);
+    expect(list.filter((p) => p.collection === 'horizon-electronics')).toHaveLength(10);
     expect((await json('/api/samples/unknown', { method: 'POST', body: '{}' })).status).toBe(404);
     store.createProject(demoHall(), 'human');
     expect(store.listProjects()[0]).toMatchObject({ collection: null });
   });
 
   it('plans a shipment as loaded container projects in one group, container 1 listed first', async () => {
-    const cushion = { name: '55QN80H Cushion Top', length_mm: 1335, width_mm: 110, height_mm: 400, quantity: 1750 };
+    const cushion = { name: 'TV55B Cushion Top', length_mm: 1335, width_mm: 110, height_mm: 400, quantity: 1750 };
     const created = await json('/api/shipments', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Cushions 04/Oct', container_type: '40hc', parts: [cushion, { ...cushion, name: '55QN80H Cushion Bot' }] }),
+      body: JSON.stringify({ name: 'Cushions 04/Oct', container_type: '40hc', parts: [cushion, { ...cushion, name: 'TV55B Cushion Bot' }] }),
     });
     expect(created.status).toBe(201);
     // 3 500 cushions at 1 260 per 40′ high cube (hand-computed in the starter tests).
     expect(created.body.containers.map((c: { pieces: Record<string, number> }) => Object.values(c.pieces).reduce((s, n) => s + n, 0))).toEqual([1260, 1260, 980]);
     expect(created.body.containers.map((c: { pieces: unknown }) => c.pieces)).toEqual([
-      { '55qn80h-cushion-top': 1260 },
-      { '55qn80h-cushion-top': 490, '55qn80h-cushion-bot': 770 },
-      { '55qn80h-cushion-bot': 980 },
+      { 'tv55b-cushion-top': 1260 },
+      { 'tv55b-cushion-top': 490, 'tv55b-cushion-bot': 770 },
+      { 'tv55b-cushion-bot': 980 },
     ]);
     const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
     expect(list.slice(0, 3).map((p) => p.name)).toEqual(['Cushions 04/Oct · container 1 of 3', 'Cushions 04/Oct · container 2 of 3', 'Cushions 04/Oct · container 3 of 3']);
     expect(new Set(list.slice(0, 3).map((p) => p.collection))).toEqual(new Set([`shipment:${created.body.shipment}`]));
     const first = (await json(`/api/projects/${created.body.containers[0].id}`)).body as Project;
     expect(first.space.meta).toMatchObject({ pack: 'container', shipment: created.body.shipment, shipmentIndex: 1, shipmentCount: 3 });
-    expect(first.catalog['55qn80h-cushion-top']!.meta).toMatchObject({ quantity: 1260, allowTilt: true });
+    expect(first.catalog['tv55b-cushion-top']!.meta).toMatchObject({ quantity: 1260, allowTilt: true });
 
     const bad = (body: unknown) => json('/api/shipments', { method: 'POST', body: JSON.stringify(body) });
     expect((await bad({ name: 'x', parts: [] })).status).toBe(400);

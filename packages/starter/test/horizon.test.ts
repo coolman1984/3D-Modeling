@@ -1,13 +1,13 @@
 import { checkProject, deserializeProject, serializeProject, validateProject } from '@space-planner/core';
 import { describe, expect, it } from 'vitest';
-import { checkPack, containerMetrics, depotMetrics, detectPack, isContainer, productionMetrics, restaurantMetrics, samsungSample, siteMetrics, stockMetrics } from '../src/index.js';
+import { checkPack, containerMetrics, depotMetrics, detectPack, isContainer, productionMetrics, restaurantMetrics, horizonSample, siteMetrics, stockMetrics } from '../src/index.js';
 
-describe('Samsung Electronics Egypt sample', () => {
-  const sample = samsungSample();
+describe('Horizon Electronics sample', () => {
+  const sample = horizonSample();
   const named = (start: string) => sample.find((s) => s.project.name.includes(start))!.project;
 
   it('is deterministic: two builds save to the same text', () => {
-    const again = samsungSample();
+    const again = horizonSample();
     expect(again.map((s) => serializeProject(s.project))).toEqual(sample.map((s) => serializeProject(s.project)));
     // A full rebuild of ten projects (~2 s alone) can pass 5 s under suite load. Not a speed test.
   }, 20_000);
@@ -58,7 +58,7 @@ describe('Samsung Electronics Egypt sample', () => {
     expect(metrics.bufferCapacity).toBe(120);
   });
 
-  it('the finished-goods warehouse is stocked with Samsung products', () => {
+  it('the finished-goods warehouse is stocked with Horizon products', () => {
     const stock = stockMetrics(named('Finished-goods'));
     expect(stock.positions).toBe(2160);
     expect(stock.occupancy).toBeGreaterThan(0.7);

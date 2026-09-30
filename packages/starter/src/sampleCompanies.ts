@@ -1,6 +1,6 @@
 import { nileGateSample, SAMPLE_COMPANY, type SampleProject } from './samples.js';
+import { HORIZON_COMPANY, horizonSample } from './horizon.js';
 import { NILE_VISION_COMPANY, nileVisionSample } from './nileVision.js';
-import { SAMSUNG_COMPANY, samsungSample } from './samsung.js';
 
 export interface SampleCompany {
   /** Stable id: the store keeps it on every project the sample adds, so the projects page can group them. */
@@ -13,10 +13,10 @@ export interface SampleCompany {
 
 export const SAMPLE_COMPANIES: readonly SampleCompany[] = [
   {
-    id: 'samsung-egypt',
-    name: SAMSUNG_COMPANY,
-    description: 'TV, monitor, phone and tablet factory in Kom Abu Radi, Al Wasta: campus, plants, warehouse, staff parking, HR, meetings, events and canteen. Illustrative layout built from public figures, not a survey.',
-    build: samsungSample,
+    id: 'horizon-electronics',
+    name: HORIZON_COMPANY,
+    description: 'TV, monitor, phone and tablet maker (invented): campus, plants, warehouse, staff parking, HR, meetings, events and canteen. Illustrative layout built from public figures, not a survey.',
+    build: horizonSample,
   },
   {
     id: 'nile-gate',

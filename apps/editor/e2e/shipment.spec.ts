@@ -4,13 +4,13 @@ import { expect, test } from '@playwright/test';
 const PLAN = [
   '        Part size            Production Plan                    ',
   'Model    Item Ref.    L (mm)    W(mm)    H(mm)    04/Oct    05/Oct    06/Oct    07/Oct    08/Oct    09/Oct',
-  '77S85H    BN69-25994A Cushion Side    500    152    200                1400    1400    1200',
-  '    BN69-25993A Cushion Top    1872    152    350                700    700    600',
-  '    BN69-25993A Cushion Bot    1872    152    350                700    700    600',
-  '55QN80H    BN69-28085A Cushion Top    1335    110    400    1750    1750    1750    1750        ',
-  '    BN69-28085A Cushion Bot    1335    110    400    1750    1750    1750    1750        ',
-  '32F6000    BN69-26767A Cushion Top    788    102    185    4200    800                ',
-  '    BN69-26767A Cushion Bot    788    102    185    4200    800                ',
+  'TV77A    CS-7701 Cushion Side    500    152    200                1400    1400    1200',
+  '    CS-7702 Cushion Top    1872    152    350                700    700    600',
+  '    CS-7702 Cushion Bot    1872    152    350                700    700    600',
+  'TV55B    CS-5501 Cushion Top    1335    110    400    1750    1750    1750    1750        ',
+  '    CS-5501 Cushion Bot    1335    110    400    1750    1750    1750    1750        ',
+  'TV32C    CS-3201 Cushion Top    788    102    185    4200    800                ',
+  '    CS-3201 Cushion Bot    788    102    185    4200    800                ',
 ].join('\n');
 
 test('a shipment: paste the production plan, see how many containers, view them side by side, play the stuffing, open one', async ({ page }) => {
@@ -21,9 +21,9 @@ test('a shipment: paste the production plan, see how many containers, view them 
   await page.locator('textarea[name="shipment-paste"]').fill(PLAN);
   await page.getByTestId('read-paste').click();
   await expect(page.locator('[data-part-row]')).toHaveCount(7);
-  await expect(page.getByLabel('Part 1 name')).toHaveValue('77S85H BN69-25994A Cushion Side');
+  await expect(page.getByLabel('Part 1 name')).toHaveValue('TV77A CS-7701 Cushion Side');
   await expect(page.getByLabel('Part 7 quantity')).toHaveValue('4200');
-  // Each quantity stays under its own day: 77S85H starts on 07/Oct.
+  // Each quantity stays under its own day: TV77A starts on 07/Oct.
   const day = page.locator('select[name="shipment-column"]');
   await expect(day.locator('option:checked')).toHaveText('04/Oct');
   await expect(page.getByLabel('Part 1 quantity')).toHaveValue('');

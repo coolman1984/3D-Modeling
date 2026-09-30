@@ -6,6 +6,143 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-09
 
+### Space Planner: the electronics sample is an invented company (no real company, site or part numbers)
+
+`de6ed6b` · 2026-09-30
+
+The repository is public and the owner presents it to other factories; a sample
+named after a real company and its real site and part numbers could cause trouble.
+Renamed to Horizon Electronics (invented), product and part codes invented, docs
+and decision 0016 rewritten; saved shipment slugs follow the new codes.
+
+### Shipments spread heavy loads instead of piling them at the front wall (balance)
+
+`e3d8c06` · 2026-09-30
+
+A tile container that reached its payload with half its floor free still had its pallets stacked two high against
+the front wall: the centre of mass sat 27 % off the middle, the balance rule allows 10 %, and the last container (3
+pallets) was 45 % off. A weighed single-part load that does not need the whole container now goes in as few layers as
+the floor allows, centred along the length, its last partial row centred across the width. Loads without weights are
+unchanged (walls from the front wall to the doors), so every existing plan is the same.
+Test (hand-computed): 20 pallets of 1 305 kg one high over 10 walls, 11 000 mm, 515 mm free at each end; the last 3 in
+2 walls; both containers pass balance; turning the spread off fails it.
+pnpm typecheck ok; pnpm test all pass; pnpm e2e 23 of 23.
+
+### Shipments respect the payload: heavy cargo fills a container by weight before space
+
+`8607b78` · 2026-09-30
+
+Planning a ceramic-tile shipment showed a 40' high cube taking all 23 pallets (30 t) because containers were filled by
+walls and length only; the payload was checked afterwards as an issue, never used to split. Tiles, steel or paper fill
+a container by weight first, and a shipping expert sees the wrong answer at once.
+- planShipment caps every container at its type's payload; a piece heavier than the payload is named as too big
+- parts of different weight no longer share a stream
+- the explanation says when weight is the limit
+- the shipment dialog takes kg per piece (optional: without it only space limits, as before)
+- tests, hand-computed: 23 pallets of 1 305 kg need 20 + 3 in 40' HC (26 100 kg of 26 500); 20' GP is full by space first
+  (20 of 21 by weight); a 30 t piece is too big for a 20' GP. Planting the missing cap fails the first test.
+pnpm typecheck ok; pnpm test: 406 unit tests + docs, all pass; pnpm e2e: 23 of 23 pass.
+
+### Shipment page: container cards keep their content inside
+
+`a51145d` · 2026-09-29
+
+The card was a grid with an auto-sized column, so its longest line (the checks chip, which
+does not wrap) widened every row: figures, part counts and buttons spilled into the next card
+at four cards per row. The column is now minmax(0, 1fr); the chip, long part names and the
+buttons wrap; counts stay whole; cards are at least 320 px. Checked at 1500, 1200 and 820 px
+wide: nothing extends past its card. Shipment browser journey passes.
+
+### S1: fill the room above half-full walls before starting another container
+
+`55aae48` · 2026-09-29
+
+The owner pointed at 09/Oct: 146 small cushions went to a third container while the second
+had free space above its half-full last wall.
+- When a container's walls are done and pieces are still waiting, every wall's flat top is an
+  empty box (above a half-full wall, beside a partial row, under the roof); the waiting pieces
+  are stacked there in columns, bottom layer first, fully supported. They get their loading
+  steps right after that wall, before the next wall closes it off.
+- Hand-computed test: 20' with 12 boxes (one 100 cm wall) and 30 cm cubes holds 784 in walls
+  + 36 above the boxes + 21 beside them = 841; the 842nd needs a second container. Planted bug
+  (gap filling off) caught; the property test keeps every container sound.
+- Cushion plan: 09/Oct needs 2 x 40' HC instead of 3; 07/Oct still 6 (the last holds 36 long
+  cushions). Decision 0021 and the research note updated.
+pnpm check: 404 unit tests, 23 browser journeys, all passing (browser run repeated after the
+machine ran out of virtual memory once).
+
+### Portable copy for networks that block the npm registry (decision 0022)
+
+`0ec8870` · 2026-09-29
+
+The owner's company blocks npmjs.com; the launcher fetched pnpm through npx and stopped,
+although the program needs nothing from npm to run.
+- scripts/portable.mjs (pnpm portable, --with-data): release/SpacePlanner/ and a zip with
+  the bundled server, the built interface, node.exe, the data folder and
+  "Start Space Planner.bat" (--static and --data, so it runs from any folder).
+- Launcher: when installing or building fails and a build exists, start that build; with no
+  build, name the portable copy.
+- README: how to use it where npm is blocked.
+Verified: unpacked the zip outside the repository and started it with no Node on PATH;
+server up, 34 projects including the 24 shipment containers, shipment page opened in Chrome.
+
+### S1: a shipment is one entry in the project list; container stuffing research
+
+`de920ef` · 2026-09-29
+
+- Projects page: each shipment is one saved entry (row or card with a drawing of its
+  containers, container count, pieces). Clicking it opens the containers side by side;
+  "Continue where you left off" opens the shipment too. Its containers are no longer listed
+  one by one, nor loaded and checked just to draw the list (each holds thousands of pieces).
+- Browser journey: the shipment entry opens the side-by-side page; opening a 3 751-piece
+  container gets a 20 s wait (a few seconds in a test browser without a graphics chip).
+- docs/research/container-stuffing.md: CTU Code practice (weight distribution 5 %/10 %,
+  60/50, 60/40), utilisation figures, container sizes, and the cushion plan per day in
+  20', 40', 40' HC and 40' HC + 20' (day by day 24 x 40' HC; all six days together 20).
+pnpm check: 403 unit tests, 23 browser journeys, all passing.
+
+### S1: read multi-day production plans by column; ship any day
+
+`3e9c7f1` · 2026-09-29
+
+The owner's six-day plan (04-09/Oct) leaves plan cells empty: 77S85H starts on 07/Oct.
+The paste reader dropped empty cells, so a later day's quantity was read as 04/Oct.
+- Pasted cells keep their place: tab-separated as copied from a spreadsheet, or runs of
+  four spaces where tabs became spaces; the heading row with the H column names the days.
+- The shipment form lists the days and takes the quantities from the chosen one (the first
+  day with anything to ship by default); the name suggests "Shipment <day>".
+- Tests: the owner's six-day text, hand-mapped per day; tab-separated copy; browser journey
+  switches days. Planted bug (collapsing empty cells) caught.
+- Decision 0021: parts in bags are loose parts at their listed size; one wall holds one part
+  size, so a day can end with a nearly empty container (09/Oct).
+pnpm check: 403 unit tests, 23 browser journeys, all passing.
+
+### TASKS: S1 step 6 done (cushion shipments created in the local app)
+
+`b85c9ec` · 2026-09-29
+
+### S1: shipments - how many containers, side by side, with load playback
+
+`628e7d2` · 2026-09-29
+
+Request: a production plan of TV cushions (04/Oct, 05/Oct) - how many containers are
+needed, shown side by side in the program with every container detail and the stuffing
+playback.
+- starter: planShipment loads large runs of identical parts wall by wall (front wall to
+  doors, floor up, best wall per metre, two orientations may share a wall, shallow walls fill
+  the end, last pieces in the shallowest wall that holds them). Same-size parts share walls.
+  One loading step = one layer of one wall. Each container is an ordinary container project
+  (space.meta: shipment, shipmentName, shipmentIndex, shipmentCount). Hand-computed cases
+  (88 per 20ft for 100x50x50 cm; 1 260 55QN80H cushions per 40ft HC) and a property test
+  (every piece once; every container passes core checks, support and planned-pieces rules;
+  deterministic).
+- server: POST /api/shipments and agent tool plan_shipment on one path (createShipment),
+  input checked at the boundary (400 with the reason), containers grouped by the collection
+  shipment:<id>, one revision each with the actor's name.
+- editor: "Plan shipment" dialog (parts typed or pasted from the spreadsheet, live answer),
+
+…9 more lines in the commit.
+
 ### Docs: refresh generated status, changelog and work log after B1
 
 `2e314d2` · 2026-09-27

@@ -8,19 +8,14 @@ import type { SampleProject } from './samples.js';
 import { buildingDefinition, SITE_CATALOG } from './site.js';
 
 /**
- * "Samsung Electronics Egypt · Beni Suef": an illustrative model of the TV, monitor, phone and
- * tablet factory in the Kom Abu Radi industrial zone, Al Wasta, Beni Suef.
- *
- * Public figures it is built on (see decision 0016 for the sources): a 336,000 m² site on plot 98
- * of the zone's engineering sector; TV and monitor assembly since 2013 (24″ to 82″ sets, about 85–90%
- * exported); a phone and tablet plant of about 9,000 m² (tablets from 2022, phones from 2025);
- * about 5,000 direct and indirect jobs. No floor plans are public, so building positions, room
- * layouts and line lengths are a planner's illustration with typical industry sizes — not a
- * survey of the real site. Everything is deterministic: every copy of the sample is identical.
+ * "Horizon Electronics": an invented electronics maker (TVs, monitors, phones and tablets) on an industrial-zone
+ * campus. Every name, product and figure is invented; building positions, room layouts and line lengths are a
+ * planner's illustration with typical industry sizes. Everything is deterministic: every copy of the sample is
+ * identical.
  */
 
-export const SAMSUNG_COMPANY = 'Samsung Electronics Egypt · Beni Suef';
-const P = 'Samsung Egypt · ';
+export const HORIZON_COMPANY = 'Horizon Electronics · industrial zone (invented)';
+const P = 'Horizon · ';
 
 /** Collects item types and placed items for one project; ids count up per prefix (D01, D02…). */
 class Fit {
@@ -130,13 +125,13 @@ function parkingRow(fit: Fit, zones: Zone[], row: ParkingRow): void {
 
 const lane = (id: string, x0: number, y0: number, x1: number, y1: number): Zone => region(id, 'lane-two-way', x0, y0, x1, y1, { direction: 0 });
 
-// ─── Item types for the Samsung sample ────────────────────────────────────────────────────────
+// ─── Item types for the Horizon sample ────────────────────────────────────────────────────────
 
 const CAR_COLOURS = [0xe9e9e6, 0x2b2d31, 0x9aa1a9, 0xc8ccd1, 0x6b1e24, 0x1f3a5f, 0xb8b2a6];
 const STAFF_CARS: readonly ItemDefinition[] = CAR_COLOURS.map((color, i) => ({ ...site('site-car'), id: `staff-car-${i + 1}`, name: `Staff car · ${['white', 'black', 'silver', 'pearl', 'maroon', 'navy', 'beige'][i]}`, meta: { ...site('site-car').meta, color } }));
-const COACH = { ...site('site-coach'), id: 'seeg-coach', name: 'Staff coach 12 m · Samsung livery', meta: { ...site('site-coach').meta, color: 0xf4f4f2, livery: 'blue' } };
-const MINIBUS = { ...site('site-minibus'), id: 'seeg-minibus', name: 'Staff minibus 7 m', meta: { ...site('site-minibus').meta, color: 0xe8ecef, livery: 'grey' } };
-const TRUCK = { ...byId(DEPOT_CATALOG, 'depot-truck'), id: 'seeg-truck', name: 'Container truck · 40′ box', size: { w: cm(250), d: cm(1650), h: cm(400) }, meta: { ...byId(DEPOT_CATALOG, 'depot-truck').meta, color: 0x1f5fa8, trailer: 'container' } };
+const COACH = { ...site('site-coach'), id: 'hz-coach', name: 'Staff coach 12 m · company livery', meta: { ...site('site-coach').meta, color: 0xf4f4f2, livery: 'blue' } };
+const MINIBUS = { ...site('site-minibus'), id: 'hz-minibus', name: 'Staff minibus 7 m', meta: { ...site('site-minibus').meta, color: 0xe8ecef, livery: 'grey' } };
+const TRUCK = { ...byId(DEPOT_CATALOG, 'depot-truck'), id: 'hz-truck', name: 'Container truck · 40′ box', size: { w: cm(250), d: cm(1650), h: cm(400) }, meta: { ...byId(DEPOT_CATALOG, 'depot-truck').meta, color: 0x1f5fa8, trailer: 'container' } };
 
 /** A production station: operators stand at its sides, so its side clearance is the working room. */
 function station(id: string, name: string, category: string, wCm: number, dCm: number, hCm: number, kind: 'source' | 'machine' | 'buffer' | 'inspection' | 'sink', sideCm = 100, extra: Meta = {}): ItemDefinition {
@@ -149,11 +144,11 @@ const BENCH: ItemDefinition = { id: 'esd-bench-180', name: 'ESD workbench 180 ×
 
 // ─── 1. Campus master plan ────────────────────────────────────────────────────────────────────
 
-export function samsungCampus(name = `${P}Beni Suef campus — site plan (illustrative)`): Project {
+export function horizonCampus(name = `${P}campus — site plan (illustrative)`): Project {
   const fit = new Fit(SITE_CATALOG);
   const zones: Zone[] = [];
   const W = 600;
-  const D = 560; // 336,000 m², the published site area
+  const D = 560; // a 560 × 600 m campus (33.6 ha)
 
   // Ring road, spine and cross road; gate approaches.
   zones.push(
@@ -170,11 +165,11 @@ export function samsungCampus(name = `${P}Beni Suef campus — site plan (illust
 
   // Buildings (outer size; the inside of each is its own project).
   const blue = 0x1428a0;
-  const plant1 = buildingDefinition('b-plant-tv', 'Plant 1 · TV & monitor assembly', 240, 150, 14, 'production', { sign: 'SAMSUNG', facade: 'cladding', color: 0xeef0f3, storeys: 1 });
-  const plant2 = buildingDefinition('b-plant-mobile', 'Plant 2 · mobile & tablet (≈ 9,000 m²)', 100, 90, 12, 'production', { sign: 'SAMSUNG', facade: 'cladding', color: 0xf1f2f4 });
-  const fgWh = buildingDefinition('b-fg-warehouse', 'Finished-goods warehouse & export docks', 120, 110, 13, 'warehouse', { facade: 'cladding', color: 0xdfe3e8, sign: 'SAMSUNG' });
+  const plant1 = buildingDefinition('b-plant-tv', 'Plant 1 · TV & monitor assembly', 240, 150, 14, 'production', { sign: 'HORIZON', facade: 'cladding', color: 0xeef0f3, storeys: 1 });
+  const plant2 = buildingDefinition('b-plant-mobile', 'Plant 2 · mobile & tablet (≈ 9,000 m²)', 100, 90, 12, 'production', { sign: 'HORIZON', facade: 'cladding', color: 0xf1f2f4 });
+  const fgWh = buildingDefinition('b-fg-warehouse', 'Finished-goods warehouse & export docks', 120, 110, 13, 'warehouse', { facade: 'cladding', color: 0xdfe3e8, sign: 'HORIZON' });
   const partsWh = buildingDefinition('b-parts-warehouse', 'Parts & panel warehouse', 110, 80, 12, 'warehouse', { facade: 'cladding', color: 0xe3e6ea });
-  const admin = buildingDefinition('b-admin', 'Administration & HR building', 72, 24, 13, 'office', { storeys: 3, facade: 'glass', sign: 'SAMSUNG', color: 0xd9e2ec });
+  const admin = buildingDefinition('b-admin', 'Administration & HR building', 72, 24, 13, 'office', { storeys: 3, facade: 'glass', sign: 'HORIZON', color: 0xd9e2ec });
   const training = buildingDefinition('b-training', 'Meeting & training centre', 48, 30, 9, 'training', { storeys: 2, facade: 'glass', color: 0xd4dde8 });
   const events = buildingDefinition('b-events', 'Events hall', 48, 32, 10, 'training', { facade: 'stone', color: 0xe8e2d6 });
   const canteen = buildingDefinition('b-canteen', 'Staff canteen & break building', 64, 40, 7, 'canteen', { facade: 'stone', color: 0xece6da });
@@ -261,7 +256,7 @@ export function samsungCampus(name = `${P}Beni Suef campus — site plan (illust
       { id: 'emergency-gate', wall: 'east', offset: m(300), width: m(10), meta: { role: 'gate' } },
     ],
   });
-  return fit.project(name, { ...space, zones, meta: { pack: 'site', company: 'samsung-egypt' } });
+  return fit.project(name, { ...space, zones, meta: { pack: 'site', company: 'horizon-electronics' } });
 }
 
 // ─── 2. Plant 1 · TV & monitor assembly hall ──────────────────────────────────────────────────
@@ -277,9 +272,9 @@ const TV_STATIONS: ReadonlyArray<readonly [ItemDefinition, number]> = [
   [station('tv-fg', 'Palletising & finished-goods handover', 'workbench', 300, 300, 110, 'sink', 60), 3],
 ];
 
-export function samsungTvPlant(name = `${P}Plant 1 — TV & monitor assembly hall`): Project {
+export function horizonTvPlant(name = `${P}Plant 1 — TV & monitor assembly hall`): Project {
   const fit = new Fit(OFFICE_CATALOG.filter((d) => ['meeting-round-120', 'meeting-chair', 'staff-lockers', 'vending', 'kitchenette', 'desk-160', 'office-chair', 'plant', 'cabinet', 'display-75'].includes(d.id)));
-  const lines: Array<[number, string]> = [[8, 'L1 · QLED & Neo QLED 55–85″'], [18, 'L2 · Crystal UHD 43–65″'], [28, 'L3 · Crystal UHD 32–50″'], [38, 'L4 · Monitors 24–32″']];
+  const lines: Array<[number, string]> = [[8, 'L1 · Quantum-dot & Mini-LED 55–85″'], [18, 'L2 · UHD LED 43–65″'], [28, 'L3 · UHD LED 32–50″'], [38, 'L4 · Monitors 24–32″']];
   for (const [y, label] of lines) {
     let x = 8;
     TV_STATIONS.forEach(([def, length], k) => {
@@ -289,7 +284,7 @@ export function samsungTvPlant(name = `${P}Plant 1 — TV & monitor assembly hal
     });
   }
   // Finished-goods pallets waiting for the shuttle to the warehouse.
-  const tvPallet: ItemDefinition = { id: 'tv-fg-pallet', name: 'Pallet of QLED 65″ cartons', category: 'box', size: { w: cm(120), d: cm(100), h: cm(190) }, clearance: none, mass: kg(290), meta: { print: 'QLED|65″' } };
+  const tvPallet: ItemDefinition = { id: 'tv-fg-pallet', name: 'Pallet of Quantum-dot 65″ cartons', category: 'box', size: { w: cm(120), d: cm(100), h: cm(190) }, clearance: none, mass: kg(290), meta: { print: 'Quantum-dot|65″' } };
   for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) fit.put('FG', tvPallet, 98 + c * 1.6, 5 + r * 10, 0);
   // Break area along the north wall: tables, lockers, vending, tea point; line leaders' desks.
   for (let k = 0; k < 6; k++) {
@@ -327,7 +322,7 @@ export function samsungTvPlant(name = `${P}Plant 1 — TV & monitor assembly hal
     region('break-area', 'break', 58, 49, 104, 59.8),
     region('line-office', 'office', 4, 47, 20, 59.9),
   ];
-  return fit.project(name, { ...space, zones, meta: { pack: 'production', company: 'samsung-egypt' } });
+  return fit.project(name, { ...space, zones, meta: { pack: 'production', company: 'horizon-electronics' } });
 }
 
 // ─── 3. Plant 2 · mobile & tablet plant (≈ 9,000 m²) ──────────────────────────────────────────
@@ -347,7 +342,7 @@ const SMT: ReadonlyArray<readonly [ItemDefinition, number]> = [
   [station('mob-fg', 'Finished-goods handover', 'workbench', 120, 120, 100, 'sink', 60), 1.2],
 ];
 
-export function samsungMobilePlant(name = `${P}Plant 2 — mobile & tablet assembly (≈ 9,000 m²)`): Project {
+export function horizonMobilePlant(name = `${P}Plant 2 — mobile & tablet assembly (≈ 9,000 m²)`): Project {
   const fit = new Fit(OFFICE_CATALOG.filter((d) => ['meeting-round-120', 'meeting-chair', 'staff-lockers', 'vending', 'kitchenette', 'desk-160', 'office-chair', 'cabinet', 'display-75'].includes(d.id)));
   // Six SMT lines in the clean room; line 1 runs through to final assembly, test and packing.
   for (let k = 0; k < 6; k++) {
@@ -355,11 +350,11 @@ export function samsungMobilePlant(name = `${P}Plant 2 — mobile & tablet assem
     let x = 5;
     const stations = k === 0 ? SMT : SMT.slice(0, 8);
     stations.forEach(([def, length], s) => {
-      fit.put(k === 0 ? 'S' : `M${k + 1}-`, def, x + length / 2, y, 270, { meta: k === 0 ? { step: s + 1, line: 'SMT 1 · Galaxy A-series main board' } : { line: `SMT ${k + 1}` } });
+      fit.put(k === 0 ? 'S' : `M${k + 1}-`, def, x + length / 2, y, 270, { meta: k === 0 ? { step: s + 1, line: 'SMT 1 · phone main board' } : { line: `SMT ${k + 1}` } });
       x += length + 1.5;
     });
   }
-  // Tablet assembly benches (Galaxy Tab education tablets), operators seated on ESD stools.
+  // Tablet assembly benches (education tablets), operators seated on ESD stools.
   for (let r = 0; r < 4; r++) for (let c = 0; c < 17; c++) {
     const x = 63 + c * 2;
     const y = 10 + r * 8;
@@ -402,39 +397,39 @@ export function samsungMobilePlant(name = `${P}Plant 2 — mobile & tablet assem
     region('esd-gowning', 'office', 40, 60, 60, 89.9),
     region('break-area', 'break', 61, 74, 98, 89.9),
   ];
-  return fit.project(name, { ...space, zones, meta: { pack: 'production', company: 'samsung-egypt' } });
+  return fit.project(name, { ...space, zones, meta: { pack: 'production', company: 'horizon-electronics' } });
 }
 
 // ─── 4. Finished-goods warehouse ──────────────────────────────────────────────────────────────
 
-/** Products made in Beni Suef, one euro pallet each; sizes and weights are typical, rounded. */
-export const SAMSUNG_MATERIALS: readonly MaterialSpec[] = [
-  { id: 'QA55Q60D', name: 'QLED 55″ Q60D · QA55Q60D', line: 'QLED TV', units: 12, massKg: 250, heightCm: 160, velocity: 'A', moves: 60, color: 0x1428a0, stock: 150 },
-  { id: 'QA65Q60D', name: 'QLED 65″ Q60D · QA65Q60D', line: 'QLED TV', units: 8, massKg: 280, heightCm: 170, velocity: 'A', moves: 40, color: 0x2f4fd0, stock: 120 },
-  { id: 'QA75QN85D', name: 'Neo QLED 75″ QN85D · QA75QN85D', line: 'Neo QLED TV', units: 5, massKg: 300, heightCm: 185, velocity: 'B', moves: 10, color: 0x4b3fb0, stock: 40 },
-  { id: 'UA43DU7000', name: 'Crystal UHD 43″ DU7000 · UA43DU7000', line: 'Crystal UHD TV', units: 20, massKg: 250, heightCm: 150, velocity: 'A', moves: 85, color: 0x2e8c86, stock: 170 },
-  { id: 'UA50DU7000', name: 'Crystal UHD 50″ DU7000 · UA50DU7000', line: 'Crystal UHD TV', units: 16, massKg: 270, heightCm: 155, velocity: 'A', moves: 55, color: 0x47a79e, stock: 130 },
-  { id: 'UA55DU7000', name: 'Crystal UHD 55″ DU7000 · UA55DU7000', line: 'Crystal UHD TV', units: 14, massKg: 285, heightCm: 165, velocity: 'A', moves: 50, color: 0x68bfb2, stock: 140 },
-  { id: 'UA65DU7000', name: 'Crystal UHD 65″ DU7000 · UA65DU7000', line: 'Crystal UHD TV', units: 8, massKg: 260, heightCm: 170, velocity: 'B', moves: 22, color: 0x8fd1c6, stock: 70 },
-  { id: 'UA32T5300', name: 'HD Smart TV 32″ T5300 · UA32T5300', line: 'HD TV', units: 30, massKg: 240, heightCm: 150, velocity: 'B', moves: 18, color: 0x7a8c99, stock: 60 },
-  { id: 'LS24C310', name: 'Essential monitor S3 24″ · LS24C310', line: 'Monitors', units: 40, massKg: 220, heightCm: 160, velocity: 'B', moves: 20, color: 0x9b3b4a, stock: 60 },
-  { id: 'LS27CG510', name: 'Odyssey G5 27″ · LS27CG510', line: 'Monitors', units: 30, massKg: 200, heightCm: 170, velocity: 'C', moves: 7, color: 0xb85466, stock: 30 },
-  { id: 'LS32CM703', name: 'Smart Monitor M7 32″ · LS32CM703', line: 'Monitors', units: 20, massKg: 210, heightCm: 170, velocity: 'C', moves: 6, color: 0xd07a88, stock: 25 },
-  { id: 'SM-A165', name: 'Galaxy A16 · SM-A165 (master cartons)', line: 'Mobile', units: 480, massKg: 150, heightCm: 120, velocity: 'A', moves: 45, color: 0x26303a, stock: 60 },
-  { id: 'SM-A265', name: 'Galaxy A26 · SM-A265 (master cartons)', line: 'Mobile', units: 480, massKg: 150, heightCm: 120, velocity: 'A', moves: 40, color: 0x3c4a58, stock: 55 },
-  { id: 'SM-A366', name: 'Galaxy A36 · SM-A366 (master cartons)', line: 'Mobile', units: 400, massKg: 150, heightCm: 120, velocity: 'B', moves: 25, color: 0x566779, stock: 35 },
-  { id: 'SM-X216', name: 'Galaxy Tab A9+ education tablets · SM-X216', line: 'Tablets', units: 200, massKg: 180, heightCm: 130, velocity: 'B', moves: 15, color: 0xc98a3c, stock: 40 },
+/** Products made on the campus, one euro pallet each; sizes and weights are typical, rounded. */
+export const HORIZON_MATERIALS: readonly MaterialSpec[] = [
+  { id: 'HZ55Q6', name: 'Quantum-dot 55″ Q6 · HZ55Q6', line: 'Quantum-dot TV', units: 12, massKg: 250, heightCm: 160, velocity: 'A', moves: 60, color: 0x1428a0, stock: 150 },
+  { id: 'HZ65Q6', name: 'Quantum-dot 65″ Q6 · HZ65Q6', line: 'Quantum-dot TV', units: 8, massKg: 280, heightCm: 170, velocity: 'A', moves: 40, color: 0x2f4fd0, stock: 120 },
+  { id: 'HZ75Q8', name: 'Mini-LED 75″ Q8 · HZ75Q8', line: 'Mini-LED TV', units: 5, massKg: 300, heightCm: 185, velocity: 'B', moves: 10, color: 0x4b3fb0, stock: 40 },
+  { id: 'HZ43U7', name: 'UHD LED 43″ U7 · HZ43U7', line: 'UHD LED TV', units: 20, massKg: 250, heightCm: 150, velocity: 'A', moves: 85, color: 0x2e8c86, stock: 170 },
+  { id: 'HZ50U7', name: 'UHD LED 50″ U7 · HZ50U7', line: 'UHD LED TV', units: 16, massKg: 270, heightCm: 155, velocity: 'A', moves: 55, color: 0x47a79e, stock: 130 },
+  { id: 'HZ55U7', name: 'UHD LED 55″ U7 · HZ55U7', line: 'UHD LED TV', units: 14, massKg: 285, heightCm: 165, velocity: 'A', moves: 50, color: 0x68bfb2, stock: 140 },
+  { id: 'HZ65U7', name: 'UHD LED 65″ U7 · HZ65U7', line: 'UHD LED TV', units: 8, massKg: 260, heightCm: 170, velocity: 'B', moves: 22, color: 0x8fd1c6, stock: 70 },
+  { id: 'HZ32H5', name: 'HD Smart TV 32″ H5 · HZ32H5', line: 'HD TV', units: 30, massKg: 240, heightCm: 150, velocity: 'B', moves: 18, color: 0x7a8c99, stock: 60 },
+  { id: 'HZM24', name: 'Office monitor 24″ · HZM24', line: 'Monitors', units: 40, massKg: 220, heightCm: 160, velocity: 'B', moves: 20, color: 0x9b3b4a, stock: 60 },
+  { id: 'HZM27G', name: 'Gaming monitor 27″ · HZM27G', line: 'Monitors', units: 30, massKg: 200, heightCm: 170, velocity: 'C', moves: 7, color: 0xb85466, stock: 30 },
+  { id: 'HZM32S', name: 'Smart monitor 32″ · HZM32S', line: 'Monitors', units: 20, massKg: 210, heightCm: 170, velocity: 'C', moves: 6, color: 0xd07a88, stock: 25 },
+  { id: 'HZP-16', name: 'Phone P16 · HZP-16 (master cartons)', line: 'Mobile', units: 480, massKg: 150, heightCm: 120, velocity: 'A', moves: 45, color: 0x26303a, stock: 60 },
+  { id: 'HZP-26', name: 'Phone P26 · HZP-26 (master cartons)', line: 'Mobile', units: 480, massKg: 150, heightCm: 120, velocity: 'A', moves: 40, color: 0x3c4a58, stock: 55 },
+  { id: 'HZP-36', name: 'Phone P36 · HZP-36 (master cartons)', line: 'Mobile', units: 400, massKg: 150, heightCm: 120, velocity: 'B', moves: 25, color: 0x566779, stock: 35 },
+  { id: 'HZT-21', name: 'Education tablets · HZT-21', line: 'Tablets', units: 200, massKg: 180, heightCm: 130, velocity: 'B', moves: 15, color: 0xc98a3c, stock: 40 },
 ];
 
-export function samsungFgWarehouse(name = `${P}Finished-goods warehouse & export docks`): Project {
+export function horizonFgWarehouse(name = `${P}Finished-goods warehouse & export docks`): Project {
   const rack = { bays: 9, bayWidth: cm(270), depth: cm(110), height: cm(1000), levels: 5, positionsPerLevel: 3, uprightWidth: cm(10) };
   const ys = [10, 14.2, 18.4, 22.6, 26.8, 31, 35.2, 39.4];
   const rows = [
     ...ys.map((y, i) => ({ id: `W${String(i + 1).padStart(2, '0')}`, x: 18.5, y })),
     ...ys.map((y, i) => ({ id: `E${String(i + 1).padStart(2, '0')}`, x: 50.5, y })),
   ];
-  const outbound = ['QA55Q60D', 'UA43DU7000', 'UA55DU7000', 'SM-A165', 'QA65Q60D', 'LS24C310'];
-  const inbound = ['UA50DU7000', 'SM-A265', 'QA55Q60D', 'SM-X216'];
+  const outbound = ['HZ55Q6', 'HZ43U7', 'HZ55U7', 'HZP-16', 'HZ65Q6', 'HZM24'];
+  const inbound = ['HZ50U7', 'HZP-26', 'HZ55Q6', 'HZT-21'];
   return warehouseSite({
     name,
     width: 72, depth: 50, height: 12,
@@ -469,13 +464,13 @@ export function samsungFgWarehouse(name = `${P}Finished-goods warehouse & export
     extraCatalog: [FORKLIFT],
     fill: 0.82,
     seed: 2013_0525,
-    materials: SAMSUNG_MATERIALS,
+    materials: HORIZON_MATERIALS,
   });
 }
 
 // ─── 5. Staff transport yard (close-up of bus and car parking) ────────────────────────────────
 
-export function samsungTransportYard(name = `${P}Staff transport yard — buses & cars`): Project {
+export function horizonTransportYard(name = `${P}Staff transport yard — buses & cars`): Project {
   const fit = new Fit([...DEPOT_CATALOG, ...SITE_CATALOG]);
   const zones: Zone[] = [];
   zones.push(lane('bus-lane', 3, 30, 98, 50));
@@ -508,12 +503,12 @@ export function samsungTransportYard(name = `${P}Staff transport yard — buses 
       { id: 'turnstiles', wall: 'north', offset: m(50), width: m(6), meta: { role: 'gate' } },
     ],
   });
-  return fit.project(name, { ...space, zones, meta: { pack: 'depot', company: 'samsung-egypt' } });
+  return fit.project(name, { ...space, zones, meta: { pack: 'depot', company: 'horizon-electronics' } });
 }
 
 // ─── 6. HR department floor ───────────────────────────────────────────────────────────────────
 
-export function samsungHrFloor(name = `${P}Administration — HR department floor`): Project {
+export function horizonHrFloor(name = `${P}Administration — HR department floor`): Project {
   const fit = new Fit(OFFICE_CATALOG);
   // Partition line between the open south band and the rooms; glass on the interview and meeting rooms.
   fit.wall(0.02, 7, 12.99, 7, [[3.6, 4.7], [11.6, 12.7]]);
@@ -611,12 +606,12 @@ export function samsungHrFloor(name = `${P}Administration — HR department floo
     region('zone-open-plan', 'open-plan', 8.6, 0.1, 29.9, 6.9),
     region('zone-pantry', 'break', 30, 0.1, 35.9, 6.9),
   ];
-  return fit.project(name, { ...space, zones, meta: { company: 'samsung-egypt', style: 'open-plan' } });
+  return fit.project(name, { ...space, zones, meta: { company: 'horizon-electronics', style: 'open-plan' } });
 }
 
 // ─── 7. Meeting & training centre ─────────────────────────────────────────────────────────────
 
-export function samsungMeetingCentre(name = `${P}Meeting & training centre`): Project {
+export function horizonMeetingCentre(name = `${P}Meeting & training centre`): Project {
   const fit = new Fit(OFFICE_CATALOG);
   // Corridor y 10.5–13.5; rooms south and north of it.
   fit.wall(0.02, 10.5, 39.98, 10.5, [[8.4, 9.6], [18.4, 19.6], [20.6, 21.8], [30.5, 31.7], [32.5, 33.6], [36.5, 37.6]]);
@@ -702,12 +697,12 @@ export function samsungMeetingCentre(name = `${P}Meeting & training centre`): Pr
     ],
   });
   const zones = [region('corridor', 'corridor', 0.1, 10.6, 39.9, 13.4), region('lobby', 'lounge', 21.1, 13.6, 32.9, 23.9)];
-  return fit.project(name, { ...space, zones, meta: { company: 'samsung-egypt', style: 'meeting' } });
+  return fit.project(name, { ...space, zones, meta: { company: 'horizon-electronics', style: 'meeting' } });
 }
 
 // ─── 8. Events hall (town hall, awards night) ─────────────────────────────────────────────────
 
-export function samsungEventsHall(name = `${P}Events hall — annual awards night, 450 guests`): Project {
+export function horizonEventsHall(name = `${P}Events hall — annual awards night, 450 guests`): Project {
   const fit = new Fit(STARTER_CATALOG);
   fit.put('ST', hall('stage-6x3'), 21, 29.5, 180);
   fit.put('ST', hall('stage-6x3'), 27.01, 29.5, 180);
@@ -743,12 +738,12 @@ export function samsungEventsHall(name = `${P}Events hall — annual awards nigh
       { id: 'service', wall: 'north', offset: m(44), width: cm(120) },
     ],
   });
-  return fit.project(name, { ...space, meta: { company: 'samsung-egypt', style: 'banquet' } });
+  return fit.project(name, { ...space, meta: { company: 'horizon-electronics', style: 'banquet' } });
 }
 
 // ─── 9. Staff canteen and break areas ─────────────────────────────────────────────────────────
 
-export function samsungCanteen(name = `${P}Staff canteen & break areas`): Project {
+export function horizonCanteen(name = `${P}Staff canteen & break areas`): Project {
   const fit = new Fit([...TABLE_CATALOG, hall('buffet-hot')]);
   const communal = byId(TABLE_CATALOG, 'table-communal-10');
   const four = byId(TABLE_CATALOG, 'table-4top');
@@ -782,34 +777,34 @@ export function samsungCanteen(name = `${P}Staff canteen & break areas`): Projec
     region('family-dining', 'dining', 36, 17, 63, 33),
     region('serving-line', 'service', 17, 35, 45, 39.8),
   ];
-  return fit.project(name, { ...space, zones, meta: { pack: 'restaurant', company: 'samsung-egypt', style: 'quick-service' } });
+  return fit.project(name, { ...space, zones, meta: { pack: 'restaurant', company: 'horizon-electronics', style: 'quick-service' } });
 }
 
 // ─── 10. Export container ─────────────────────────────────────────────────────────────────────
 
-export function samsungExportContainer(): Project {
+export function horizonExportContainer(): Project {
   const tv = { stackable: true, allowTilt: false };
-  const project = loadedContainer(`${P}Export 40′HC — Made in Egypt TVs & monitors (Beni Suef → Alexandria → Mombasa)`, '40hc', [
-    { id: 'tv-qn75', name: 'Neo QLED 75″ QN85D carton', size: [182, 20, 112], massKg: 42, quantity: 20, meta: { stackable: false, allowTilt: false, print: 'Neo QLED|75″' } },
-    { id: 'tv-q65', name: 'QLED 65″ Q60D carton', size: [158, 17, 98], massKg: 27, quantity: 90, meta: { ...tv, maxLoadOnTop: kg(30), print: 'QLED|65″' } },
-    { id: 'tv-du55', name: 'Crystal UHD 55″ DU7000 carton', size: [136, 14, 85], massKg: 17, quantity: 150, meta: { ...tv, maxLoadOnTop: kg(40), print: 'Crystal UHD|55″' } },
-    { id: 'mon-27', name: 'Odyssey G5 27″ monitor carton', size: [70, 17, 48], massKg: 7, quantity: 120, meta: { stackable: true, allowTilt: true, maxLoadOnTop: kg(35), print: 'Odyssey|27″' } },
+  const project = loadedContainer(`${P}Export 40′HC — TVs & monitors for export (plant → port → customer)`, '40hc', [
+    { id: 'tv-qn75', name: 'Mini-LED 75″ Q8 carton', size: [182, 20, 112], massKg: 42, quantity: 20, meta: { stackable: false, allowTilt: false, print: 'Mini-LED|75″' } },
+    { id: 'tv-q65', name: 'Quantum-dot 65″ Q6 carton', size: [158, 17, 98], massKg: 27, quantity: 90, meta: { ...tv, maxLoadOnTop: kg(30), print: 'Quantum-dot|65″' } },
+    { id: 'tv-du55', name: 'UHD LED 55″ U7 carton', size: [136, 14, 85], massKg: 17, quantity: 150, meta: { ...tv, maxLoadOnTop: kg(40), print: 'UHD LED|55″' } },
+    { id: 'mon-27', name: 'Gaming monitor 27″ monitor carton', size: [70, 17, 48], massKg: 7, quantity: 120, meta: { stackable: true, allowTilt: true, maxLoadOnTop: kg(35), print: 'Odyssey|27″' } },
   ], 'largest-first');
-  return { ...project, space: { ...project.space, meta: { ...project.space.meta, company: 'samsung-egypt' } } };
+  return { ...project, space: { ...project.space, meta: { ...project.space.meta, company: 'horizon-electronics' } } };
 }
 
-/** The whole Samsung sample, in the order it should appear. */
-export function samsungSample(): SampleProject[] {
+/** The whole Horizon sample, in the order it should appear. */
+export function horizonSample(): SampleProject[] {
   return [
-    { project: samsungCampus(), summary: 'Samsung sample: Beni Suef campus site plan' },
-    { project: samsungTvPlant(), summary: 'Samsung sample: TV & monitor assembly hall' },
-    { project: samsungMobilePlant(), summary: 'Samsung sample: mobile & tablet plant' },
-    { project: samsungFgWarehouse(), summary: 'Samsung sample: finished-goods warehouse' },
-    { project: samsungTransportYard(), summary: 'Samsung sample: staff transport yard' },
-    { project: samsungHrFloor(), summary: 'Samsung sample: HR department floor' },
-    { project: samsungMeetingCentre(), summary: 'Samsung sample: meeting & training centre' },
-    { project: samsungEventsHall(), summary: 'Samsung sample: events hall' },
-    { project: samsungCanteen(), summary: 'Samsung sample: staff canteen & break areas' },
-    { project: samsungExportContainer(), summary: 'Samsung sample: export container' },
+    { project: horizonCampus(), summary: 'Horizon sample: campus site plan' },
+    { project: horizonTvPlant(), summary: 'Horizon sample: TV & monitor assembly hall' },
+    { project: horizonMobilePlant(), summary: 'Horizon sample: mobile & tablet plant' },
+    { project: horizonFgWarehouse(), summary: 'Horizon sample: finished-goods warehouse' },
+    { project: horizonTransportYard(), summary: 'Horizon sample: staff transport yard' },
+    { project: horizonHrFloor(), summary: 'Horizon sample: HR department floor' },
+    { project: horizonMeetingCentre(), summary: 'Horizon sample: meeting & training centre' },
+    { project: horizonEventsHall(), summary: 'Horizon sample: events hall' },
+    { project: horizonCanteen(), summary: 'Horizon sample: staff canteen & break areas' },
+    { project: horizonExportContainer(), summary: 'Horizon sample: export container' },
   ];
 }

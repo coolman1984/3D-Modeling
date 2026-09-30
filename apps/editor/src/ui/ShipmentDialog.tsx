@@ -32,7 +32,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
   // The same loader the server runs, so the answer here is the one that gets created.
   const preview = useMemo(() => {
     if (!valid) return null;
-    const parts: ShipmentPart[] = used.map((r, i) => ({ id: `p${i}`, name: r.name, length: mm(r.length), width: mm(r.width), height: mm(r.height), quantity: Math.round(r.quantity), allowTilt: r.mayTilt }));
+    const parts: ShipmentPart[] = used.map((r, i) => ({ id: `p${i}`, name: r.name, length: mm(r.length), width: mm(r.width), height: mm(r.height), quantity: Math.round(r.quantity), allowTilt: r.mayTilt, ...(r.massKg ? { mass: Math.round(r.massKg * 1000) } : {}) }));
     return planShipment({ name: 'preview', containerType: typeId, parts });
   }, [valid, used, typeId]);
 
@@ -59,7 +59,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
       const created = await api.createShipment({
         name: name.trim() || defaultName,
         container_type: typeId,
-        parts: used.map((r, i) => ({ name: r.name.trim() || `Part ${i + 1}`, length_mm: r.length, width_mm: r.width, height_mm: r.height, quantity: Math.round(r.quantity), may_tilt: r.mayTilt })),
+        parts: used.map((r, i) => ({ name: r.name.trim() || `Part ${i + 1}`, length_mm: r.length, width_mm: r.width, height_mm: r.height, quantity: Math.round(r.quantity), may_tilt: r.mayTilt, ...(r.massKg ? { mass_kg: r.massKg } : {}) })),
       });
       opened(created.shipment);
     } catch (e) {
@@ -103,7 +103,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
             <ClipboardText size={15} />
             Paste rows from a spreadsheet
           </summary>
-          <textarea className="input" name="shipment-paste" rows={4} placeholder={'Name    L    W    H    Quantity\n55QN80H Cushion Top    1335    110    400    1750'} value={paste} onChange={(e) => setPaste(e.target.value)} />
+          <textarea className="input" name="shipment-paste" rows={4} placeholder={'Name    L    W    H    Quantity\nTV55B Cushion Top    1335    110    400    1750'} value={paste} onChange={(e) => setPaste(e.target.value)} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span className="spacer faint" style={{ fontSize: 12 }}>
               The words before the first number are the name; then L, W, H in mm and the quantity.
@@ -144,6 +144,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
               <th className="num">W mm</th>
               <th className="num">H mm</th>
               <th className="num">Quantity</th>
+              <th className="num" title="Weight of one piece: heavy cargo fills a container by weight before space">kg each</th>
               <th title="May lie on its side">On side</th>
               <th />
             </tr>
@@ -165,6 +166,9 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
                     />
                   </td>
                 ))}
+                <td>
+                  <input className="input num" inputMode="decimal" aria-label={`Part ${i + 1} kg each`} placeholder="—" value={r.massKg ? String(r.massKg) : ''} onChange={(e) => set(i, { massKg: Math.max(0, Number(e.target.value.replace(/[^\d.]/g, '')) || 0) || undefined })} />
+                </td>
                 <td style={{ textAlign: 'center' }}>
                   <input type="checkbox" aria-label={`Part ${i + 1} may lie on its side`} checked={r.mayTilt} onChange={(e) => set(i, { mayTilt: e.target.checked })} />
                 </td>

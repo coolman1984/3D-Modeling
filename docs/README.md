@@ -33,11 +33,14 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0013 — Vehicle depot spatial foundation (T9)](decisions/0013-vehicle-depot-foundation.md)
 - [0014 — Restaurant spatial foundation (T10)](decisions/0014-restaurant-foundation.md)
 - [0015 — Sample company, material slotting and 3D realism (D1)](decisions/0015-sample-company-and-slotting.md)
-- [0016 — Samsung Egypt sample company, site pack and 3D engine v2 (D2)](decisions/0016-samsung-sample-and-3d-v2.md)
+- [0016 — Electronics maker sample company, site pack and 3D engine v2 (D2)](decisions/0016-electronics-sample-and-3d-v2.md)
 - [0017 — Generated docs, work log and checkpoints](decisions/0017-docs-and-checkpoints.md)
 - [0018 — Graphics levels for the 3D view](decisions/0018-graphics-levels.md)
 - [0019 — "Paradigm" visual system replaces the warm Atrium palette](decisions/0019-paradigm-visual-system.md)
 - [0020 — Fixes from the 27 September source review (`bugs.md`)](decisions/0020-review-fixes.md)
+- [0021 — Shipments: how many containers, side by side](decisions/0021-shipments.md)
+- [0022 — Portable copy for networks that block npm](decisions/0022-portable-copy.md)
+- [0023 — Link to plant: tags in meta, the layout snapshot, the live view from the browser](decisions/0023-gmes-link.md)
 
 ## Generated
 

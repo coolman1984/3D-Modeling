@@ -13,13 +13,13 @@ import type { RackSpec } from './warehouse.js';
 export const SAMPLE_COMPANY = 'Nile Gate Logistics';
 
 const MATERIAL_SPECS: readonly MaterialSpec[] = [
-  { id: 'CU70043', name: 'Crystal UHD 43″ CU7000 · UA43CU7000', line: 'Crystal UHD TV', units: 20, massKg: 250, heightCm: 150, velocity: 'A', moves: 80, color: 0x3f8f8a, stock: 120 },
-  { id: 'CU70055', name: 'Crystal UHD 55″ CU7000 · UA55CU7000', line: 'Crystal UHD TV', units: 14, massKg: 285, heightCm: 165, velocity: 'A', moves: 52, color: 0x5fb3a6, stock: 130 },
-  { id: 'Q60D55', name: 'QLED 55″ Q60D · QA55Q60D', line: 'QLED TV', units: 12, massKg: 250, heightCm: 160, velocity: 'A', moves: 44, color: 0x2b54d0, stock: 110 },
-  { id: 'Q60D65', name: 'QLED 65″ Q60D · QA65Q60D', line: 'QLED TV', units: 8, massKg: 280, heightCm: 170, velocity: 'B', moves: 20, color: 0x4a74e0, stock: 100 },
-  { id: 'Q80D65', name: 'QLED 65″ Q80D · QA65Q80D', line: 'QLED TV', units: 8, massKg: 300, heightCm: 170, velocity: 'B', moves: 16, color: 0x7b9ae8, stock: 70 },
-  { id: 'QN90D65', name: 'Neo QLED 65″ QN90D · QA65QN90D', line: 'Neo QLED TV', units: 6, massKg: 260, heightCm: 170, velocity: 'B', moves: 12, color: 0x4b3fb0, stock: 55 },
-  { id: 'QN90D75', name: 'Neo QLED 75″ QN90D · QA75QN90D', line: 'Neo QLED TV', units: 5, massKg: 300, heightCm: 185, velocity: 'C', moves: 5, color: 0x6f62cc, stock: 35 },
+  { id: 'CU70043', name: 'UHD LED 43″ CU7000 · UA43CU7000', line: 'UHD LED TV', units: 20, massKg: 250, heightCm: 150, velocity: 'A', moves: 80, color: 0x3f8f8a, stock: 120 },
+  { id: 'CU70055', name: 'UHD LED 55″ CU7000 · UA55CU7000', line: 'UHD LED TV', units: 14, massKg: 285, heightCm: 165, velocity: 'A', moves: 52, color: 0x5fb3a6, stock: 130 },
+  { id: 'Q655', name: 'Quantum-dot 55″ Q6 · HZ55Q6', line: 'Quantum-dot TV', units: 12, massKg: 250, heightCm: 160, velocity: 'A', moves: 44, color: 0x2b54d0, stock: 110 },
+  { id: 'Q665', name: 'Quantum-dot 65″ Q6 · HZ65Q6', line: 'Quantum-dot TV', units: 8, massKg: 280, heightCm: 170, velocity: 'B', moves: 20, color: 0x4a74e0, stock: 100 },
+  { id: 'Q865', name: 'Quantum-dot 65″ Q8 · HZ65Q8', line: 'Quantum-dot TV', units: 8, massKg: 300, heightCm: 170, velocity: 'B', moves: 16, color: 0x7b9ae8, stock: 70 },
+  { id: 'Q965', name: 'Mini-LED 65″ Q9 · HZ65Q9', line: 'Mini-LED TV', units: 6, massKg: 260, heightCm: 170, velocity: 'B', moves: 12, color: 0x4b3fb0, stock: 55 },
+  { id: 'Q975', name: 'Mini-LED 75″ Q9 · HZ75Q9', line: 'Mini-LED TV', units: 5, massKg: 300, heightCm: 185, velocity: 'C', moves: 5, color: 0x6f62cc, stock: 35 },
   { id: 'S90D65', name: 'OLED 65″ S90D · QA65S90D', line: 'OLED TV', units: 6, massKg: 230, heightCm: 170, velocity: 'C', moves: 6, color: 0x8a4fb5, stock: 30 },
   { id: 'LS03D55', name: 'The Frame 55″ LS03D · QA55LS03D', line: 'Lifestyle TV', units: 8, massKg: 220, heightCm: 160, velocity: 'C', moves: 4, color: 0xa7784e, stock: 25 },
   { id: 'HWQ990D', name: 'Soundbar HW-Q990D', line: 'Audio', units: 16, massKg: 240, heightCm: 140, velocity: 'B', moves: 14, color: 0x3a3834, stock: 45 },
@@ -29,7 +29,7 @@ const MATERIAL_SPECS: readonly MaterialSpec[] = [
   { id: 'DV90T', name: 'Dryer 9 kg · DV90T5240', line: 'Laundry', units: 4, massKg: 200, heightCm: 180, velocity: 'C', moves: 8, color: 0xc3bdb0, stock: 35 },
   { id: 'AR18WF', name: 'WindFree AC 1.5 HP · AR18TXFCAWK', line: 'Air conditioning', units: 6, massKg: 280, heightCm: 160, velocity: 'A', moves: 90, color: 0x6fb7d6, stock: 150 },
   { id: 'MS23K', name: 'Microwave 23 L · MS23K3513', line: 'Kitchen', units: 24, massKg: 300, heightCm: 170, velocity: 'B', moves: 20, color: 0xc98a3c, stock: 60 },
-  { id: 'SMA55', name: 'Galaxy A55 phones · SM-A556 (master cartons)', line: 'Mobile', units: 480, massKg: 150, heightCm: 120, velocity: 'A', moves: 40, color: 0x26303a, stock: 40 },
+  { id: 'SMA55', name: 'Phones P55 · HZP-55 (master cartons)', line: 'Mobile', units: 480, massKg: 150, heightCm: 120, velocity: 'A', moves: 40, color: 0x26303a, stock: 40 },
   { id: 'G527', name: 'Odyssey G5 27″ monitor · LS27CG510', line: 'Monitors', units: 30, massKg: 200, heightCm: 170, velocity: 'C', moves: 7, color: 0x9b3b4a, stock: 30 },
 ];
 
@@ -43,8 +43,8 @@ export function nileGateRamadanDC(name = 'Nile Gate · 10th of Ramadan DC — co
     ...ys.map((y, i) => ({ id: `W${String(i + 1).padStart(2, '0')}`, x: 16.25, y })),
     ...ys.map((y, i) => ({ id: `E${String(i + 1).padStart(2, '0')}`, x: 42, y, ...(i === 3 ? { blocked: 'B02-L03-P01,B02-L03-P02,B02-L03-P03' } : {}) })),
   ];
-  const inbound = ['Q60D55', 'CU70055', 'AR18WF', 'WW90T', 'RT42CG'];
-  const outbound = ['CU70043', 'Q60D65', 'AR18WF', 'MS23K', 'RF65DG', 'SMA55'];
+  const inbound = ['Q655', 'CU70055', 'AR18WF', 'WW90T', 'RT42CG'];
+  const outbound = ['CU70043', 'Q665', 'AR18WF', 'MS23K', 'RF65DG', 'SMA55'];
   const project = warehouseSite({
     name,
     width: 60, depth: 40, height: 12,
@@ -87,7 +87,7 @@ export function nileGateRamadanDC(name = 'Nile Gate · 10th of Ramadan DC — co
 /** Port cross-dock at Alexandria: container pallets devanned in the middle, overflow racks to the east. */
 export function nileGatePortWarehouse(name = 'Nile Gate · Alexandria port — bonded cross-dock'): Project {
   const rack: RackSpec = { bays: 7, bayWidth: cm(270), depth: cm(110), height: cm(800), levels: 4, positionsPerLevel: 3, uprightWidth: cm(10) };
-  const products = ['Q60D65', 'CU70043', 'AR18WF', 'RF65DG', 'WW90T', 'SMA55', 'MS23K'];
+  const products = ['Q665', 'CU70043', 'AR18WF', 'RF65DG', 'WW90T', 'SMA55', 'MS23K'];
   const floor: ItemInstance[] = [];
   for (const [k, x] of [7.2, 8.3, 13.2, 14.3, 19.2, 20.3, 21.4].entries()) {
     for (let r = 0; r < 12; r++) floor.push(pallet(`X${k + 1}-${String(r + 1).padStart(2, '0')}`, products[(k * 5 + r * 3) % products.length]!, x, 6.6 + r * 1.5, 90_000));
@@ -151,10 +151,10 @@ export function nileGateMegaDC(name = 'Nile Gate · 6th of October mega DC — d
 const TV = { stackable: true, allowTilt: false };
 
 export function nileGateTvContainer(): Project {
-  return loadedContainer('Inbound MSKU 40′HC — QLED & Crystal UHD TVs (Ho Chi Minh → Sokhna)', '40hc', [
-    { id: 'tv-qn75', name: 'Neo QLED 75″ QN90D carton', size: [182, 20, 112], massKg: 42, quantity: 24, meta: { stackable: false, allowTilt: false, print: 'Neo QLED|75″' } },
-    { id: 'tv-q65', name: 'QLED 65″ Q60D carton', size: [158, 17, 98], massKg: 27, quantity: 96, meta: { ...TV, maxLoadOnTop: kg(30), print: 'QLED|65″' } },
-    { id: 'tv-cu55', name: 'Crystal UHD 55″ CU7000 carton', size: [136, 14, 85], massKg: 17, quantity: 160, meta: { ...TV, maxLoadOnTop: kg(40), print: 'Crystal UHD|55″' } },
+  return loadedContainer('Inbound MSKU 40′HC — Quantum-dot & UHD LED TVs (Ho Chi Minh → Sokhna)', '40hc', [
+    { id: 'tv-qn75', name: 'Mini-LED 75″ Q9 carton', size: [182, 20, 112], massKg: 42, quantity: 24, meta: { stackable: false, allowTilt: false, print: 'Mini-LED|75″' } },
+    { id: 'tv-q65', name: 'Quantum-dot 65″ Q6 carton', size: [158, 17, 98], massKg: 27, quantity: 96, meta: { ...TV, maxLoadOnTop: kg(30), print: 'Quantum-dot|65″' } },
+    { id: 'tv-cu55', name: 'UHD LED 55″ CU7000 carton', size: [136, 14, 85], massKg: 17, quantity: 160, meta: { ...TV, maxLoadOnTop: kg(40), print: 'UHD LED|55″' } },
     { id: 'soundbar', name: 'Soundbar HW-Q990D carton', size: [124, 42, 30], massKg: 11, quantity: 40, meta: { stackable: true, allowTilt: true, maxLoadOnTop: kg(45), print: 'Soundbar|Q990D' } },
   ], 'largest-first');
 }
@@ -169,15 +169,15 @@ export function nileGateApplianceContainer(): Project {
 }
 
 export function nileGatePhoneContainer(): Project {
-  return loadedContainer('Inbound 20′ — Galaxy phones & tablets, high value (Jebel Ali → Sokhna)', '20gp', [
-    { id: 'phones-pallet', name: 'Galaxy A55 master cartons · euro pallet', size: [120, 80, 120], massKg: 380, quantity: 11, meta: { stackable: true, allowTilt: false, maxLoadOnTop: kg(400) } },
-    { id: 'tablets-pallet', name: 'Galaxy Tab S9 FE cartons · euro pallet', size: [120, 80, 100], massKg: 300, quantity: 11, meta: { stackable: true, allowTilt: false, maxLoadOnTop: kg(300) } },
+  return loadedContainer('Inbound 20′ — phones & tablets, high value (Jebel Ali → Sokhna)', '20gp', [
+    { id: 'phones-pallet', name: 'Phone P55 master cartons · euro pallet', size: [120, 80, 120], massKg: 380, quantity: 11, meta: { stackable: true, allowTilt: false, maxLoadOnTop: kg(400) } },
+    { id: 'tablets-pallet', name: 'Tablet T9 cartons · euro pallet', size: [120, 80, 100], massKg: 300, quantity: 11, meta: { stackable: true, allowTilt: false, maxLoadOnTop: kg(300) } },
   ], 'footprint-first');
 }
 
 export function nileGateRetailTrailer(): Project {
   return loadedContainer('Outbound trailer 13.6 m — Cairo retail run, 3 stops', 'trailer', [
-    { id: 'stop1-tv', name: 'Stop 1 Nasr City showroom · QLED TV pallet', size: [120, 80, 170], massKg: 280, quantity: 8, meta: { stackable: false, allowTilt: false, stop: 1 } },
+    { id: 'stop1-tv', name: 'Stop 1 Nasr City showroom · Quantum-dot TV pallet', size: [120, 80, 170], massKg: 280, quantity: 8, meta: { stackable: false, allowTilt: false, stop: 1 } },
     { id: 'stop2-appl', name: 'Stop 2 Heliopolis store · appliance pallet', size: [120, 80, 180], massKg: 290, quantity: 10, meta: { stackable: false, allowTilt: false, stop: 2 } },
     { id: 'stop3-mixed', name: 'Stop 3 New Cairo mall · mixed electronics pallet', size: [120, 80, 150], massKg: 240, quantity: 14, meta: { stackable: false, allowTilt: false, stop: 3 } },
   ], 'largest-first');
@@ -186,8 +186,8 @@ export function nileGateRetailTrailer(): Project {
 /** Nothing loaded yet: the plan is set, so a visitor can press a loading plan and watch it fill. */
 export function nileGatePracticeContainer(): Project {
   return loadedContainer('Try it — plan this 40′HC load (TVs + appliances)', '40hc', [
-    { id: 'tv-q65', name: 'QLED 65″ Q60D carton', size: [158, 17, 98], massKg: 27, quantity: 60, meta: { ...TV, maxLoadOnTop: kg(30), print: 'QLED|65″' } },
-    { id: 'tv-cu55', name: 'Crystal UHD 55″ CU7000 carton', size: [136, 14, 85], massKg: 17, quantity: 80, meta: { ...TV, maxLoadOnTop: kg(40), print: 'Crystal UHD|55″' } },
+    { id: 'tv-q65', name: 'Quantum-dot 65″ Q6 carton', size: [158, 17, 98], massKg: 27, quantity: 60, meta: { ...TV, maxLoadOnTop: kg(30), print: 'Quantum-dot|65″' } },
+    { id: 'tv-cu55', name: 'UHD LED 55″ CU7000 carton', size: [136, 14, 85], massKg: 17, quantity: 80, meta: { ...TV, maxLoadOnTop: kg(40), print: 'UHD LED|55″' } },
     { id: 'washer-ww90', name: 'Washer WW90T carton', size: [66, 68, 90], massKg: 72, quantity: 24, meta: { stackable: true, allowTilt: false, maxLoadOnTop: kg(80), print: 'EcoBubble|9 kg' } },
     { id: 'microwave', name: 'Microwave MS23K carton', size: [58, 46, 36], massKg: 13, quantity: 40, meta: { stackable: true, allowTilt: false, maxLoadOnTop: kg(60), print: 'Microwave|23 L' } },
   ], null);

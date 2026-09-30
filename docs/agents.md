@@ -107,12 +107,12 @@ occupancy and pallets per material (give `material_id` for its locations); `assi
 empties locations such as `W01-B02-L03-P01` (level 1 is the floor) in one revision;
 `optimize_slotting` proposes moving the busiest pallets nearest the shipping dock and reports
 weekly forklift travel before and after (`apply: true` makes it one revision). The sample
-companies (projects page, "Add sample company": Nile Gate Logistics or Samsung Electronics Egypt)
+companies (projects page, "Add sample company": Nile Gate Logistics or Horizon Electronics)
 have fully stocked warehouses to try this on.
 
 ## Site plans (whole campuses)
 
-A site plan (pack `site`, from the Samsung sample) is a plot seen from above. A building is one
+A site plan (pack `site`, from the Horizon sample) is a plot seen from above. A building is one
 item (`category: "building"`, `meta.use`, `meta.storeys`) with its outer size; what happens inside
 is its own project. Roads, lawns, plazas and yards are zones; staff parking uses the depot's bays
 and lanes, so `add_depot_bay`, `add_depot_zone` and `bay_entry_check` work here too (a bus bay

@@ -11,7 +11,7 @@ database that is gone; nothing in the repository could recreate them. Racks were
 ## Decision
 
 - **The sample company is code, not a saved database.** `packages/starter/src/samples.ts` builds
-  "Nile Gate Logistics" (fictional, Egyptian sites, Samsung-style model lines chosen by the owner)
+  "Nile Gate Logistics" (fictional, Egyptian sites, invented model lines)
   deterministically: a fixed-seed generator, no clock. `POST /api/samples/nile-gate` stores the nine
   projects through `store.createProject` (actor "Sample data"), so they are ordinary projects with
   history. A button on the projects page calls it. Loaded containers are packed by the existing

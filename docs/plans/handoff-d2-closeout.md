@@ -46,7 +46,7 @@ Commands: `pnpm install` · `pnpm typecheck` · `pnpm test` (also runs `node --t
 
 | Area | What | Files / functions |
 |---|---|---|
-| Samsung sample | 10 illustrative projects, campus 336,000 m² | `starter/src/samsung.ts` (`samsungSample`), `sampleKit.ts`, `sampleCompanies.ts` (`SAMPLE_COMPANIES`, `sampleCompany`) |
+| Horizon sample | 10 illustrative projects, campus 560 × 600 m | `starter/src/horizon.ts` (`horizonSample`), `sampleKit.ts`, `sampleCompanies.ts` (`SAMPLE_COMPANIES`, `sampleCompany`) |
 | Site pack | buildings, trees, buses, bays; rule `building-boundary` | `starter/src/site.ts` (`checkSite`, `siteMetrics`, `SITE_CATALOG`) |
 | Depot fixes | bay entry stops with body centred; obstacle prefilter | `starter/src/depot.ts` (`bayEntry`, `referenceVehicleFor`) |
 | Server | project `collection` column, `GET /api/samples`, `POST /api/samples/:id` | `server/src/store.ts`, `http.ts`, `tools.ts` |
@@ -57,7 +57,7 @@ Commands: `pnpm install` · `pnpm typecheck` · `pnpm test` (also runs `node --t
 | Container tools | Cargo type / Delivery drop / Weight / Load order + hint | `editor/src/ui/Container.tsx` (`ContainerViewTools`, `COLOR_BY_HINT`, `colorsOf`) |
 | Design | Paradigm look | `DESIGN.md`, `editor/src/styles.css` (tokens + "Paradigm layer" at the end), decision 0019 |
 | Docs system | STATUS / CHANGELOG / index / work log / checkpoints | `scripts/*.mjs`, decision 0017 |
-| Decisions | 0016 (Samsung + 3D v2), 0017, 0018, 0019 | `docs/decisions/` |
+| Decisions | 0016 (electronics sample + 3D v2), 0017, 0018, 0019 | `docs/decisions/` |
 
 ## 3. Steps
 
@@ -97,7 +97,7 @@ fix the code (or, only with a written reason, the expectation). Checkpoint after
 ### Step 4 — Browser suite
 
 `pnpm e2e` (about 6 minutes, 20 journeys in 10 files, including the new `controls.spec.ts`
-arrow-keys journey and the `sample.spec.ts` Samsung journey). Journeys changed in D2 and what they prove:
+arrow-keys journey and the `sample.spec.ts` Horizon journey). Journeys changed in D2 and what they prove:
 - `office.spec.ts`: office catalog now 25 types (5 fit-out items added), 50 after adding hall items.
 - `container.spec.ts`: "Delivery drop" appears once a piece has a drop, the hint text, "Load order",
   "Loading step 2 of 10"; the "Cut away side wall" tick box keeps focus and arrows still move the
@@ -116,7 +116,7 @@ Checkpoint after green.
 
 Write a temporary spec (e.g. `apps/editor/e2e/zz-shots.spec.ts`) that screenshots, at 1440 × 900:
 projects (empty, sample menu open, with both companies), editor plan with a selection, split view,
-container 3D with the colour tools, Samsung campus 3D, report, settings, create dialog. Read every
+container 3D with the colour tools, Horizon campus 3D, report, settings, create dialog. Read every
 image and check it against `DESIGN.md`:
 - [ ] dark top bar; square buttons; primary black (white on dark); one blue accent
 - [ ] cool page (`#f5f6f8`), no beige left anywhere; hairline borders
@@ -144,10 +144,10 @@ Fix what fails (CSS tokens first). Delete the temporary spec afterwards.
    then `git status --short` and confirm nothing under `.claude/` is staged.
 3. Commit (the attribution lines are required):
    ```
-   D2: Samsung Egypt sample, site pack, 3D engine v2, graphics levels, Paradigm design, docs system
+   D2: Horizon Electronics sample, site pack, 3D engine v2, graphics levels, Paradigm design, docs system
 
    What changed and why:
-   - Samsung Electronics Egypt sample company (10 illustrative projects from public figures,
+   - Horizon Electronics sample company (10 illustrative projects of an invented electronics maker,
      decision 0016); site pack with building-boundary rule; bay-entry fixes.
    - Server: project collections, GET /api/samples, POST /api/samples/:id.
    - 3D engine v2 (textures, sky/sun, AO still pass, render on demand, static shadows) and graphics
@@ -157,7 +157,7 @@ Fix what fails (CSS tokens first). Delete the temporary spec afterwards.
    - Container colour tools say what they mean (Cargo type / Delivery drop / Weight / Load order).
    - Paradigm visual system (DESIGN.md, decision 0019) across all screens.
    - Docs system: generated STATUS/CHANGELOG/index, work log, checkpoints (decision 0017).
-   - Tests: Samsung, graphics, arrow-step unit tests; browser journeys for both samples, arrow
+   - Tests: sample company, graphics, arrow-step unit tests; browser journeys for both samples, arrow
      keys, tick-box focus; stale counts updated with reasons.
 
    Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

@@ -2,7 +2,7 @@
 
 ## Now: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
 
-Request (Samsung cushions, production plan 04/Oct and 05/Oct): "how many containers do we need",
+Request (TV cushions, production plan 04/Oct and 05/Oct): "how many containers do we need",
 shown in the program side by side, with every existing container detail and the stuffing playback.
 
 **Finish line (done means):** from the projects page a person enters parts (name, L × W × H mm,
@@ -11,7 +11,7 @@ containers the parts need and creates one normal container project per container
 loading steps, grouped as one shipment. A shipment page shows every container of the shipment side
 by side in 3D with one play button for the stuffing, per-container figures, and a way to open each
 container in the full editor (details, colours, cut-away, playback and report as today). The cushion
-request is reproducible (hand-computed: 1 260 × 55QN80H or 4 920 × 32F6000 per 40′ HC).
+request is reproducible (hand-computed: 1 260 × TV55B or 4 920 × TV32C per 40′ HC).
 Old saves still open; `pnpm check` passes; decision record; README; committed (push only after the
 owner says yes).
 
@@ -22,7 +22,7 @@ owner says yes).
 - [x] 5 Browser journey test; decision 0021; README; `pnpm check`; commit
 - [x] 6 Create the two cushion shipments (04/Oct, 05/Oct) in the owner's local app (04/Oct: 5 × 40′ HC, last 51% full; 05/Oct: 4 × 40′ HC, last 14% full; data folder backed up first)
 
-- [x] 7 Six-day plan (04-09/Oct, 77S85H from 07/Oct, parts in bags): the paste reader kept empty cells in place and the form picks the day; shipments 06-09/Oct created in the local app (3, 6, 3, 3 containers)
+- [x] 7 Six-day plan (04-09/Oct, TV77A from 07/Oct, parts in bags): the paste reader kept empty cells in place and the form picks the day; shipments 06-09/Oct created in the local app (3, 6, 3, 3 containers)
 - [x] 8 Push to GitHub (owner asked: merge and sync with main; origin/main had nothing new, fast-forward)
 
 Found along the way (S1):
@@ -51,16 +51,16 @@ Found along the way (B1):
 - Killed agent processes that finish after `Store.close()` threw "database is not open"; the store now ignores late run updates once closed.
 - A speed test (`warehouse.test.ts`, 100 rack rows, limit 2 s) took 2.3 s once while the machine was busy; alone it takes about 0.56 s. The limit was left as it is.
 
-## Now: D2 — Samsung Electronics Egypt (Beni Suef) sample + 3D engine v2
+## Now: D2 — Horizon Electronics (invented) sample + 3D engine v2
 
 **Next agent: follow `docs/plans/handoff-d2-closeout.md` step by step, then stop.**
 
 **Finish line:** the projects page offers two sample companies, each listed as its own group:
-(1) Nile Gate Logistics (containers + storage, existing) and (2) Samsung Electronics Egypt ·
-Kom Abu Radi, Al Wasta, Beni Suef. The Samsung set holds an illustrative campus master plan
+(1) Nile Gate Logistics (containers + storage, existing) and (2) Horizon Electronics (an invented
+electronics maker). The set holds an illustrative campus master plan
 (336,000 m² per public figures, buildings, gates, roads, staff bus and car parking, trees), the
 TV & monitor assembly hall, the mobile & tablet plant (~9,000 m², SMT lines), the finished-goods
-warehouse stocked with Samsung TVs/monitors/phones, an HR department floor (offices, interview
+warehouse stocked with TVs/monitors/phones, an HR department floor (offices, interview
 rooms, records, onboarding room), a meeting & training centre, a town-hall events hall, the staff
 canteen and break areas, and an export container of TVs. The layout is labelled as illustrative
 (no public floor plans; public facts cited in decision 0016). The 3D view makes a visible quality
@@ -73,7 +73,7 @@ and the store; no core change; `pnpm check` passes; browser-checked with screens
 - [x] Starter: `site` pack (campus: buildings, trees, gates, buses, cars; building + parking rules with sources)
 - [x] Starter: bus bays; bay entry treats every non-vehicle item as an obstacle and prefilters by path box (speed)
 - [x] Starter: office partitions / glass walls / screens / lockers / vending in catalogs; new shapes list
-- [x] Starter: Samsung sample set (10 projects) + tests
+- [x] Starter: Horizon sample set (10 projects) + tests
 - [x] Server: project collections (stored group), `POST /api/samples/:id`, test
 - [x] Editor: two sample companies, projects grouped by collection
 - [x] Editor 3D v2: texture library, material cache, sky/sun/fog, idle AO, render on demand, static shadows
@@ -82,7 +82,7 @@ and the store; no core change; `pnpm check` passes; browser-checked with screens
 - [x] Resumed after the interruption: reviewed every uncommitted file; typecheck and 345 unit tests green
 - [x] Decision 0016 (public facts re-checked with sources), agents.md site-plan section
 - [x] Docs system (decision 0017): generated STATUS / CHANGELOG / index, work log, checkpoints, `docs/process/interruptions.md`
-- [x] e2e: Samsung sample journey in `sample.spec.ts`
+- [x] e2e: Horizon sample journey in `sample.spec.ts`
 - [x] Browser suite: 17/19 first run; `office.spec.ts` count was stale (5 fit-out items added to the office catalog: 20→25, 45→50), fixed, not yet re-run
 - [x] Graphics levels Fast / Balanced (default) / High, toolbar button, auto step-down on slow frames (decision 0018); owner reported lag on their laptop
 - [x] `controls.spec.ts` 3D drag journey no longer times out (29 s, was over 45 s); `office`, `sample`, `controls` journeys pass
@@ -100,8 +100,8 @@ Found along the way (handoff):
 Found along the way (D2):
 - The session was interrupted with three checklist items unticked that were in fact written; nothing recorded where it stood. Decision 0017 adds checkpoints and a generated status page.
 - Build output left by the interrupted (sandboxed) session belonged to another Windows identity and could not be deleted, which silently stopped the browser suite; moved aside to `apps/editor/node_modules/.stale-dist-20260926` (safe to delete as administrator).
-- Two starter tests (container property test, Samsung determinism) hit the 5 s default only under full-suite load (1–2 s alone); they now have a 20 s budget. Neither asserts speed.
-- `samsung.ts` quoted 80–85% exports; the public source says about 85–90% (fixed). "Since 2013", "24″–82″" and "5,000 jobs" are not confirmed by a primary source (decision 0016).
+- Two starter tests (container property test, sample determinism) hit the 5 s default only under full-suite load (1–2 s alone); they now have a 20 s budget. Neither asserts speed.
+- The sample's header figures were replaced by an invented company (2026-09-30).
 - Bay entry stopped the vehicle with its rear reference point on the bay centre, so the nose poked 1.1 m (car) / 3 m (coach) past the bay; back-to-back rows always looked blocked. It now stops with the body centred, as parked items stand, and swings wide when the lane is narrower than a turning radius.
 - Production and depot "floor area" was 100× too small (30 × 8 m showed 2.4 m²); now computed like the warehouse and restaurant.
 - The nearest lane to a bay can belong to a different car park; the transport yard keeps its car park 20 m clear of the bus lane.
@@ -110,7 +110,7 @@ Found along the way (D2):
 
 **Finish line (1–2 day deadline):** from the projects page, one click adds a realistic fictional
 Egyptian logistics company (Nile Gate Logistics): an electronics distribution centre in 10th of
-Ramadan stocked with Samsung-style TVs and appliances, a port warehouse, loaded inbound containers
+Ramadan stocked with TVs and appliances, a port warehouse, loaded inbound containers
 (TV cartons upright, palletised appliances), a multi-stop outbound trailer, an empty container to
 pack live, and a truck yard. In a warehouse a person can see which material sits in which rack
 location (3D pallets coloured by material), assign / move / clear material per location, find a
