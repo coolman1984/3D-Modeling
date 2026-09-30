@@ -6,6 +6,21 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-09
 
+### Shipments respect the payload: heavy cargo fills a container by weight before space
+
+`8607b78` · 2026-09-30
+
+Planning a ceramic-tile shipment showed a 40' high cube taking all 23 pallets (30 t) because containers were filled by
+walls and length only; the payload was checked afterwards as an issue, never used to split. Tiles, steel or paper fill
+a container by weight first, and a shipping expert sees the wrong answer at once.
+- planShipment caps every container at its type's payload; a piece heavier than the payload is named as too big
+- parts of different weight no longer share a stream
+- the explanation says when weight is the limit
+- the shipment dialog takes kg per piece (optional: without it only space limits, as before)
+- tests, hand-computed: 23 pallets of 1 305 kg need 20 + 3 in 40' HC (26 100 kg of 26 500); 20' GP is full by space first
+  (20 of 21 by weight); a 30 t piece is too big for a 20' GP. Planting the missing cap fails the first test.
+pnpm typecheck ok; pnpm test: 406 unit tests + docs, all pass; pnpm e2e: 23 of 23 pass.
+
 ### Shipment page: container cards keep their content inside
 
 `a51145d` · 2026-09-29

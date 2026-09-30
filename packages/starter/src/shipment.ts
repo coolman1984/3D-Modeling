@@ -219,6 +219,45 @@ export function planShipment(input: { readonly name: string; readonly containerT
       }
     }
   };
+  /**
+   * Heavy cargo is spread, not piled: a load of one weighed part that does not need the whole container (it stopped at
+   * the payload, or it is the last one) goes in as few layers as the floor allows, centred along the length, its last
+   * partial row centred across the width. Piled at the front wall, 20 tile pallets put the centre of mass 27 % off the
+   * middle (the balance rule allows 10 %); spread one high over 11 m they sit in the middle. Loads without weights stay
+   * as they were: walls from the front wall to the doors.
+   */
+  function spread(load: { walls: Placed[]; used: Tick }) {
+    const first = load.walls[0];
+    if (!first || first.stream.mass === undefined || load.walls.some((w) => w.stream !== first.stream || w.wall !== first.wall || w.fill.length > 0)) return;
+    const wall = first.wall;
+    const levels = [...new Set(wall.spots.map((p) => p.z))].sort((a, b) => a - b);
+    const layer = wall.spots.filter((p) => p.z === levels[0]);
+    const count = load.walls.reduce((n, w) => n + w.count, 0);
+    const room = Math.floor(length / wall.depth);
+    const needed = Math.ceil(count / (layer.length * room));
+    if (needed >= levels.length && load.walls.length >= room) return; // already as flat and as long as it can be
+    const keep = new Set(levels.slice(0, Math.max(1, needed)));
+    const flat: Wall = { depth: wall.depth, spots: wall.spots.filter((p) => keep.has(p.z)) };
+    const walls = Math.ceil(count / flat.spots.length);
+    const offset = Math.floor((length - walls * flat.depth) / 2);
+    let left = count;
+    load.walls = [];
+    for (let i = 0; i < walls; i++) {
+      const n = Math.min(flat.spots.length, left);
+      let use = flat;
+      if (n < flat.spots.length && n < layer.length) {
+        // a last row of a few pieces stands in the middle of the width, not against one side
+        const row = flat.spots.filter((p) => p.z === levels[0]).slice(0, n);
+        const lo = Math.min(...row.map((p) => p.y)), hi = Math.max(...row.map((p) => p.y + p.o.w));
+        const shift = Math.floor((width - (hi - lo)) / 2) - lo;
+        use = { depth: flat.depth, spots: row.map((p) => ({ ...p, y: p.y + shift })) };
+      }
+      load.walls.push({ stream: first.stream, wall: use, count: n, x: offset + i * flat.depth, fill: [] });
+      left -= n;
+    }
+    load.used = walls * flat.depth;
+  }
+
   while (order.some((s) => s.left > 0)) {
     const load = { walls: [] as Placed[], used: 0, mass: 0, full: false };
     for (;;) {
@@ -242,6 +281,7 @@ export function planShipment(input: { readonly name: string; readonly containerT
     }
     if (load.walls.length === 0) break; // nothing fits an empty container (cannot happen once too-big parts are out)
     if (order.some((s) => s.left > 0)) fillGaps(load);
+    spread(load);
     loads.push(load);
   }
 

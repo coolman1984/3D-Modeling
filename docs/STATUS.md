@@ -5,8 +5,8 @@
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
 - **Branch:** `ccr-294d598e-rw6r5x`
-- **Last commit:** `a51145d` Shipment page: container cards keep their content inside
-- **Uncommitted files:** 4
+- **Last commit:** `8607b78` Shipments respect the payload: heavy cargo fills a container by weight before space
+- **Uncommitted files:** 2
 
 ## Current stage: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
 
@@ -17,8 +17,6 @@ Where work stands. Read this first after an interruption, then `TASKS.md`.
 ## Uncommitted work
 
 ```
- M apps/editor/src/logic/shipment.ts
- M apps/editor/src/ui/ShipmentDialog.tsx
  M packages/starter/src/shipment.ts
  M packages/starter/test/shipment.test.ts
 ```

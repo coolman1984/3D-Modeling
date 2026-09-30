@@ -104,7 +104,13 @@ describe('shipments', () => {
     const mass = Object.values(first.items).reduce((m, i) => m + first.catalog[i.definitionId]!.mass!, 0);
     expect(mass).toBe(26_100_000);
     expect(new Map(checkContainer(first).map((r) => [r.code, r.status])).get('payload')).toBe('pass');
-    expect(plan.explanation).toBe('23 pieces need 2 × 40′ high cube; the last one is 9% full along its length. Weight is the limit: 1 container(s) reach the 26.5 t payload before they are full.');
+    // Spread, not piled: 20 pallets one high over 10 walls (11 000 mm), centred: 515 mm free at each end
+    // ((12 030 − 11 000) / 2). The last 3 go one high in 2 walls (2 200 mm), the single one in the middle of the width.
+    expect(Object.values(first.items).every((i) => !i.elevation)).toBe(true);
+    expect(plan.containers[0]!.usedLength).toBe(mm(11_000));
+    expect(Math.min(...Object.values(first.items).map((i) => i.position.x))).toBe(mm(515 + 550));
+    for (const c of plan.containers) expect(new Map(checkContainer(c.project).map((r) => [r.code, r.status])).get('balance')).toBe('pass');
+    expect(plan.explanation).toBe('23 pieces need 2 × 40′ high cube; the last one is 18% full along its length. Weight is the limit: 1 container(s) reach the 26.5 t payload before they are full.');
     // A 20′ standard is full by space first (2 × 2 × 5 walls = 20 of floor(28 200 / 1 305) = 21): the same 20 + 3, no weight note.
     const twenty = planShipment({ name: 'Tiles', containerType: '20gp', parts: [pallet(23, 1305)] });
     expect(twenty.containers.map((c) => c.pieces.pallet)).toEqual([20, 3]);
