@@ -25,8 +25,11 @@ light, so how many lie on each other is not the limit; for heavy or fragile carg
 - The planned limit is written into the cargo data (`stackable`, `maxLoadOnTop`), so the container rules check the
   plan against it. Server input and the agent tool accept `max_layers`, `max_load_on_top_kg`, `stackable`; the
   shipment form has a "Layers" column.
+- **Complete sets.** Parts that name a model (`model`, the first cell of a pasted row) are loaded as whole sets of that
+  model in the exact ratio of their quantities (2 sides + 1 top + 1 bottom per TV); each container takes as many full
+  sets as fit, the last the rest, and a container holds one model only. The form, the server and the agent tool carry `model`.
 
-- **Complete sets.** Parts that name a model (`model`, the first cell of a pasted row) are loaded as whole sets of that model in the exact ratio of their quantities (2 sides + 1 top + 1 bottom per TV); each container takes as many full sets as fit, the last the rest, and a container holds one model only. The form, the server and the agent tool carry `model`.`n`n## Consequences
+## Consequences
 
 - TV55B cushions: 5 across × 24 flat layers × 9 walls = 1 080 per 40′ high cube (was 1 260 standing on end): 3 500
   need 4 containers instead of 3. That is the price of a load that arrives undamaged; the owner chose it.
