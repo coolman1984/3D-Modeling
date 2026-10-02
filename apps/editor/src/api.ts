@@ -66,7 +66,7 @@ export const api = {
   createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference' | 'production-reference' | 'depot-reference' | 'restaurant-reference'; file?: string }) =>
     post<Project>('/api/projects', body),
   /** Plan how many containers the parts need; the server stores one loaded container project each. */
-  createShipment: (body: { name: string; container_type: string; parts: Array<{ name: string; length_mm: number; width_mm: number; height_mm: number; quantity: number; may_tilt: boolean }> }) =>
+  createShipment: (body: { name: string; container_type: string; parts: Array<{ name: string; length_mm: number; width_mm: number; height_mm: number; quantity: number; may_tilt: boolean; model?: string; mass_kg?: number; max_layers?: number }> }) =>
     post<{ shipment: string; containers: Array<{ id: string; name: string; pieces: Record<string, number> }>; tooBig: string[]; explanation: string }>('/api/shipments', body),
   addSampleCompany: (company: string) => post<Array<{ id: string; name: string }>>(`/api/samples/${encodeURIComponent(company)}`, {}),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),

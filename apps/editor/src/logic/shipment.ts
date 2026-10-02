@@ -6,8 +6,12 @@ export interface PartRow {
   readonly height: number;
   readonly quantity: number;
   readonly mayTilt: boolean;
+  /** The model the part belongs to (the first cell of its row, or of the row above when merged): parts of one model are loaded as complete sets. */
+  readonly model?: string | undefined;
   /** Weight of one piece in kg; unknown when not given (then only space limits a container). */
   readonly massKg?: number | undefined;
+  /** Most pieces that may stand on each other, the bottom one included; unknown = the loader's safe default (3). */
+  readonly maxLayers?: number | undefined;
   /** Every plan column after the sizes (one per day), 0 where the cell is empty. */
   readonly plan?: readonly number[];
 }
@@ -79,7 +83,7 @@ export function parsePastedPlan(text: string): PastedPlan {
     const own = words.filter((w) => w !== '');
     const name = words[0] === '' && model ? [model, ...own].join(' ') : own.join(' ');
     const plan = cells.slice(first + 3).map((c) => (isNumber(c) ? Math.max(0, Math.round(toNumber(c))) : 0));
-    rows.push({ name: name || `Part ${rows.length + 1}`, length: toNumber(sizes[0]!), width: toNumber(sizes[1]!), height: toNumber(sizes[2]!), quantity: plan[0] ?? 0, mayTilt: true, plan });
+    rows.push({ name: name || `Part ${rows.length + 1}`, length: toNumber(sizes[0]!), width: toNumber(sizes[1]!), height: toNumber(sizes[2]!), quantity: plan[0] ?? 0, mayTilt: true, ...(model ? { model } : {}), plan });
   }
   // As many plan columns as the widest row, named by the heading row where it has a name.
   const count = Math.max(0, ...rows.map((r) => r.plan!.length));

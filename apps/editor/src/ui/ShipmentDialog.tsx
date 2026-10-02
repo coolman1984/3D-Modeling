@@ -32,7 +32,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
   // The same loader the server runs, so the answer here is the one that gets created.
   const preview = useMemo(() => {
     if (!valid) return null;
-    const parts: ShipmentPart[] = used.map((r, i) => ({ id: `p${i}`, name: r.name, length: mm(r.length), width: mm(r.width), height: mm(r.height), quantity: Math.round(r.quantity), allowTilt: r.mayTilt, ...(r.massKg ? { mass: Math.round(r.massKg * 1000) } : {}) }));
+    const parts: ShipmentPart[] = used.map((r, i) => ({ id: `p${i}`, name: r.name, length: mm(r.length), width: mm(r.width), height: mm(r.height), quantity: Math.round(r.quantity), allowTilt: r.mayTilt, ...(r.model ? { model: r.model } : {}), ...(r.massKg ? { mass: Math.round(r.massKg * 1000) } : {}), ...(r.maxLayers ? { maxLayers: r.maxLayers } : {}) }));
     return planShipment({ name: 'preview', containerType: typeId, parts });
   }, [valid, used, typeId]);
 
@@ -59,7 +59,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
       const created = await api.createShipment({
         name: name.trim() || defaultName,
         container_type: typeId,
-        parts: used.map((r, i) => ({ name: r.name.trim() || `Part ${i + 1}`, length_mm: r.length, width_mm: r.width, height_mm: r.height, quantity: Math.round(r.quantity), may_tilt: r.mayTilt, ...(r.massKg ? { mass_kg: r.massKg } : {}) })),
+        parts: used.map((r, i) => ({ name: r.name.trim() || `Part ${i + 1}`, length_mm: r.length, width_mm: r.width, height_mm: r.height, quantity: Math.round(r.quantity), may_tilt: r.mayTilt, ...(r.model ? { model: r.model } : {}), ...(r.massKg ? { mass_kg: r.massKg } : {}), ...(r.maxLayers ? { max_layers: r.maxLayers } : {}) })),
       });
       opened(created.shipment);
     } catch (e) {
@@ -77,7 +77,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
         <div className="kicker">New shipment</div>
         <h3>How many containers?</h3>
         <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-          List the parts with their sizes and quantities. Each container is loaded wall by wall, from the front wall to the doors.
+          List the parts with their sizes and quantities. Each container is loaded wall by wall, from the front wall to the doors; pieces stand at most 3 on each other unless you say more, so nothing at the bottom is crushed.
         </p>
       </div>
       <div className="dialog-body">
@@ -145,6 +145,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
               <th className="num">H mm</th>
               <th className="num">Quantity</th>
               <th className="num" title="Weight of one piece: heavy cargo fills a container by weight before space">kg each</th>
+              <th className="num" title="Most pieces standing on each other, the bottom one included. Empty = 3, so nothing at the foot is crushed">Layers</th>
               <th title="May lie on its side">On side</th>
               <th />
             </tr>
@@ -168,6 +169,9 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
                 ))}
                 <td>
                   <input className="input num" inputMode="decimal" aria-label={`Part ${i + 1} kg each`} placeholder="—" value={r.massKg ? String(r.massKg) : ''} onChange={(e) => set(i, { massKg: Math.max(0, Number(e.target.value.replace(/[^\d.]/g, '')) || 0) || undefined })} />
+                </td>
+                <td>
+                  <input className="input num" inputMode="numeric" aria-label={`Part ${i + 1} layers`} placeholder="3" value={r.maxLayers ? String(r.maxLayers) : ''} onChange={(e) => set(i, { maxLayers: Math.min(50, Math.max(0, Math.floor(Number(e.target.value.replace(/[^\d]/g, '')) || 0))) || undefined })} />
                 </td>
                 <td style={{ textAlign: 'center' }}>
                   <input type="checkbox" aria-label={`Part ${i + 1} may lie on its side`} checked={r.mayTilt} onChange={(e) => set(i, { mayTilt: e.target.checked })} />

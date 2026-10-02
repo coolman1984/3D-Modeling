@@ -35,29 +35,44 @@ describe('shipments', () => {
     expect(plan.explanation).toBe('100 pieces need 2 × 20′ standard; the last one is 17% full along its length.');
   });
 
-  it('TV55B cushions 1335 × 110 × 400 mm: 1 260 per 40′ high cube (hand-computed)', () => {
-    // Walls 400 mm deep: 21 across (2 310 of 2 350 mm) × 2 standing on end (2 670 of 2 690 mm) = 42;
-    // 30 walls = 12 000 of 12 030 mm → 1 260. So 3 500 pieces need 1 260 + 1 260 + 980.
+  it('TV55B cushions 1335 × 110 × 400 mm lie flat and are stacked: 1 080 per 40′ high cube (hand-computed)', () => {
+    // A cushion that may be turned lies on its largest face (1335 × 400), 110 mm up: it is never stood on its long side.
+    // Walls 1 335 mm deep: 5 across (2 000 of 2 350 mm) × 24 layers (2 640 of 2 690 mm) = 120;
+    // 9 walls = 12 015 of 12 030 mm → 1 080. So 3 500 pieces need 1 080 × 3 + 260.
     const plan = planShipment({ name: 'TV55B', containerType: '40hc', parts: [part('qn', 1335, 110, 400, 3500)] });
-    expect(plan.containers.map((c) => c.pieces.qn)).toEqual([1260, 1260, 980]);
-    expect(plan.containers[0]!.usedLength).toBe(mm(12_000));
-    // Two layers per wall, one loading step each.
-    expect(Math.max(...Object.values(plan.containers[0]!.project.items).map((i) => stepOf(i)!))).toBe(60);
+    expect(plan.containers.map((c) => c.pieces.qn)).toEqual([1080, 1080, 1080, 260]);
+    expect(plan.containers[0]!.usedLength).toBe(mm(12_015));
+    const items = Object.values(plan.containers[0]!.project.items);
+    // every piece lies flat: its height in the container is its smallest side
+    for (const i of items) expect(placedSize(i, plan.containers[0]!.project.catalog.qn!).h).toBe(mm(110));
+    // 24 layers per wall, one loading step each: 9 × 24.
+    expect(Math.max(...items.map((i) => stepOf(i)!))).toBe(216);
+    // The last 260: two walls of 120, then the 20 left in the shallowest wall that holds them (400 mm deep, 1 across × 24).
+    expect(plan.containers[3]!.usedLength).toBe(mm(2 * 1335 + 400));
     plan.containers.forEach((c) => expectSound(c.project));
+  }, 60_000); // thousands of pieces, each checked: slow when the whole repository is tested in parallel
+
+  it('a long piece stands on end only when it must: one that may not be turned keeps its listed height', () => {
+    // Not allowed to turn ("this way up"): the cushion keeps the 400 mm it was listed with, standing on its 1335 × 110 edge.
+    const upright = planShipment({ name: 'Up', containerType: '40hc', parts: [part('qn', 1335, 110, 400, 100, false)] }).containers[0]!.project;
+    for (const i of Object.values(upright.items)) expect(placedSize(i, upright.catalog.qn!).h).toBe(mm(400));
+    // Turnable, but lying flat does not fit the 2 340 mm doors: a 2 400 × 300 × 100 mm board goes in on a side (300 mm up), never on end.
+    const board = planShipment({ name: 'Board', containerType: '40hc', parts: [part('b', 2400, 300, 100, 10)] }).containers[0]!.project;
+    for (const i of Object.values(board.items)) expect(placedSize(i, board.catalog.b!).h).not.toBe(mm(2400));
   });
 
   it('parts of the same size share walls: a cushion top and bottom fill containers as one run', () => {
-    // 1 750 tops + 1 750 bottoms = 3 500 at 1 260 per container; tops first, in the order given.
+    // 1 750 tops + 1 750 bottoms = 3 500 at 1 080 per container; tops first, in the order given.
     const plan = planShipment({ name: 'QN', containerType: '40hc', parts: [part('top', 1335, 110, 400, 1750), part('bot', 1335, 110, 400, 1750)] });
-    expect(plan.containers.map((c) => c.pieces)).toEqual([{ top: 1260 }, { top: 490, bot: 770 }, { bot: 980 }]);
-    // The wall where the tops run out is finished with bottoms: 490 = 11 walls of 42 + 28, then 14 bottoms.
+    expect(plan.containers.map((c) => c.pieces)).toEqual([{ top: 1080 }, { top: 670, bot: 410 }, { bot: 1080 }, { bot: 260 }]);
+    // The wall where the tops run out is finished with bottoms: 670 = 5 walls of 120 + 70, then 50 bottoms.
     const mixed = plan.containers[1]!.project;
-    expect(mixed.catalog.top!.meta?.quantity).toBe(490);
-    expect(mixed.catalog.bot!.meta?.quantity).toBe(770);
+    expect(mixed.catalog.top!.meta?.quantity).toBe(670);
+    expect(mixed.catalog.bot!.meta?.quantity).toBe(410);
     expectSound(mixed);
-  });
+  }, 60_000); // thousands of pieces, each checked: slow when the whole repository is tested in parallel
 
-  it('the 05/Oct cushion plan needs four 40′ high cubes, the fourth barely used', () => {
+  it('the 05/Oct cushion plan needs four 40′ high cubes, every cushion lying flat', () => {
     const plan = planShipment({
       name: 'Cushions 05/Oct',
       containerType: '40hc',
@@ -66,13 +81,16 @@ describe('shipments', () => {
     expect(plan.containers.length).toBe(4);
     const total = (id: string) => plan.containers.reduce((s, c) => s + (c.pieces[id] ?? 0), 0);
     expect([total('tv55b'), total('tv32c')]).toEqual([3500, 1600]);
-    expect(plan.containers[3]!.usedLength / mm(12_030)).toBeLessThan(0.15);
     plan.containers.forEach((c, i) => {
       expectSound(c.project);
+      for (const item of Object.values(c.project.items)) {
+        const d = c.project.catalog[item.definitionId]!;
+        expect(placedSize(item, d).h).toBe(Math.min(d.size.w, d.size.d, d.size.h));
+      }
       expect(shipmentOf(c.project)).toEqual({ id: 'cushions-05-oct', name: 'Cushions 05/Oct', index: i + 1, count: 4 });
       expect(c.project.name).toBe(`Cushions 05/Oct · container ${i + 1} of 4`);
     });
-  });
+  }, 60_000); // thousands of pieces, each checked: slow when the whole repository is tested in parallel
 
   it('fills the room above a half-full wall before starting another container (hand-computed)', () => {
     // 20′ (589 × 235 × 239 cm). A: 12 upright 100 × 50 × 50 cm boxes = one 100 cm wall, 4 across ×
@@ -89,6 +107,20 @@ describe('shipments', () => {
     const firstWallStep = Math.min(...items.filter((i) => i.definitionId === 'cube' && i.position.x > mm(1000)).map((i) => stepOf(i)!));
     expect(Math.max(...onA.map((i) => stepOf(i)!))).toBeLessThan(firstWallStep);
     expect(planShipment({ name: 'Gaps', containerType: '20gp', parts: parts(842) }).containers.map((c) => c.pieces)).toEqual([{ a: 12, cube: 841 }, { cube: 1 }]);
+  });
+
+  it('a stated layer limit holds above a wall too: boxes three high take nothing on top (hand-computed)', () => {
+    // A: 12 boxes, at most 3 high = 4 across × 3, the limit. Nothing goes on top of them; the cubes (also at most 3 high) fill
+    // the floor beside A (3 × 1 × 3 = 9) and 16 walls of 7 × 3 = 21.
+    const limited = (p: ShipmentPart): ShipmentPart => ({ ...p, maxLayers: 3 });
+    const plan = planShipment({ name: 'Limit', containerType: '20gp', parts: [limited(part('a', 1000, 500, 500, 12, false)), limited(part('cube', 300, 300, 300, 400))] });
+    const first = plan.containers[0]!.project;
+    const aTop = Math.max(...Object.values(first.items).filter((i) => i.definitionId === 'a').map((i) => (i.elevation ?? 0) + mm(500)));
+    expect(aTop).toBe(mm(1500));
+    const onA = Object.values(first.items).filter((i) => i.definitionId === 'cube' && (i.elevation ?? 0) >= mm(1500) && i.position.x < mm(1000));
+    expect(onA).toEqual([]);
+    expect(first.catalog.cube!.meta?.quantity).toBe(345);
+    plan.containers.forEach((c) => expectSound(c.project));
   });
 
   it('heavy cargo fills a container by weight: 23 tile pallets need two 40′ high cubes, not one (hand-computed)', () => {
@@ -117,6 +149,63 @@ describe('shipments', () => {
     expect(twenty.explanation).not.toContain('Weight');
   });
 
+  it('height is not the goal: what a piece may carry decides how high it is stacked (hand-computed)', () => {
+    // 20′ (589 × 235 × 239 cm); cartons 100 × 50 × 50 cm upright, 10 kg each; a wall is 50 cm deep and 2 across.
+    const carton = (extra: Partial<ShipmentPart>): ShipmentPart => ({ ...part('c', 1000, 500, 500, 1000, false), mass: 10_000, ...extra });
+    const perContainer = (extra: Partial<ShipmentPart>) => planShipment({ name: 'Stack', containerType: '20gp', parts: [carton(extra)] }).containers[0]!.pieces.c!;
+    const highest = (extra: Partial<ShipmentPart>) => {
+      const p = planShipment({ name: 'Stack', containerType: '20gp', parts: [carton(extra)] }).containers[0]!.project;
+      return Math.max(...Object.values(p.items).map((i) => ((i.elevation ?? 0) + mm(500)) / mm(500)));
+    };
+    // Not stackable: one layer on the floor, 2 across × 11 walls = 22.
+    expect(perContainer({ stackable: false })).toBe(22);
+    expect(highest({ stackable: false })).toBe(1);
+    // A carton takes 30 kg on top: itself plus 3 more = 4 high (200 of 239 cm): 2 × 4 × 11 = 88, as before the limit existed.
+    expect(perContainer({ maxLoadOnTop: 30_000 })).toBe(88);
+    // 20 kg on top: 3 high → 66. 10 kg on top: 2 high → 44. Less than one carton's weight: 1 high.
+    expect(perContainer({ maxLoadOnTop: 20_000 })).toBe(66);
+    expect(perContainer({ maxLoadOnTop: 10_000 })).toBe(44);
+    expect(perContainer({ maxLoadOnTop: 9_000 })).toBe(22);
+    // A stated layer count wins over the default (here 3); the roof still caps it (4 fit).
+    expect(perContainer({ maxLayers: 2 })).toBe(44);
+    expect(perContainer({ maxLayers: 9 })).toBe(88);
+    // The stricter of two statements stands.
+    expect(perContainer({ maxLayers: 4, maxLoadOnTop: 10_000 })).toBe(44);
+    expect(highest({ maxLayers: 2 })).toBe(2);
+    // The planned limit is written into the cargo data, so the container's own load-on-top rule agrees with the plan.
+    const loaded = planShipment({ name: 'Stack', containerType: '20gp', parts: [carton({ maxLoadOnTop: 20_000 })] }).containers[0]!.project;
+    expect(loaded.catalog.c!.meta).toMatchObject({ stackable: true, maxLoadOnTop: 20_000 });
+    expect(new Map(checkContainer(loaded).map((r) => [r.code, r.status])).get('load-on-top')).toBe('pass');
+    expect(planShipment({ name: 'Stack', containerType: '20gp', parts: [carton({ stackable: false })] }).containers[0]!.project.catalog.c!.meta).toMatchObject({ stackable: false });
+  });
+
+  it('a model is loaded as complete sets: every container holds whole TVs, never a top without its bottom (hand-computed)', () => {
+    // 20′ takes 88 upright 100 × 50 × 50 cm boxes (see above). A set is 2 sides + 1 top = 3 boxes: 29 sets = 87 boxes fit, 30 = 90 do not.
+    // 400 sides + 200 tops = 200 sets (ratio 2 : 1): 6 containers of 29 sets, the last of the 200 sets takes 200 − 174 = 26.
+    const model = (m: string, side: number, top: number): ShipmentPart[] => [{ ...part(`${m}-side`, 1000, 500, 500, side, false), model: m }, { ...part(`${m}-top`, 1000, 500, 500, top, false), model: m }];
+    const plan = planShipment({ name: 'Sets', containerType: '20gp', parts: model('tv', 400, 200) });
+    expect(plan.containers.map((c) => [c.pieces['tv-side'], c.pieces['tv-top']])).toEqual([[58, 29], [58, 29], [58, 29], [58, 29], [58, 29], [58, 29], [52, 26]]);
+    plan.containers.forEach((c, i) => {
+      expectSound(c.project);
+      expect(c.pieces['tv-side']).toBe(2 * c.pieces['tv-top']!); // whole sets only
+      expect(shipmentOf(c.project)).toEqual({ id: 'sets', name: 'Sets', index: i + 1, count: 7 });
+      expect(c.project.name).toBe(`Sets · container ${i + 1} of 7`);
+    });
+    expect(plan.explanation).toContain('every container holds complete sets');
+    expect(plan.explanation).toContain('200 sets (2 × tv-side + 1 × tv-top each), 29 per container');
+    // Two models never share a container: a model's last container is not topped up with the other model's parts.
+    const two = planShipment({ name: 'Two', containerType: '20gp', parts: [...model('a', 40, 20), ...model('b', 30, 15)] });
+    expect(two.containers.map((c) => Object.keys(c.pieces).map((id) => id.split('-')[0]).filter((v, k, all) => all.indexOf(v) === k))).toEqual([['a'], ['b']]);
+    expect(two.containers.map((c) => c.pieces)).toEqual([{ 'a-side': 40, 'a-top': 20 }, { 'b-side': 30, 'b-top': 15 }]);
+    // A part without a model is loaded on its own, after the sets.
+    const mixed = planShipment({ name: 'Mixed', containerType: '20gp', parts: [...model('a', 40, 20), part('loose', 1000, 500, 500, 10, false)] });
+    expect(mixed.containers.map((c) => c.pieces)).toEqual([{ 'a-side': 40, 'a-top': 20 }, { loose: 10 }]);
+    // A model with one part is just that part; a set that does not fit is named, not loaded.
+    expect(planShipment({ name: 'One', containerType: '20gp', parts: [{ ...part('x', 1000, 500, 500, 10, false), model: 'm' }] }).containers.map((c) => c.pieces)).toEqual([{ x: 10 }]);
+    const big = planShipment({ name: 'Big', containerType: '20gp', parts: [{ ...part('beam', 7000, 100, 100, 5), model: 'm' }, { ...part('plate', 500, 500, 500, 5), model: 'm' }] });
+    expect(big.tooBig).toEqual(['beam']);
+  });
+
   it('a piece heavier than the payload is named, not loaded', () => {
     const plan = planShipment({ name: 'Press', containerType: '20gp', parts: [{ ...part('press', 2000, 2000, 2000, 1, false), mass: 30_000_000 }] });
     expect(plan.tooBig).toEqual(['press']);
@@ -142,10 +231,12 @@ describe('shipments', () => {
       h: fc.integer({ min: 100, max: 1500 }),
       q: fc.integer({ min: 0, max: 250 }),
       tilt: fc.boolean(),
+      layers: fc.option(fc.integer({ min: 1, max: 5 }), { nil: undefined }),
+      kg: fc.option(fc.integer({ min: 1, max: 60 }), { nil: undefined }),
     });
     fc.assert(
       fc.property(fc.array(arbPart, { minLength: 1, maxLength: 3 }), fc.constantFrom('20gp', '40gp', '40hc', 'trailer'), (specs, type) => {
-        const parts = specs.map((s, i) => part(`p${i}`, s.l, s.w, s.h, s.q, s.tilt));
+        const parts = specs.map((s, i): ShipmentPart => ({ ...part(`p${i}`, s.l, s.w, s.h, s.q, s.tilt), ...(s.layers === undefined ? {} : { maxLayers: s.layers }), ...(s.kg === undefined ? {} : { mass: s.kg * 1000 }) }));
         const plan = planShipment({ name: 'Random', containerType: type, parts });
         for (const p of parts) {
           const loaded = plan.containers.reduce((s, c) => s + (c.pieces[p.id] ?? 0), 0);
@@ -153,6 +244,8 @@ describe('shipments', () => {
         }
         for (const c of plan.containers) {
           expectSound(c.project);
+          // nothing carries more than its type's planned limit (parts that state a mass are checked by the container's own rule)
+          expect(new Map(checkContainer(c.project).map((r) => [r.code, r.status])).get('load-on-top')).not.toBe('fail');
           for (const item of Object.values(c.project.items)) if (item.tilt) expect(c.project.catalog[item.definitionId]!.meta?.allowTilt).toBe(true);
         }
         expect(JSON.stringify(planShipment({ name: 'Random', containerType: type, parts }))).toBe(JSON.stringify(plan));

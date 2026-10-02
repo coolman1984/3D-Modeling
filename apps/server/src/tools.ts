@@ -814,7 +814,7 @@ export const TOOLS: readonly ToolDef[] = [
   {
     name: 'plan_shipment',
     description:
-      'Work out how many containers a production run needs and load them: give the parts (sizes in millimetres as listed, L × W × H, and quantities) and a container type. Creates one loaded container project per container, grouped as one shipment (the editor shows them side by side with load playback). Parts are loaded wall by wall from the front wall to the doors; may_tilt (default true) lets a part lie on its side.',
+      'Work out how many containers a production run needs and load them: give the parts (sizes in millimetres as listed, L × W × H, and quantities) and a container type. Creates one loaded container project per container, grouped as one shipment (the editor shows them side by side with load playback). Parts are loaded wall by wall from the front wall to the doors; may_tilt (default true) lets a part lie on its side. Height is not the goal: pieces stand at most 3 on each other unless max_layers, max_load_on_top_kg (with mass_kg) or stackable says otherwise, so nothing at the foot of a column is crushed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -832,6 +832,10 @@ export const TOOLS: readonly ToolDef[] = [
               quantity: { type: 'number' },
               mass_kg: { type: 'number', description: 'Per piece, if known.' },
               may_tilt: { type: 'boolean' },
+              model: { type: 'string', description: 'The TV model this part belongs to. Parts of one model are loaded as complete sets (e.g. 2 sides + 1 top + 1 bottom): each container gets as many full sets as fit.' },
+              max_layers: { type: 'integer', description: 'Most pieces that may stand on each other, the bottom one included (default 3).' },
+              max_load_on_top_kg: { type: 'number', description: 'Weight one piece may carry; with mass_kg it sets how many may stand on it.' },
+              stackable: { type: 'boolean', description: 'false = nothing on top: one layer on the floor.' },
             },
             required: ['name', 'length_mm', 'width_mm', 'height_mm', 'quantity'],
             additionalProperties: false,

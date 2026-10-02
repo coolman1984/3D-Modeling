@@ -178,6 +178,10 @@ describe('agent tools', () => {
     expect(store.listProjects().filter((p) => p.collection?.startsWith('shipment:'))).toHaveLength(2);
     expect(store.history(store.listProjects()[0]!.id)[0]).toMatchObject({ actor: 'agent:test' });
     expect(runTool(ctx, 'plan_shipment', { name: 'Bad', parts: [{ name: 'Box', length_mm: 0, width_mm: 1, height_mm: 1, quantity: 1 }] }).text).toBe('Error: parts[0].length_mm must be a number above 0 up to 20000');
+    // what a part may carry decides its height: three layers stated (2 across × 3 × 11 walls = 66), or nothing on top (2 × 11 = 22)
+    expect(runTool(ctx, 'plan_shipment', { name: 'Three', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 100, may_tilt: false, max_layers: 3 }] }).text).toMatch(/Three · container 1 of 2: 66 × box/);
+    expect(runTool(ctx, 'plan_shipment', { name: 'Flat', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 30, may_tilt: false, stackable: false }] }).text).toMatch(/Flat · container 1 of 2: 22 × box/);
+    expect(runTool(ctx, 'plan_shipment', { name: 'Bad', parts: [{ name: 'Box', length_mm: 1, width_mm: 1, height_mm: 1, quantity: 1, stackable: 'yes' }] }).text).toBe('Error: parts[0].stackable must be true or false');
   });
 
   it('keeps a container\'s data when the room is changed through set_room', () => {
@@ -353,19 +357,20 @@ describe('HTTP app', () => {
       body: JSON.stringify({ name: 'Cushions 04/Oct', container_type: '40hc', parts: [cushion, { ...cushion, name: 'TV55B Cushion Bot' }] }),
     });
     expect(created.status).toBe(201);
-    // 3 500 cushions at 1 260 per 40′ high cube (hand-computed in the starter tests).
-    expect(created.body.containers.map((c: { pieces: Record<string, number> }) => Object.values(c.pieces).reduce((s, n) => s + n, 0))).toEqual([1260, 1260, 980]);
+    // 3 500 cushions lying flat at 1 080 per 40′ high cube (hand-computed in the starter tests, decision 0024).
+    expect(created.body.containers.map((c: { pieces: Record<string, number> }) => Object.values(c.pieces).reduce((s, n) => s + n, 0))).toEqual([1080, 1080, 1080, 260]);
     expect(created.body.containers.map((c: { pieces: unknown }) => c.pieces)).toEqual([
-      { 'tv55b-cushion-top': 1260 },
-      { 'tv55b-cushion-top': 490, 'tv55b-cushion-bot': 770 },
-      { 'tv55b-cushion-bot': 980 },
+      { 'tv55b-cushion-top': 1080 },
+      { 'tv55b-cushion-top': 670, 'tv55b-cushion-bot': 410 },
+      { 'tv55b-cushion-bot': 1080 },
+      { 'tv55b-cushion-bot': 260 },
     ]);
     const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
-    expect(list.slice(0, 3).map((p) => p.name)).toEqual(['Cushions 04/Oct · container 1 of 3', 'Cushions 04/Oct · container 2 of 3', 'Cushions 04/Oct · container 3 of 3']);
-    expect(new Set(list.slice(0, 3).map((p) => p.collection))).toEqual(new Set([`shipment:${created.body.shipment}`]));
+    expect(list.slice(0, 4).map((p) => p.name)).toEqual(['Cushions 04/Oct · container 1 of 4', 'Cushions 04/Oct · container 2 of 4', 'Cushions 04/Oct · container 3 of 4', 'Cushions 04/Oct · container 4 of 4']);
+    expect(new Set(list.slice(0, 4).map((p) => p.collection))).toEqual(new Set([`shipment:${created.body.shipment}`]));
     const first = (await json(`/api/projects/${created.body.containers[0].id}`)).body as Project;
-    expect(first.space.meta).toMatchObject({ pack: 'container', shipment: created.body.shipment, shipmentIndex: 1, shipmentCount: 3 });
-    expect(first.catalog['tv55b-cushion-top']!.meta).toMatchObject({ quantity: 1260, allowTilt: true });
+    expect(first.space.meta).toMatchObject({ pack: 'container', shipment: created.body.shipment, shipmentIndex: 1, shipmentCount: 4 });
+    expect(first.catalog['tv55b-cushion-top']!.meta).toMatchObject({ quantity: 1080, allowTilt: true });
 
     const bad = (body: unknown) => json('/api/shipments', { method: 'POST', body: JSON.stringify(body) });
     expect((await bad({ name: 'x', parts: [] })).status).toBe(400);

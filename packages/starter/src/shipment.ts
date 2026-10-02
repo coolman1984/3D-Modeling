@@ -28,6 +28,43 @@ export interface ShipmentPart {
   readonly mass?: number;
   /** May it lie on its side? Unstated is treated as "no". */
   readonly allowTilt?: boolean;
+  /**
+   * The finished product this part belongs to (a TV model). Parts of one model are loaded as complete sets: a container is
+   * filled with as many full sets as it takes (e.g. 2 sides + 1 top + 1 bottom per TV), so a container never holds a model's
+   * top without its bottom. Parts without a model are loaded on their own, as before.
+   */
+  readonly model?: string;
+  /** `false` = nothing may rest on it: it is loaded one layer high, on the floor. Unstated = stackable up to the limits below. */
+  readonly stackable?: boolean;
+  /** Grams that may rest on one piece; with the piece's mass this fixes how many may stand on each other. */
+  readonly maxLoadOnTop?: number;
+  /** The most pieces that may stand on each other (the one on the floor included). Wins over the default, never over the container. */
+  readonly maxLayers?: number;
+}
+
+/** How many pieces of this part may stand on each other: what is stated about it (never fewer than one), else up to the roof. */
+export function stackLayersOf(p: Pick<ShipmentPart, 'stackable' | 'maxLoadOnTop' | 'maxLayers' | 'mass'>): number {
+  if (p.stackable === false) return 1;
+  const stated: number[] = [];
+  if (p.maxLayers !== undefined) stated.push(Math.floor(p.maxLayers));
+  // n pieces in a column put (n - 1) pieces on the one at the foot
+  if (p.maxLoadOnTop !== undefined && p.mass !== undefined && p.mass > 0) stated.push(1 + Math.floor(p.maxLoadOnTop / p.mass));
+  return stated.length > 0 ? Math.max(1, Math.min(...stated)) : Infinity;
+}
+
+/**
+ * How a piece stands. A piece that may be turned lies on its largest face (its smallest side up) and is stacked on others,
+ * as a crew loads cushions and cartons: height is not the goal, a long piece stood on end falls over and is crushed. Only
+ * when lying flat does not fit is it set on a side, and on its longest side (standing on end) only when nothing else fits.
+ * A piece that must stay "this way up" keeps its listed height.
+ */
+function preferred(definition: ItemDefinition, fitting: readonly Orientation[]): Orientation[] {
+  if (definition.meta?.allowTilt !== true) return [...fitting];
+  const sides = [definition.size.w, definition.size.d, definition.size.h].sort((a, b) => a - b);
+  const flat = fitting.filter((o) => o.h === sides[0]);
+  if (flat.length > 0) return flat;
+  const onSide = fitting.filter((o) => o.h !== sides[2]);
+  return onSide.length > 0 ? onSide : [...fitting];
 }
 
 export interface ShipmentContainer {
@@ -53,10 +90,10 @@ interface Wall {
   readonly spots: ReadonlyArray<{ readonly y: Tick; readonly z: Tick; readonly o: Orientation }>;
 }
 
-/** Columns of `a` side by side from y0, each stacked floor to roof. */
-function columns(a: Orientation, y0: Tick, count: number, height: Tick): Wall['spots'] {
+/** Columns of `a` side by side from y0, each stacked as high as the roof and the stacking limit allow. */
+function columns(a: Orientation, y0: Tick, count: number, height: Tick, layers: number): Wall['spots'] {
   const spots: Array<Wall['spots'][number]> = [];
-  const levels = Math.floor(height / a.h);
+  const levels = Math.min(Math.floor(height / a.h), layers);
   for (let c = 0; c < count; c++) for (let k = 0; k < levels; k++) spots.push({ y: y0 + c * a.w, z: k * a.h, o: a });
   return spots;
 }
@@ -74,8 +111,8 @@ function rows(a: Orientation, z0: Tick, count: number, span: Tick): Wall['spots'
  * (a turned on its side), split across the width or up the height. Upper rows are kept within
  * the width of the rows under them, so every piece rests fully on the one below.
  */
-function wallsOf(definition: ItemDefinition, length: Tick, width: Tick, height: Tick, door: { width: Tick; height: Tick }): Wall[] {
-  const all = orientationsOf(definition).filter((o) => o.w <= door.width && o.h <= door.height && o.l <= length && o.w <= width && o.h <= height);
+function wallsOf(definition: ItemDefinition, length: Tick, width: Tick, height: Tick, door: { width: Tick; height: Tick }, layers: number, weighed: boolean): Wall[] {
+  const all = preferred(definition, orientationsOf(definition).filter((o) => o.w <= door.width && o.h <= door.height && o.l <= length && o.w <= width && o.h <= height));
   const walls: Wall[] = [];
   for (const depth of [...new Set(all.map((o) => o.l))].sort((a, b) => a - b)) {
     const same = all.filter((o) => o.l === depth);
@@ -84,14 +121,17 @@ function wallsOf(definition: ItemDefinition, length: Tick, width: Tick, height: 
       if (spots.length > best.length) best = spots;
     };
     for (const a of same) {
-      keep(columns(a, 0, Math.floor(width / a.w), height));
+      keep(columns(a, 0, Math.floor(width / a.w), height, layers));
       for (const b of same) {
         if (b === a) continue;
         // Across: i columns of a, the rest of the width in columns of b.
-        for (let i = 1; i * a.w <= width; i++) keep([...columns(a, 0, i, height), ...columns(b, i * a.w, Math.floor((width - i * a.w) / b.w), height)]);
-        // Up: j rows of a, then rows of b no wider than the rows below.
+        for (let i = 1; i * a.w <= width; i++) keep([...columns(a, 0, i, height, layers), ...columns(b, i * a.w, Math.floor((width - i * a.w) / b.w), height, layers)]);
+        // Up: j rows of a, then rows of b no wider than the rows below; j + the rows of b never exceed the stacking limit.
+        // A piece of b may rest across two pieces of a, so one of them carries more than one piece's share: with a known weight
+        // (a load limit that can be broken) this layout is not used; every column then stands on exactly one piece.
+        if (weighed) continue;
         const rowsA = Math.floor(width / a.w) * a.w;
-        for (let j = 1; j * a.h <= height; j++) keep([...rows(a, 0, j, width), ...rows(b, j * a.h, Math.floor((height - j * a.h) / b.h), rowsA)]);
+        for (let j = 1; j * a.h <= height && j <= layers; j++) keep([...rows(a, 0, j, width), ...rows(b, j * a.h, Math.min(Math.floor((height - j * a.h) / b.h), layers - j), rowsA)]);
       }
     }
     if (best.length > 0) {
@@ -106,17 +146,19 @@ function wallsOf(definition: ItemDefinition, length: Tick, width: Tick, height: 
  * The top of a (partly) filled wall across the container's width: flat stretches with the height of
  * the pieces under them (0 where nothing stands). Each piece spans the wall's whole depth.
  */
-function topOf(wall: Wall, count: number, width: Tick): Array<{ y0: Tick; y1: Tick; top: Tick }> {
+function topOf(wall: Wall, count: number, width: Tick): Array<{ y0: Tick; y1: Tick; top: Tick; under: number }> {
   const spots = wall.spots.slice(0, count);
   const edges = [...new Set([0, width, ...spots.flatMap((s) => [s.y, s.y + s.o.w])])].filter((e) => e >= 0 && e <= width).sort((a, b) => a - b);
-  const out: Array<{ y0: Tick; y1: Tick; top: Tick }> = [];
+  const out: Array<{ y0: Tick; y1: Tick; top: Tick; under: number }> = [];
   for (let i = 0; i + 1 < edges.length; i++) {
     const y0 = edges[i]!;
     const y1 = edges[i + 1]!;
-    const top = spots.reduce((m, s) => (s.y <= y0 && s.y + s.o.w >= y1 ? Math.max(m, s.z + s.o.h) : m), 0);
+    const here = spots.filter((s) => s.y <= y0 && s.y + s.o.w >= y1);
+    const top = here.reduce((m, s) => Math.max(m, s.z + s.o.h), 0);
+    // `under` = pieces standing on each other below this stretch: the stacking limit counts them
     const last = out.at(-1);
-    if (last && last.top === top) last.y1 = y1;
-    else out.push({ y0, y1, top });
+    if (last && last.top === top && last.under === here.length) last.y1 = y1;
+    else out.push({ y0, y1, top, under: here.length });
   }
   return out;
 }
@@ -128,7 +170,86 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(
  * is an ordinary container project (id "new"): its cargo types carry the quantity it holds, so
  * the container rules, the cargo plan and the load playback work on it unchanged.
  */
-export function planShipment(input: { readonly name: string; readonly containerType: string; readonly parts: readonly ShipmentPart[]; readonly shipmentId?: string }): ShipmentPlan {
+interface ShipmentInput {
+  readonly name: string;
+  readonly containerType: string;
+  readonly parts: readonly ShipmentPart[];
+  readonly shipmentId?: string;
+}
+
+const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+
+/**
+ * Plan a shipment. Parts that name a model are loaded as complete sets of that model: the set is the smallest whole
+ * ratio of its parts' quantities (700 tops : 700 bottoms : 1 400 sides = 1 : 1 : 2), the most sets that fit one container
+ * go in each container, and the last container takes what is left. A container holds the sets of one model only.
+ * Parts without a model, and models with a single part, are loaded part by part as before.
+ */
+export function planShipment(input: ShipmentInput): ShipmentPlan {
+  const modelOf = (p: ShipmentPart) => (p.model && p.quantity > 0 ? p.model : undefined);
+  const groups = new Map<string, ShipmentPart[]>();
+  for (const p of input.parts) {
+    const m = modelOf(p);
+    if (m !== undefined) groups.set(m, [...(groups.get(m) ?? []), p]);
+  }
+  const sets = [...groups].filter(([, parts]) => parts.length > 1);
+  if (sets.length === 0) return planLoad(input);
+
+  const shipmentId = input.shipmentId ?? slug(input.name);
+  const inSets = new Set(sets.flatMap(([, parts]) => parts.map((p) => p.id)));
+  const loose = input.parts.filter((p) => !inSets.has(p.id));
+  type Piece = { readonly container: ShipmentContainer; readonly note: string };
+  const pieces: Piece[] = [];
+  const tooBig: string[] = [];
+  const notes: string[] = [];
+  for (const [model, parts] of sets) {
+    const unit = parts.map((p) => Math.round(p.quantity)).reduce(gcd);
+    const ratio = parts.map((p) => Math.round(p.quantity) / unit);
+    const one = (count: number) => planLoad({ name: input.name, containerType: input.containerType, shipmentId, parts: parts.map((p, i) => ({ ...p, quantity: ratio[i]! * count })) });
+    // the most whole sets one container takes (more sets never fit if fewer do not: loading is monotone), found by halving
+    if (one(1).tooBig.length > 0 || one(1).containers.length !== 1) {
+      tooBig.push(...one(1).tooBig);
+      notes.push(`${model}: one set does not fit a container`);
+      continue;
+    }
+    let low = 1;
+    let high = unit;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (one(mid).containers.length === 1) low = mid;
+      else high = mid - 1;
+    }
+    const perContainer = low;
+    const full = Math.floor(unit / perContainer);
+    const rest = unit - full * perContainer;
+    for (let c = 0; c < full + (rest > 0 ? 1 : 0); c++) {
+      const count = c < full ? perContainer : rest;
+      pieces.push({ container: one(count).containers[0]!, note: `${model}: ${count} full sets` });
+    }
+    notes.push(`${model}: ${unit} sets (${parts.map((p, i) => `${ratio[i]} × ${p.name}`).join(' + ')} each), ${perContainer} per container`);
+  }
+  // parts that belong to no set follow, loaded as before
+  if (loose.some((p) => p.quantity > 0)) {
+    const rest = planLoad({ ...input, shipmentId, parts: loose });
+    pieces.push(...rest.containers.map((container) => ({ container, note: '' })));
+    tooBig.push(...rest.tooBig);
+  }
+  const containers = pieces.map(({ container }, index): ShipmentContainer => ({
+    ...container,
+    project: {
+      ...container.project,
+      name: `${input.name} · container ${index + 1} of ${pieces.length}`,
+      space: { ...container.project.space, meta: { ...container.project.space.meta, shipment: shipmentId, shipmentName: input.name, shipmentIndex: index + 1, shipmentCount: pieces.length } },
+    },
+  }));
+  const total = containers.reduce((s, c) => s + Object.values(c.pieces).reduce((a, b) => a + b, 0), 0);
+  const type = containerType(input.containerType);
+  const explanation = `${total} pieces need ${containers.length} × ${type?.label ?? input.containerType}; every container holds complete sets. ${notes.join('; ')}.`;
+  return { containers, tooBig: [...new Set(tooBig)], explanation };
+}
+
+/** One load plan for parts taken as they are (the loader described at the top of this file). */
+function planLoad(input: ShipmentInput): ShipmentPlan {
   const type = containerType(input.containerType);
   const length = type?.length ?? 0;
   const width = type?.width ?? 0;
@@ -142,9 +263,18 @@ export function planShipment(input: { readonly name: string; readonly containerT
     size: { w: p.length, d: p.width, h: p.height },
     clearance: { front: 0, back: 0, left: 0, right: 0 },
     ...(p.mass === undefined ? {} : { mass: p.mass }),
-    meta: { stackable: true, allowTilt: p.allowTilt === true },
+    // The planned stack limit is written into the cargo data, so the container's own load-on-top rule checks the plan against it.
+    meta: {
+      stackable: stackLayersOf(p) > 1,
+      allowTilt: p.allowTilt === true,
+      ...(p.maxLoadOnTop !== undefined
+        ? { maxLoadOnTop: p.maxLoadOnTop }
+        : p.mass !== undefined && Number.isFinite(stackLayersOf(p)) && stackLayersOf(p) > 1 ? { maxLoadOnTop: (stackLayersOf(p) - 1) * p.mass } : {}),
+    },
   }));
-  const options = new Map(definitions.map((d) => [d.id, wallsOf(d, length, width, height, door)]));
+  const layersOf = new Map(input.parts.map((p) => [p.id, stackLayersOf(p)]));
+  const weighedOf = new Map(input.parts.map((p) => [p.id, p.mass !== undefined]));
+  const options = new Map(definitions.map((d) => [d.id, wallsOf(d, length, width, height, door, layersOf.get(d.id)!, weighedOf.get(d.id)!)]));
   // The payload caps a container as surely as its length: heavy cargo (tiles, steel, paper) fills it by weight first.
   const payload = type?.maxPayload;
   const tooBig = input.parts
@@ -154,15 +284,16 @@ export function planShipment(input: { readonly name: string; readonly containerT
 
   // Parts of the same size and handling (a cushion's top and bottom) share walls: a crew finishes
   // a wall with the next part instead of leaving it half empty. One stream per size, in input order.
-  const streams: Array<{ key: string; ids: string[]; left: number; mass: number | undefined }> = [];
+  const streams: Array<{ key: string; ids: string[]; left: number; mass: number | undefined; layers: number }> = [];
   for (const p of input.parts) {
     if (p.quantity <= 0 || tooBig.includes(p.id)) continue;
-    const key = `${p.length}x${p.width}x${p.height}|${p.allowTilt === true}|${p.mass ?? '-'}`;
+    const layers = layersOf.get(p.id)!;
+    const key = `${p.length}x${p.width}x${p.height}|${p.allowTilt === true}|${p.mass ?? '-'}|${layers}`;
     const stream = streams.find((s) => s.key === key);
     if (stream) {
       stream.ids.push(p.id);
       stream.left += Math.round(p.quantity);
-    } else streams.push({ key, ids: [p.id], left: Math.round(p.quantity), mass: p.mass });
+    } else streams.push({ key, ids: [p.id], left: Math.round(p.quantity), mass: p.mass, layers });
   }
   /** How many more pieces of this stream the load's payload takes (no limit when the weight is unknown). */
   const byWeight = (s: (typeof streams)[number], load: { mass: number }): number =>
@@ -182,7 +313,10 @@ export function planShipment(input: { readonly name: string; readonly containerT
   };
 
   // Every way a stream's piece may stand that goes through the doors, for filling gaps.
-  const turns = new Map(streams.map((s) => [s, orientationsOf(definitions.find((d) => d.id === s.ids[0])!).filter((o) => o.w <= door.width && o.h <= door.height)]));
+  const turns = new Map(streams.map((s) => {
+    const d = definitions.find((x) => x.id === s.ids[0])!;
+    return [s, preferred(d, orientationsOf(d).filter((o) => o.w <= door.width && o.h <= door.height))];
+  }));
 
   type Spot = { readonly x: Tick; readonly y: Tick; readonly z: Tick; readonly o: Orientation };
   type Placed = { stream: (typeof streams)[number]; wall: Wall; count: number; x: Tick; fill: Array<{ stream: (typeof streams)[number]; spot: Spot }> };
@@ -200,11 +334,16 @@ export function planShipment(input: { readonly name: string; readonly containerT
         const room = { l: placed.wall.depth, w: flat.y1 - flat.y0, h: height - flat.top };
         for (const s of order) {
           if (s.left <= 0) continue;
-          const fit = (o: Orientation) => Math.floor(room.l / o.l) * Math.floor(room.w / o.w) * Math.floor(room.h / o.h);
+          // Pieces standing on others must keep the column within both parts' stacking limits (the foot of the column is the one that breaks).
+          const above = flat.under === 0 ? s.layers : Math.min(s.layers, placed.stream.layers) - flat.under;
+          if (above <= 0) continue;
+          // Pieces poured on top of other pieces may bridge two of them: with a known weight on either side that is not done.
+          if (flat.under > 0 && (s.mass !== undefined || placed.stream.mass !== undefined)) continue;
+          const fit = (o: Orientation) => Math.floor(room.l / o.l) * Math.floor(room.w / o.w) * Math.min(Math.floor(room.h / o.h), above);
           const o = turns.get(s)!.reduce<Orientation | undefined>((b, t) => (fit(t) > (b ? fit(b) : 0) ? t : b), undefined);
           if (!o) continue;
           const spots: Spot[] = [];
-          for (let k = 0; (k + 1) * o.h <= room.h; k++)
+          for (let k = 0; (k + 1) * o.h <= room.h && k < above; k++)
             for (let j = 0; (j + 1) * o.w <= room.w; j++)
               for (let i = 0; (i + 1) * o.l <= room.l; i++) spots.push({ x: placed.x + i * o.l, y: flat.y0 + j * o.w, z: flat.top + k * o.h, o });
           const room2 = byWeight(s, load);

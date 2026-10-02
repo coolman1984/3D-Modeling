@@ -46,6 +46,10 @@ export function readShipmentInput(body: Record<string, unknown>): ShipmentInput 
     ids.add(id);
     const mm = (key: string) => fromUnit(positive(p[key], `parts[${i}].${key}`, 20_000) / 10, 'cm');
     const massKg = p.mass_kg === undefined || p.mass_kg === null ? undefined : positive(p.mass_kg, `parts[${i}].mass_kg`, 50_000);
+    // How high it may be stacked: a layer count, a load it may carry, or "not stackable". Unstated = the loader's safe default.
+    const maxLayers = p.max_layers === undefined || p.max_layers === null ? undefined : Math.round(positive(p.max_layers, `parts[${i}].max_layers`, 50));
+    const maxLoadKg = p.max_load_on_top_kg === undefined || p.max_load_on_top_kg === null ? undefined : positive(p.max_load_on_top_kg, `parts[${i}].max_load_on_top_kg`, 100_000, true);
+    if (p.stackable !== undefined && typeof p.stackable !== 'boolean') throw new ShipmentInputError(`parts[${i}].stackable must be true or false`);
     return {
       id,
       name: label,
@@ -55,6 +59,10 @@ export function readShipmentInput(body: Record<string, unknown>): ShipmentInput 
       quantity: Math.round(positive(p.quantity, `parts[${i}].quantity`, MAX_QUANTITY, true)),
       ...(massKg === undefined ? {} : { mass: Math.round(massKg * 1000) }),
       allowTilt: p.may_tilt !== false,
+      ...(typeof p.model === 'string' && p.model.trim() ? { model: p.model.trim().slice(0, 80) } : {}),
+      ...(maxLayers === undefined ? {} : { maxLayers }),
+      ...(maxLoadKg === undefined ? {} : { maxLoadOnTop: Math.round(maxLoadKg * 1000) }),
+      ...(typeof p.stackable === 'boolean' ? { stackable: p.stackable } : {}),
     };
   });
   // One request makes at most a few dozen containers' worth; far more is a typing mistake, not a shipment.

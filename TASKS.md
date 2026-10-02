@@ -1,6 +1,21 @@
 # TASKS
 
-## Now: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
+## Now: shipments lie flat and stack (1 Oct 2026, decision 0024)
+
+Owner: the loader stood cushions on their long side to fill the height; they must lie flat and be stacked on each
+other so nothing falls or breaks; height is not the priority (cushions are light).
+
+**Finish line (done means):** a part that may be turned lies on its largest face; it stands on its longest side only
+when nothing else fits; stated stack limits (layers, load on top with mass, not stackable) hold in walls and in gaps;
+no piece bridges two others when weight is known; hand-computed tests and planted bugs; server, agent tool and form
+accept the limit; `pnpm check` green.
+
+- [x] Loader: lie flat, stated limits, no bridging under weight (`packages/starter/src/shipment.ts`)
+- [x] Tests: TV55B 1 080 per 40′ HC flat (hand-computed), on-end only when forced, limits in walls and gaps, property test with limits and masses; three planted bugs caught
+- [x] Server input, agent tool `plan_shipment`, form column "Layers"
+- [ ] `pnpm check` green, commit, push
+
+## Done: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
 
 Request (TV cushions, production plan 04/Oct and 05/Oct): "how many containers do we need",
 shown in the program side by side, with every existing container detail and the stuffing playback.

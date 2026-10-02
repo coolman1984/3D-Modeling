@@ -14,11 +14,11 @@ describe('shipment form', () => {
       'TV32C    CS-3201 Cushion Top    788    102    185    4200    800',
     ].join('\n');
     expect(parsePastedParts(text)).toEqual([
-      { name: 'TV77A CS-7701 Cushion Side', length: 500, width: 152, height: 200, quantity: 0, mayTilt: true },
-      { name: 'TV77A CS-7702 Cushion Top', length: 1872, width: 152, height: 350, quantity: 0, mayTilt: true },
-      { name: 'TV55B CS-5501 Cushion Top', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true },
-      { name: 'TV55B CS-5501 Cushion Bot', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true },
-      { name: 'TV32C CS-3201 Cushion Top', length: 788, width: 102, height: 185, quantity: 4200, mayTilt: true },
+      { name: 'TV77A CS-7701 Cushion Side', length: 500, width: 152, height: 200, quantity: 0, mayTilt: true, model: 'TV77A' },
+      { name: 'TV77A CS-7702 Cushion Top', length: 1872, width: 152, height: 350, quantity: 0, mayTilt: true, model: 'TV77A' },
+      { name: 'TV55B CS-5501 Cushion Top', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true, model: 'TV55B' },
+      { name: 'TV55B CS-5501 Cushion Bot', length: 1335, width: 110, height: 400, quantity: 1750, mayTilt: true, model: 'TV55B' },
+      { name: 'TV32C CS-3201 Cushion Top', length: 788, width: 102, height: 185, quantity: 4200, mayTilt: true, model: 'TV32C' },
     ]);
   });
 

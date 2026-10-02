@@ -34,18 +34,20 @@ test('a shipment: paste the production plan, see how many containers, view them 
   // 3 500 + 8 400 cushions in 40′ high cubes (the default type).
   await expect(page.getByTestId('shipment-answer')).toContainText('11,900 pieces');
   const count = Number(await page.getByTestId('shipment-answer').locator('.big').textContent());
-  expect(count).toBe(5);
+  // whole sets per container (hand-computed): TV55B 1 750 sets at 540 per container = 4; TV32C lying flat 788 x 185 x 102 mm,
+  // 12 across x 26 layers x 15 walls = 4 680 pieces = 2 340 sets per container, 4 200 sets = 2. Total 6.
+  expect(count).toBe(6);
 
   await page.getByTestId('create-shipment').click();
   await expect(page).toHaveURL(/#\/s\/s-[\w]+$/);
   await expect(page.getByTestId('shipment-title')).toHaveText('Cushions 04/Oct');
-  await expect(page.getByTestId('shipment-summary')).toContainText('5 containers · 40′ high cube · 11,900 pieces');
+  await expect(page.getByTestId('shipment-summary')).toContainText('6 containers · 40′ high cube · 11,900 pieces');
   const view = page.getByTestId('shipment-3d');
-  await expect(view).toHaveAttribute('data-containers', '5');
+  await expect(view).toHaveAttribute('data-containers', '6');
   await expect(view).toHaveAttribute('data-items', '11900');
-  await expect(page.locator('[data-container]')).toHaveCount(5);
+  await expect(page.locator('[data-container]')).toHaveCount(6);
   // No mass is known, so payload, load on top and balance cannot be checked: unknown, never pass.
-  await expect(page.getByTestId('checks-5')).toHaveText(/^No problems · \d+ checks unknown$/, { timeout: 30_000 });
+  await expect(page.getByTestId('checks-6')).toHaveText(/^No problems · \d+ checks unknown$/, { timeout: 30_000 });
 
   // The stuffing plays in every container at once, then one after another.
   await expect(page.getByTestId('shipment-play-label')).toHaveText('Fully loaded');
@@ -60,17 +62,17 @@ test('a shipment: paste the production plan, see how many containers, view them 
   // The project list shows the shipment as one group; each container opens in the full editor.
   await page.getByTestId('open-container-2').click();
   // A container of 3 751 pieces takes a few seconds to open and check in a test browser without a graphics chip.
-  await expect(page.locator('h1.project-name')).toHaveText('Cushions 04/Oct · container 2 of 5', { timeout: 20_000 });
-  await expect(page.getByTestId('shipment-link')).toContainText('Container 2 of 5 · Cushions 04/Oct');
+  await expect(page.locator('h1.project-name')).toHaveText('Cushions 04/Oct · container 2 of 6', { timeout: 20_000 });
+  await expect(page.getByTestId('shipment-link')).toContainText('Container 2 of 6 · Cushions 04/Oct');
   await expect(page.getByTestId('unpacked')).toHaveText('0');
   // The shipment is one saved entry in the project list; clicking it opens the containers again.
   await page.goto('/#/');
   await expect(page.getByTestId('continue')).toContainText('Cushions 04/Oct');
   const row = page.locator('[data-shipment]', { hasText: 'Cushions 04/Oct' });
-  await expect(row).toContainText('5 containers');
+  await expect(row).toContainText('6 containers');
   await expect(row).toContainText('11,900');
-  await expect(page.locator('[data-project]', { hasText: 'container 2 of 5' })).toHaveCount(0);
+  await expect(page.locator('[data-project]', { hasText: 'container 2 of 6' })).toHaveCount(0);
   await row.getByRole('link').click();
   await expect(page.getByTestId('shipment-title')).toHaveText('Cushions 04/Oct');
-  await expect(page.getByTestId('shipment-3d')).toHaveAttribute('data-containers', '5');
+  await expect(page.getByTestId('shipment-3d')).toHaveAttribute('data-containers', '6');
 });
