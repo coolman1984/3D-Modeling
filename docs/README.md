@@ -41,9 +41,12 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0021 — Shipments: how many containers, side by side](decisions/0021-shipments.md)
 - [0022 — Portable copy for networks that block npm](decisions/0022-portable-copy.md)
 - [0023 — Link to plant: tags in meta, the layout snapshot, the live view from the browser](decisions/0023-gmes-link.md)
+- [0024 — Shipments: pieces lie flat and stack; height is not the goal](decisions/0024-lie-flat-and-stack-limits.md)
+- [0025 - Bounded shipment planning and isolated demo launcher](decisions/0025-bounded-shipment-planning-and-demo.md)
 
 ## Generated
 
 - [Status](STATUS.md): current stage, open items, uncommitted work, checkpoints
 - [Changelog](CHANGELOG.md): full history from git
+- [Work log 2026-10](log/2026-10.md)
 - [Work log 2026-09](log/2026-09.md)

@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { fromUnit, readRoom, type Project } from '@space-planner/core';
 import { demoHall, nileGateRamadanDC } from '@space-planner/starter';
@@ -40,6 +41,15 @@ async function until<T>(check: () => T | undefined | null | false, timeout = 10_
 }
 
 describe('store', () => {
+  it('rejects a readable backup whose revision identity does not match its database row', () => {
+    const project = store.createProject(demoHall(), 'human');
+    const database = new DatabaseSync(join(dir, 'planner.db'));
+    try {
+      database.prepare('UPDATE revisions SET snapshot = ? WHERE project_id = ?').run(JSON.stringify({ ...project, revision: 1 }), project.id);
+    } finally { database.close(); }
+    expect(() => store.backup(join(dir, 'backups'))).toThrow('Backup revision identity');
+  });
+
   it('keeps every change as a revision with who and what', () => {
     const project = store.createProject(demoHall(), 'human');
     expect(project.id).toMatch(/^p-/);
@@ -178,6 +188,7 @@ describe('agent tools', () => {
     expect(store.listProjects().filter((p) => p.collection?.startsWith('shipment:'))).toHaveLength(2);
     expect(store.history(store.listProjects()[0]!.id)[0]).toMatchObject({ actor: 'agent:test' });
     expect(runTool(ctx, 'plan_shipment', { name: 'Bad', parts: [{ name: 'Box', length_mm: 0, width_mm: 1, height_mm: 1, quantity: 1 }] }).text).toBe('Error: parts[0].length_mm must be a number above 0 up to 20000');
+    expect(runTool(ctx, 'plan_shipment', { name: 'Tiny', parts: [{ name: 'Tiny', length_mm: 0.01, width_mm: 0.01, height_mm: 0.01, quantity: 1 }] }).text).toBe('Error: parts[0].length_mm is smaller than 1 mm: sizes are in millimetres');
     // what a part may carry decides its height: three layers stated (2 across × 3 × 11 walls = 66), or nothing on top (2 × 11 = 22)
     expect(runTool(ctx, 'plan_shipment', { name: 'Three', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 100, may_tilt: false, max_layers: 3 }] }).text).toMatch(/Three · container 1 of 2: 66 × box/);
     expect(runTool(ctx, 'plan_shipment', { name: 'Flat', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 30, may_tilt: false, stackable: false }] }).text).toMatch(/Flat · container 1 of 2: 22 × box/);
@@ -378,6 +389,59 @@ describe('HTTP app', () => {
     expect((await bad({ name: 'x', parts: [{ ...cushion, length_mm: -5 }] })).body.error).toBe('parts[0].length_mm must be a number above 0 up to 20000');
     expect((await bad({ name: 'x', parts: [{ ...cushion, quantity: 'many' }] })).status).toBe(400);
     expect((await bad({ name: 'x', parts: [{ ...cushion, quantity: 150_000 }, { ...cushion, quantity: 60_000 }] })).body.error).toBe('the parts add up to 210000 pieces; one shipment takes at most 200000');
+  });
+
+  it('rejects incomplete shipments before storage through HTTP and the agent tool', async () => {
+    const before = store.listProjects().map((p) => p.id);
+    const small = { name: 'Small', length_mm: 500, width_mm: 500, height_mm: 500, quantity: 1 };
+    const beam = { name: 'Beam', length_mm: 7000, width_mm: 100, height_mm: 100, quantity: 1, may_tilt: false };
+    const bad = await json('/api/shipments', { method: 'POST', body: JSON.stringify({ name: 'Partial', container_type: '20gp', parts: [small, beam] }) });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toContain('Shipment is incomplete');
+    expect(bad.body.error).toContain('beam');
+    const set = { length_mm: 4000, width_mm: 2200, height_mm: 2200, quantity: 1, model: 'M', may_tilt: false };
+    const result = runTool({ store, actor: 'agent:test' }, 'plan_shipment', { name: 'Partial sets', container_type: '20gp', parts: [small, { ...set, name: 'A' }, { ...set, name: 'B' }] });
+    expect(result.text).toContain('Unplanned models: M');
+    expect(result.text).toContain('Nothing was saved');
+    expect(store.listProjects().map((p) => p.id)).toEqual(before);
+    const tiny = await json('/api/shipments', { method: 'POST', body: JSON.stringify({ parts: [{ ...small, width_mm: 0.99 }] }) });
+    expect(tiny.status).toBe(400);
+    expect(tiny.body.error).toContain('smaller than 1 mm');
+  });
+
+  it('backs up and rehearses all revisions, settings and agent history without changing the live store', async () => {
+    const project = store.createProject(demoHall(), 'human');
+    store.applyCommands(project.id, [{ type: 'project.rename', name: 'Revised' }], { actor: 'human' });
+    store.restore(project.id, 0, 'human');
+    store.setSetting('backup-test', { privateValue: 'test only', enabled: true });
+    const run = store.createRun(project.id, 'fake', 'Rehearsal');
+    store.appendRunLog(run.id, 'Test log');
+    store.finishRun(run.id, 'done');
+    const original = store.getProject(project.id);
+    const history = store.history(project.id);
+    const result = await json('/api/backups', { method: 'POST', body: '{}' });
+    expect(result.status).toBe(201);
+    expect(result.body.name).toMatch(/^planner-[a-zA-Z0-9-]+\.db$/);
+    expect(result.body.rehearsal).toEqual({ ok: true, projects: 1, revisions: 3, settings: 1, agentRuns: 1 });
+    expect(JSON.stringify(result.body)).not.toContain('privateValue');
+    const snapshot = join(dir, 'backups', result.body.name);
+    expect(existsSync(snapshot)).toBe(true);
+    // Rehearse restoring a copy, keeping the named snapshot untouched.
+    const restoreFile = join(dir, 'rehearsal.db');
+    copyFileSync(snapshot, restoreFile);
+    const restored = new Store(restoreFile);
+    try {
+      expect(restored.getProject(project.id)).toEqual(original);
+      expect(restored.history(project.id)).toEqual(history);
+      for (let revision = 0; revision <= 2; revision++) expect(restored.getRevision(project.id, revision)).toEqual(store.getRevision(project.id, revision));
+      expect(restored.getSetting('backup-test')).toEqual(store.getSetting('backup-test'));
+      expect(restored.getRun(run.id)).toEqual(store.getRun(run.id));
+    } finally { restored.close(); }
+    const second = await json('/api/backups', { method: 'POST', body: '{}' });
+    expect(second.body.name).not.toBe(result.body.name);
+    expect(store.getProject(project.id)).toEqual(original);
+    expect(store.history(project.id)).toEqual(history);
+    expect((await fetch(`${base}/api/backups`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://evil.example' }, body: '{}' })).status).toBe(403);
   });
 
   it('pushes live events when anything changes', async () => {

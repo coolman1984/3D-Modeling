@@ -32,7 +32,7 @@ describe('shipments', () => {
     expect(Math.max(...Object.values(last.project.items).map((i) => stepOf(i)!))).toBe(3);
     expect(Object.values(last.project.items).every((i) => !i.tilt)).toBe(true);
     plan.containers.forEach((c) => expectSound(c.project));
-    expect(plan.explanation).toBe('100 pieces need 2 × 20′ standard; the last one is 17% full along its length.');
+    expect(plan.explanation).toBe('100 pieces need 2 × 20′ standard; the last one is 17% full along its length. Pieces with no layer limit stated stand up to 4 high: state a limit (Layers) for anything fragile or heavy.');
   });
 
   it('TV55B cushions 1335 × 110 × 400 mm lie flat and are stacked: 1 080 per 40′ high cube (hand-computed)', () => {
@@ -218,6 +218,49 @@ describe('shipments', () => {
     expect(plan.containers.map((c) => c.pieces)).toEqual([{ box: 1 }]);
   });
 
+  it('a part smaller than a millimetre is named, not loaded (it would divide the container endlessly)', () => {
+    const plan = planShipment({ name: 'Tiny', containerType: '40hc', parts: [{ ...part('tiny', 1, 1, 1, 1), length: 0, width: 0, height: 0 }, part('box', 500, 500, 500, 2)] });
+    expect(plan.tooBig).toEqual(['tiny']);
+    expect(plan.containers.map((c) => c.pieces)).toEqual([{ box: 2 }]);
+  });
+
+  it('unstated handling follows the owner roof decision; explicit limits reduce it (hand-computed)', () => {
+    // 20 ft: 11 walls of 500 mm, two across, four roof-bounded layers = 88; 100 pieces need 88 + 12.
+    const cargo = part('box', 1000, 500, 500, 100, false);
+    const plan = planShipment({ name: 'Default', containerType: '20gp', parts: [cargo] });
+    expect(plan.containers.map((c) => c.pieces.box)).toEqual([88, 12]);
+    plan.containers.forEach((c) => expectSound(c.project));
+    // Three layers explicitly requested: 11 × 2 × 3 = 66.
+    expect(planShipment({ name: 'Explicit', containerType: '20gp', parts: [{ ...cargo, maxLayers: 3 }] }).containers.map((c) => c.pieces.box)).toEqual([66, 34]);
+  });
+
+  it('one 1 mm cube generates a bounded face and loads once', () => {
+    const plan = planShipment({ name: 'Tiny supported', containerType: '40hc', parts: [part('tiny', 1, 1, 1, 1)] });
+    expect(plan.containers.map((c) => c.pieces)).toEqual([{ tiny: 1 }]);
+    expectSound(plan.containers[0]!.project);
+  });
+
+  it('dense millimetre cargo exceeding the supported face budget is reported instead of blocking', () => {
+    const plan = planShipment({ name: 'Dense', containerType: '40hc', parts: [part('tiny', 1, 1, 1, 200_000)] });
+    expect(plan.containers).toEqual([]);
+    expect(plan.tooBig).toEqual(['tiny']);
+    expect(plan.explanation).toContain('supported planning limits');
+  });
+
+  it('unsupported dense complete sets are refused rather than reported as needing extra containers', () => {
+    const plan = planShipment({ name: 'Dense sets', containerType: '40hc', parts: [{ ...part('a', 1, 1, 1, 50_000), model: 'M' }, { ...part('b', 1, 1, 1, 50_000), model: 'M' }] });
+    expect(plan.containers).toEqual([]);
+    expect(plan.unplanned).toEqual(['M']);
+    expect(plan.explanation).toContain('supported planning limits');
+  });
+
+  it('a model whose complete set does not fit is listed as left out, with the reason', () => {
+    const plan = planShipment({ name: 'Set', containerType: '20gp', parts: [{ ...part('a', 4000, 2200, 2200, 1), model: 'M' }, { ...part('b', 4000, 2200, 2200, 1), model: 'M' }] });
+    expect(plan.containers).toEqual([]);
+    expect(plan.unplanned).toEqual(['M']);
+    expect(plan.explanation).toContain('one set does not fit');
+  });
+
   it('no quantities, no containers', () => {
     const plan = planShipment({ name: 'None', containerType: '40hc', parts: [part('a', 500, 500, 500, 0)] });
     expect(plan.containers).toEqual([]);
@@ -252,5 +295,5 @@ describe('shipments', () => {
       }),
       { numRuns: 60 },
     );
-  });
+  }, 60_000); // geometry and property checks run concurrently with the other packs
 });

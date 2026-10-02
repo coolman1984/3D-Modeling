@@ -17,6 +17,9 @@ export interface ShipmentInput {
 
 const MAX_PARTS = 50;
 const MAX_QUANTITY = 200_000;
+/** One tick is 0.1 mm; a size that rounds to zero ticks would divide the container into infinitely many pieces. */
+const MIN_MM = 1;
+const MIN_TICKS = MIN_MM * 10;
 
 function positive(value: unknown, what: string, max: number, allowZero = false): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || (!allowZero && value === 0) || value > max) {
@@ -44,7 +47,11 @@ export function readShipmentInput(body: Record<string, unknown>): ShipmentInput 
     let id = base;
     for (let n = 2; ids.has(id); n++) id = `${base}-${n}`;
     ids.add(id);
-    const mm = (key: string) => fromUnit(positive(p[key], `parts[${i}].${key}`, 20_000) / 10, 'cm');
+    const mm = (key: string) => {
+      const ticks = fromUnit(positive(p[key], `parts[${i}].${key}`, 20_000) / 10, 'cm');
+      if (typeof p[key] !== 'number' || p[key] < MIN_MM || !(ticks >= MIN_TICKS)) throw new ShipmentInputError(`parts[${i}].${key} is smaller than ${MIN_MM} mm: sizes are in millimetres`);
+      return ticks;
+    };
     const massKg = p.mass_kg === undefined || p.mass_kg === null ? undefined : positive(p.mass_kg, `parts[${i}].mass_kg`, 50_000);
     // How high it may be stacked: a layer count, a load it may carry, or "not stackable". Unstated = the loader's safe default.
     const maxLayers = p.max_layers === undefined || p.max_layers === null ? undefined : Math.round(positive(p.max_layers, `parts[${i}].max_layers`, 50));
@@ -75,6 +82,7 @@ export interface CreatedShipment {
   readonly shipment: string;
   readonly containers: ReadonlyArray<{ readonly id: string; readonly name: string; readonly pieces: Readonly<Record<string, number>> }>;
   readonly tooBig: readonly string[];
+  readonly unplanned: readonly string[];
   readonly explanation: string;
 }
 
@@ -82,10 +90,13 @@ export interface CreatedShipment {
 export function createShipment(store: Store, input: ShipmentInput, actor: string): CreatedShipment {
   const shipment = `s-${randomUUID().slice(0, 8)}`;
   const plan = planShipment({ ...input, shipmentId: shipment });
+  if (plan.tooBig.length || (plan.unplanned?.length ?? 0)) {
+    throw new ShipmentInputError(`Shipment is incomplete: ${plan.explanation} Unplanned parts: ${plan.tooBig.join(', ') || 'none'}. Unplanned models: ${plan.unplanned?.join(', ') || 'none'}. Nothing was saved.`);
+  }
   // Stored last-first so container 1 lists on top, as sample companies do.
   const stored = [...plan.containers]
     .reverse()
     .map((c) => ({ project: store.createProject(c.project, actor, `Loaded ${Object.values(c.pieces).reduce((s, n) => s + n, 0)} pieces for shipment "${input.name}"`, SHIPMENT_COLLECTION + shipment), pieces: c.pieces }))
     .reverse();
-  return { shipment, containers: stored.map((s) => ({ id: s.project.id, name: s.project.name, pieces: s.pieces })), tooBig: plan.tooBig, explanation: plan.explanation };
+  return { shipment, containers: stored.map((s) => ({ id: s.project.id, name: s.project.name, pieces: s.pieces })), tooBig: plan.tooBig, unplanned: plan.unplanned ?? [], explanation: plan.explanation };
 }

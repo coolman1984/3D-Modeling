@@ -65,7 +65,9 @@ if (installed && sources > Math.min(mtime(builtEditor), mtime(builtServer))) {
 
 // 3. Run.
 say('Starting Atrium');
-const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', builtServer, '--open', ...process.argv.slice(2)], {
+const launchArgs = process.argv.slice(2);
+const noOpen = launchArgs.includes('--no-open');
+const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', builtServer, ...(noOpen ? [] : ['--open']), ...launchArgs.filter((arg) => arg !== '--no-open' && !(noOpen && arg === '--open'))], {
   cwd: root,
   stdio: 'inherit',
 });

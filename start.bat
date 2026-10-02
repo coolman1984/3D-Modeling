@@ -8,7 +8,7 @@ if errorlevel 1 (
   echo  Node.js is not installed. Download the LTS version from https://nodejs.org then run this file again.
   echo  محتاج تثبت Node.js الاول من https://nodejs.org
   echo.
-  start "" https://nodejs.org
+  echo Open https://nodejs.org in Google Chrome.
   pause
   exit /b 1
 )

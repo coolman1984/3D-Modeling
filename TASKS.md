@@ -1,5 +1,23 @@
 # TASKS
 
+## Now: review fixes (2 Oct 2026, decision 0025)
+
+**Finish line:** tiny inputs cannot freeze planning; incomplete shipments cannot be saved; owner roof default stays consistent; isolated demo uses fixed port and Chrome helper; checks pass without touching owner data.
+
+- [x] Bound dimensions, face candidates and gaps; tiny cargo regression.
+- [x] Reject partial shipments before storage; HTTP and agent regressions.
+- [x] Isolated demo launcher, fixed port environment, Chrome helper.
+- [x] Typechecks, unit tests, production builds and planted raw-dimension bug verification.
+- [x] Unique online SQLite backup with read-only rehearsal and restore documentation.
+- [x] Backup revision identity regression; restore comparison for every revision, settings and agent log; Windows account-bound key scope documented.
+- [x] Chrome browser verification: oversized cargo names the refusal and disables creation; valid synthetic cargo creates a saved 3D container in an isolated fixture.
+
+Verification: all five package typechecks and fresh server/editor production builds pass.
+472 package unit tests and 2 documentation tests pass (173 core, 16 industry, 158 starter, 59 editor, 66 server). The server
+suite passed alone after one fake-agent five-second timeout under concurrent build/test load;
+no timeout or assertion was relaxed. Browser checks remain separate.
+
+
 ## Now: shipments lie flat and stack (1 Oct 2026, decision 0024)
 
 Owner: the loader stood cushions on their long side to fill the height; they must lie flat and be stacked on each

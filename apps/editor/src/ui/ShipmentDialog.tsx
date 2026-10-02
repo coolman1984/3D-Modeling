@@ -9,7 +9,7 @@ import { Dialog } from './Fields.js';
 
 const EMPTY: PartRow = { name: '', length: 0, width: 0, height: 0, quantity: 0, mayTilt: true };
 const mm = (v: number) => fromUnit(v / 10, 'cm');
-const sound = (r: PartRow) => r.length > 0 && r.width > 0 && r.height > 0 && r.quantity >= 0 && r.length <= 20_000 && r.width <= 20_000 && r.height <= 20_000;
+const sound = (r: PartRow) => r.length >= 1 && r.width >= 1 && r.height >= 1 && Number.isFinite(r.quantity) && r.quantity >= 0 && r.quantity <= 200_000 && r.length <= 20_000 && r.width <= 20_000 && r.height <= 20_000;   // millimetres: below 1 mm is a typing mistake
 
 /**
  * Plan a shipment: parts with their sizes and quantities (typed, or pasted from the production
@@ -28,7 +28,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
   const [error, setError] = useState<string | null>(null);
 
   const used = useMemo(() => rows.filter((r) => r.name.trim() || r.length || r.width || r.height || r.quantity), [rows]);
-  const valid = used.length > 0 && used.every(sound) && used.some((r) => r.quantity > 0);
+  const valid = used.length > 0 && used.length <= 50 && used.reduce((n, r) => n + Math.round(r.quantity), 0) <= 200_000 && used.every(sound) && used.some((r) => r.quantity > 0);
   // The same loader the server runs, so the answer here is the one that gets created.
   const preview = useMemo(() => {
     if (!valid) return null;
@@ -77,7 +77,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
         <div className="kicker">New shipment</div>
         <h3>How many containers?</h3>
         <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-          List the parts with their sizes and quantities. Each container is loaded wall by wall, from the front wall to the doors; pieces stand at most 3 on each other unless you say more, so nothing at the bottom is crushed.
+          List the parts with their sizes and quantities. Each container is loaded wall by wall, from the front wall to the doors; pieces are laid flat and stacked up to the container roof unless you give a limit (Layers): set one for anything fragile or heavy.
         </p>
       </div>
       <div className="dialog-body">
@@ -145,7 +145,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
               <th className="num">H mm</th>
               <th className="num">Quantity</th>
               <th className="num" title="Weight of one piece: heavy cargo fills a container by weight before space">kg each</th>
-              <th className="num" title="Most pieces standing on each other, the bottom one included. Empty = 3, so nothing at the foot is crushed">Layers</th>
+              <th className="num" title="Most pieces standing on each other, the bottom one included. Empty = up to the container roof: set it for fragile or heavy parts">Layers</th>
               <th title="May lie on its side">On side</th>
               <th />
             </tr>
@@ -171,7 +171,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
                   <input className="input num" inputMode="decimal" aria-label={`Part ${i + 1} kg each`} placeholder="—" value={r.massKg ? String(r.massKg) : ''} onChange={(e) => set(i, { massKg: Math.max(0, Number(e.target.value.replace(/[^\d.]/g, '')) || 0) || undefined })} />
                 </td>
                 <td>
-                  <input className="input num" inputMode="numeric" aria-label={`Part ${i + 1} layers`} placeholder="3" value={r.maxLayers ? String(r.maxLayers) : ''} onChange={(e) => set(i, { maxLayers: Math.min(50, Math.max(0, Math.floor(Number(e.target.value.replace(/[^\d]/g, '')) || 0))) || undefined })} />
+                  <input className="input num" inputMode="numeric" aria-label={`Part ${i + 1} layers`} placeholder="roof" value={r.maxLayers ? String(r.maxLayers) : ''} onChange={(e) => set(i, { maxLayers: Math.min(50, Math.max(0, Math.floor(Number(e.target.value.replace(/[^\d]/g, '')) || 0))) || undefined })} />
                 </td>
                 <td style={{ textAlign: 'center' }}>
                   <input type="checkbox" aria-label={`Part ${i + 1} may lie on its side`} checked={r.mayTilt} onChange={(e) => set(i, { mayTilt: e.target.checked })} />
@@ -193,7 +193,12 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
         </div>
 
         <div className="shipment-answer" data-testid="shipment-answer" aria-live="polite">
-          {preview && preview.containers.length > 0 ? (
+          {preview && preview.containers.length === 0 && (preview.tooBig.length > 0 || (preview.unplanned?.length ?? 0) > 0) ? (
+            <p className="error-text" role="alert" style={{ fontSize: 13 }} data-testid="shipment-refusal">
+              <XCircle size={13} /> {preview.tooBig.length > 0 ? `Unplanned (container, payload or planning limit): ${preview.tooBig.map((id) => used[Number(id.slice(1))]?.name || id).join(', ')}. ` : ''}
+              {preview.explanation}
+            </p>
+          ) : preview && preview.containers.length > 0 ? (
             <>
               <div className="shipment-answer-count">
                 <span className="big">{preview.containers.length}</span>
@@ -206,9 +211,15 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
               </div>
               {preview.tooBig.length > 0 && (
                 <p className="error-text" style={{ fontSize: 12 }}>
-                  <XCircle size={13} /> Too big for this container: {preview.tooBig.map((id) => used[Number(id.slice(1))]?.name || id).join(', ')}
+                  <XCircle size={13} /> Unplanned (container, payload or planning limit): {preview.tooBig.map((id) => used[Number(id.slice(1))]?.name || id).join(', ')}
                 </p>
               )}
+              {(preview.unplanned?.length ?? 0) > 0 && (
+                <p className="error-text" style={{ fontSize: 12 }}>
+                  <XCircle size={13} /> Left out of the plan: {preview.unplanned!.join(', ')}: a complete set does not fit or exceeds supported planning limits. The plan is incomplete.
+                </p>
+              )}
+              <p className="faint" style={{ fontSize: 12 }} data-testid="shipment-explanation">{preview.explanation}</p>
             </>
           ) : (
             <span className="faint">Enter sizes and at least one quantity to see how many containers are needed.</span>
@@ -227,7 +238,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
         <button type="button" className="btn" onClick={onClose}>
           Cancel
         </button>
-        <button type="button" className="btn primary" disabled={!valid || busy || (preview?.containers.length ?? 0) === 0} onClick={() => void create()} data-testid="create-shipment">
+        <button type="button" className="btn primary" disabled={!valid || busy || (preview?.containers.length ?? 0) === 0 || (preview?.tooBig.length ?? 0) > 0 || (preview?.unplanned?.length ?? 0) > 0} onClick={() => void create()} data-testid="create-shipment">
           {busy && <SpinnerGap size={16} />}
           {busy ? 'Loading containers…' : 'Create and view side by side'}
         </button>

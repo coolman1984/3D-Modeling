@@ -12,3 +12,5 @@ data/
 .claude/settings.local.json
 .claude/launch.json
 release/
+
+data-demo/

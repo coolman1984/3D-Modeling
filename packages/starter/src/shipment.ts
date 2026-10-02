@@ -42,6 +42,10 @@ export interface ShipmentPart {
   readonly maxLayers?: number;
 }
 
+/** The smallest size the loader works with, in ticks (1 mm): anything smaller would divide a container into endlessly many pieces. */
+export const MIN_PART_TICKS = 10;
+const measurable = (p: Pick<ShipmentPart, 'length' | 'width' | 'height'>) => p.length >= MIN_PART_TICKS && p.width >= MIN_PART_TICKS && p.height >= MIN_PART_TICKS;
+
 /** How many pieces of this part may stand on each other: what is stated about it (never fewer than one), else up to the roof. */
 export function stackLayersOf(p: Pick<ShipmentPart, 'stackable' | 'maxLoadOnTop' | 'maxLayers' | 'mass'>): number {
   if (p.stackable === false) return 1;
@@ -77,8 +81,10 @@ export interface ShipmentContainer {
 
 export interface ShipmentPlan {
   readonly containers: readonly ShipmentContainer[];
-  /** Parts that fit no container in any allowed orientation. */
+  /** Parts that exceed geometry, payload or supported planning work limits. */
   readonly tooBig: readonly string[];
+  /** Models whose complete set does not fit one container of this type: left out of the plan (the explanation says why). */
+  readonly unplanned?: readonly string[];
   readonly explanation: string;
 }
 
@@ -91,18 +97,18 @@ interface Wall {
 }
 
 /** Columns of `a` side by side from y0, each stacked as high as the roof and the stacking limit allow. */
-function columns(a: Orientation, y0: Tick, count: number, height: Tick, layers: number): Wall['spots'] {
+function columns(a: Orientation, y0: Tick, count: number, height: Tick, layers: number, limit: number): Wall['spots'] {
   const spots: Array<Wall['spots'][number]> = [];
   const levels = Math.min(Math.floor(height / a.h), layers);
-  for (let c = 0; c < count; c++) for (let k = 0; k < levels; k++) spots.push({ y: y0 + c * a.w, z: k * a.h, o: a });
+  for (let c = 0; c < count && spots.length < limit; c++) for (let k = 0; k < levels && spots.length < limit; k++) spots.push({ y: y0 + c * a.w, z: k * a.h, o: a });
   return spots;
 }
 
 /** Rows of `a` across `span` from z0, `count` rows high. */
-function rows(a: Orientation, z0: Tick, count: number, span: Tick): Wall['spots'] {
+function rows(a: Orientation, z0: Tick, count: number, span: Tick, limit: number): Wall['spots'] {
   const spots: Array<Wall['spots'][number]> = [];
   const across = Math.floor(span / a.w);
-  for (let r = 0; r < count; r++) for (let c = 0; c < across; c++) spots.push({ y: c * a.w, z: z0 + r * a.h, o: a });
+  for (let r = 0; r < count && spots.length < limit; r++) for (let c = 0; c < across && spots.length < limit; c++) spots.push({ y: c * a.w, z: z0 + r * a.h, o: a });
   return spots;
 }
 
@@ -111,29 +117,37 @@ function rows(a: Orientation, z0: Tick, count: number, span: Tick): Wall['spots'
  * (a turned on its side), split across the width or up the height. Upper rows are kept within
  * the width of the rows under them, so every piece rests fully on the one below.
  */
-function wallsOf(definition: ItemDefinition, length: Tick, width: Tick, height: Tick, door: { width: Tick; height: Tick }, layers: number, weighed: boolean): Wall[] {
+function wallsOf(definition: ItemDefinition, length: Tick, width: Tick, height: Tick, door: { width: Tick; height: Tick }, layers: number, weighed: boolean, limit: number): Wall[] {
   const all = preferred(definition, orientationsOf(definition).filter((o) => o.w <= door.width && o.h <= door.height && o.l <= length && o.w <= width && o.h <= height));
   const walls: Wall[] = [];
+  const maxSpots = 5_000;
+  limit = Math.min(limit, maxSpots + 1);
+  // Bound candidate generation independently of physical size. Reject excessive work rather
+  // than freezing the editor; a one-piece 1 mm request needs only one spot per candidate.
+  let work = 0;
+  const budget = 2_000_000;
   for (const depth of [...new Set(all.map((o) => o.l))].sort((a, b) => a - b)) {
     const same = all.filter((o) => o.l === depth);
     let best: Wall['spots'] = [];
     const keep = (spots: Wall['spots']) => {
+      work += spots.length;
       if (spots.length > best.length) best = spots;
     };
     for (const a of same) {
-      keep(columns(a, 0, Math.floor(width / a.w), height, layers));
+      keep(columns(a, 0, Math.floor(width / a.w), height, layers, limit));
       for (const b of same) {
         if (b === a) continue;
         // Across: i columns of a, the rest of the width in columns of b.
-        for (let i = 1; i * a.w <= width; i++) keep([...columns(a, 0, i, height, layers), ...columns(b, i * a.w, Math.floor((width - i * a.w) / b.w), height, layers)]);
+        for (let i = 1; i * a.w <= width && i <= limit && work < budget; i++) keep([...columns(a, 0, i, height, layers, limit), ...columns(b, i * a.w, Math.floor((width - i * a.w) / b.w), height, layers, limit)]);
         // Up: j rows of a, then rows of b no wider than the rows below; j + the rows of b never exceed the stacking limit.
         // A piece of b may rest across two pieces of a, so one of them carries more than one piece's share: with a known weight
         // (a load limit that can be broken) this layout is not used; every column then stands on exactly one piece.
         if (weighed) continue;
         const rowsA = Math.floor(width / a.w) * a.w;
-        for (let j = 1; j * a.h <= height && j <= layers; j++) keep([...rows(a, 0, j, width), ...rows(b, j * a.h, Math.min(Math.floor((height - j * a.h) / b.h), layers - j), rowsA)]);
+        for (let j = 1; j * a.h <= height && j <= layers && j <= limit && work < budget; j++) keep([...rows(a, 0, j, width, limit), ...rows(b, j * a.h, Math.min(Math.floor((height - j * a.h) / b.h), layers - j), rowsA, limit)]);
       }
     }
+    if (work >= budget || best.length > maxSpots) return []; // computationally unsupported, never a partial candidate
     if (best.length > 0) {
       const spots = [...best].sort((p, q) => p.z - q.z || p.y - q.y);
       walls.push({ depth, spots });
@@ -202,22 +216,37 @@ export function planShipment(input: ShipmentInput): ShipmentPlan {
   const pieces: Piece[] = [];
   const tooBig: string[] = [];
   const notes: string[] = [];
+  const unplanned: string[] = [];
   for (const [model, parts] of sets) {
     const unit = parts.map((p) => Math.round(p.quantity)).reduce(gcd);
     const ratio = parts.map((p) => Math.round(p.quantity) / unit);
     const one = (count: number) => planLoad({ name: input.name, containerType: input.containerType, shipmentId, parts: parts.map((p, i) => ({ ...p, quantity: ratio[i]! * count })) });
     // the most whole sets one container takes (more sets never fit if fewer do not: loading is monotone), found by halving
-    if (one(1).tooBig.length > 0 || one(1).containers.length !== 1) {
-      tooBig.push(...one(1).tooBig);
+    const first = one(1);
+    if (first.tooBig.length > 0 || first.containers.length !== 1) {
+      tooBig.push(...first.tooBig);
       notes.push(`${model}: one set does not fit a container`);
+      unplanned.push(model);
       continue;
     }
     let low = 1;
     let high = unit;
+    let unsupported = false;
     while (low < high) {
       const mid = Math.ceil((low + high) / 2);
-      if (one(mid).containers.length === 1) low = mid;
+      const candidate = one(mid);
+      if (candidate.tooBig.length > 0) {
+        tooBig.push(...candidate.tooBig);
+        unsupported = true;
+        break;
+      }
+      if (candidate.containers.length === 1) low = mid;
       else high = mid - 1;
+    }
+    if (unsupported) {
+      notes.push(`${model}: exceeds supported planning limits`);
+      unplanned.push(model);
+      continue;
     }
     const perContainer = low;
     const full = Math.floor(unit / perContainer);
@@ -245,7 +274,7 @@ export function planShipment(input: ShipmentInput): ShipmentPlan {
   const total = containers.reduce((s, c) => s + Object.values(c.pieces).reduce((a, b) => a + b, 0), 0);
   const type = containerType(input.containerType);
   const explanation = `${total} pieces need ${containers.length} × ${type?.label ?? input.containerType}; every container holds complete sets. ${notes.join('; ')}.`;
-  return { containers, tooBig: [...new Set(tooBig)], explanation };
+  return { containers, tooBig: [...new Set(tooBig)], unplanned, explanation };
 }
 
 /** One load plan for parts taken as they are (the loader described at the top of this file). */
@@ -274,11 +303,12 @@ function planLoad(input: ShipmentInput): ShipmentPlan {
   }));
   const layersOf = new Map(input.parts.map((p) => [p.id, stackLayersOf(p)]));
   const weighedOf = new Map(input.parts.map((p) => [p.id, p.mass !== undefined]));
-  const options = new Map(definitions.map((d) => [d.id, wallsOf(d, length, width, height, door, layersOf.get(d.id)!, weighedOf.get(d.id)!)]));
+  const sizeOk = new Map(input.parts.map((p) => [p.id, measurable(p)]));
+  const options = new Map(definitions.map((d) => [d.id, sizeOk.get(d.id) ? wallsOf(d, length, width, height, door, layersOf.get(d.id)!, weighedOf.get(d.id)!, Math.max(1, input.parts.reduce((n, p) => n + Math.round(p.quantity), 0))) : []]));
   // The payload caps a container as surely as its length: heavy cargo (tiles, steel, paper) fills it by weight first.
   const payload = type?.maxPayload;
   const tooBig = input.parts
-    .filter((p) => p.quantity > 0 && (options.get(p.id)!.length === 0 || (p.mass !== undefined && payload !== undefined && p.mass > payload)))
+    .filter((p) => p.quantity > 0 && (!sizeOk.get(p.id) || options.get(p.id)!.length === 0 || (p.mass !== undefined && payload !== undefined && p.mass > payload)))
     .map((p) => p.id);
   const rate = (w: Wall) => w.spots.length / w.depth;
 
@@ -343,9 +373,9 @@ function planLoad(input: ShipmentInput): ShipmentPlan {
           const o = turns.get(s)!.reduce<Orientation | undefined>((b, t) => (fit(t) > (b ? fit(b) : 0) ? t : b), undefined);
           if (!o) continue;
           const spots: Spot[] = [];
-          for (let k = 0; (k + 1) * o.h <= room.h && k < above; k++)
-            for (let j = 0; (j + 1) * o.w <= room.w; j++)
-              for (let i = 0; (i + 1) * o.l <= room.l; i++) spots.push({ x: placed.x + i * o.l, y: flat.y0 + j * o.w, z: flat.top + k * o.h, o });
+          for (let k = 0; (k + 1) * o.h <= room.h && k < above && spots.length < s.left; k++)
+            for (let j = 0; (j + 1) * o.w <= room.w && spots.length < s.left; j++)
+              for (let i = 0; (i + 1) * o.l <= room.l && spots.length < s.left; i++) spots.push({ x: placed.x + i * o.l, y: flat.y0 + j * o.w, z: flat.top + k * o.h, o });
           const room2 = byWeight(s, load);
           const n = Math.min(spots.length, s.left, room2);
           if (room2 < Math.min(spots.length, s.left)) load.full = true;
@@ -486,12 +516,23 @@ function planLoad(input: ShipmentInput): ShipmentPlan {
   });
 
   const total = [...handedOut.values()].reduce((s, n) => s + n, 0);
+  // the highest column of pieces whose layer limit nobody stated: said in the plan when it is more than a few
+  const unlimited = new Set(input.parts.filter((p) => !Number.isFinite(stackLayersOf(p))).map((p) => p.id));
+  let stackedHigh = 0;
+  for (const c of containers) {
+    const levels = new Set(Object.values(c.project.items).filter((i) => unlimited.has(i.definitionId)).map((i) => i.elevation ?? 0));
+    stackedHigh = Math.max(stackedHigh, levels.size);
+  }
+  if (stackedHigh <= 3) stackedHigh = 0;
   const explanation =
     total === 0
-      ? 'Nothing to load: give the parts a quantity.'
+      ? (tooBig.length ? 'No load planned: some parts exceed the container, payload or supported planning limits.' : 'Nothing to load: give the parts a quantity.')
       : `${total} pieces need ${containers.length} × ${type?.label ?? input.containerType}` +
         (containers.length > 0 ? `; the last one is ${Math.round((containers.at(-1)!.usedLength / length) * 100)}% full along its length.` : '.') +
-        (tooBig.length > 0 ? ` ${tooBig.length} part type(s) are too big for this container.` : '') +
+        (tooBig.length > 0 ? ` ${tooBig.length} part type(s) exceed the container, payload or supported planning limits.` : '') +
+        (stackedHigh
+          ? ` Pieces with no layer limit stated stand up to ${stackedHigh} high: state a limit (Layers) for anything fragile or heavy.`
+          : '') +
         (loads.some((l) => l.full) && payload !== undefined
           ? ` Weight is the limit: ${loads.filter((l) => l.full).length} container(s) reach the ${Math.round(payload / 100_000) / 10} t payload before they are full.`
           : '');

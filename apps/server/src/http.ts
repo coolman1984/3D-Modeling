@@ -115,6 +115,11 @@ export function createApp(options: AppOptions): App {
 
   route('GET', '/api/health', (_q, res) => send(res, 200, { ok: true, name: 'space-planner' }));
 
+  route('POST', '/api/backups', async (req, res) => {
+    await readJson(req);
+    send(res, 201, store.backup(join(options.dataDir, 'backups')));
+  });
+
   route('GET', '/api/projects', (_q, res) => send(res, 200, store.listProjects()));
 
   route('POST', '/api/projects', async (req, res) => {

@@ -85,3 +85,9 @@ pnpm install
 pnpm check      # فحص الأنواع + كل الاختبارات + اختبارات المتصفح
 pnpm dev        # الواجهة مع تحديث لحظي (محتاجة الخادم شغال)
 ```
+
+### Isolated company demo (2 Oct 2026)
+
+Run `start-demo.bat` for `http://127.0.0.1:4601`, using `data-demo` independently of owner `data`. Custom launches accept `PLANNER_DATA` and `PLANNER_PORT` (or `--data`/`--port`). Explicit ports fail if busy. Browser opening uses the mandatory Google Chrome helper. Shipment creation rejects incomplete plans; dense requests exceeding supported limits are explained. Roof stacking stays the owner-approved default; see decision 0025.
+
+For verified backups, POST JSON `{}` to `/api/backups`. Named SQLite snapshots are stored under the selected data directory in `backups`; response includes integrity/restore rehearsal counts. Snapshots intentionally include stored credentials; protect them like the live database. Restore steps, Windows account-bound keys and scope are in [decision 0025](docs/decisions/0025-bounded-shipment-planning-and-demo.md). Pass `--no-open` to start without opening a Chrome tab.
