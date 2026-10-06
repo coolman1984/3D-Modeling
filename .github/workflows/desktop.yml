@@ -1,0 +1,63 @@
+name: Desktop installer
+
+# Builds the Windows installer (decision 0026), installs it silently on the runner, starts the
+# installed program and checks that it answers. The installer is kept as a download on the run;
+# a version tag (v*) also attaches it to a GitHub release.
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm desktop
+      - name: Install silently, start, and check it answers
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem release/desktop/Atrium-Setup-*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\Atrium\Atrium.exe'
+          if (-not (Test-Path $exe)) { throw "Not installed at $exe" }
+          $app = Start-Process $exe -PassThru
+          $info = Join-Path $env:APPDATA 'Atrium\data\server.json'
+          for ($i = 0; $i -lt 60 -and -not (Test-Path $info); $i++) { Start-Sleep 1 }
+          if (-not (Test-Path $info)) { throw 'The program did not start' }
+          $url = (Get-Content $info | ConvertFrom-Json).url
+          $page = Invoke-WebRequest "$url/" -UseBasicParsing
+          if ($page.Content -notmatch '<div id="root"') { throw 'The interface did not load' }
+          Invoke-RestMethod "$url/api/projects" | Out-Null
+          Write-Host "Installed program answers at $url"
+          # Even when the window is ended abruptly, its server must not stay behind.
+          Stop-Process -Id $app.Id
+          for ($i = 0; $i -lt 15 -and (Get-Process Atrium -ErrorAction SilentlyContinue); $i++) { Start-Sleep 1 }
+          if (Get-Process Atrium -ErrorAction SilentlyContinue) { throw 'Atrium was left running after its window ended' }
+          Write-Host 'Nothing left running'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Atrium-Setup
+          path: release/desktop/Atrium-Setup-*.exe
+          if-no-files-found: error
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME (Get-ChildItem release/desktop/Atrium-Setup-*.exe).FullName --title "Atrium $env:GITHUB_REF_NAME" --notes "Windows installer."
