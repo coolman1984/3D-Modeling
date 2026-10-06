@@ -89,7 +89,11 @@ export class AgentRunner {
     return this.active.has(runId);
   }
 
-  start(projectId: string, agentId: string, specification: string): AgentRun {
+  /**
+   * Agents work inside the company that owns the project, as designers: a coding agent gets its
+   * own key that stops working when the run ends (or times out), whatever the agent does with it.
+   */
+  start(projectId: string, agentId: string, specification: string, access: { companyId: string; startedBy: string }): AgentRun {
     const { store } = this.options;
     const settings = loadSettings(store);
     const prompt = agentPrompt(projectId, specification);
@@ -102,6 +106,7 @@ export class AgentRunner {
     const finish = (status: 'done' | 'failed' | 'stopped') => {
       clearTimeout(timeout);
       this.active.delete(run.id);
+      store.accounts.revokeRunKeys(run.id);
       store.finishRun(run.id, status);
     };
 
@@ -118,7 +123,7 @@ export class AgentRunner {
       runApiAgent({
         settings: settings.api,
         tools: toolSummaries(),
-        execute: (name, input) => runTool({ store, actor }, name, input),
+        execute: (name, input) => runTool({ store, actor, companyId: access.companyId, role: 'designer' }, name, input),
         prompt,
         log,
         signal: controller.signal,
@@ -142,11 +147,13 @@ export class AgentRunner {
     mkdirSync(workDir, { recursive: true });
     const actor = `agent:${agentId}`;
     const url = this.options.url();
+    const expiresAt = new Date(Date.now() + settings.timeoutMinutes * 60_000 + 60_000).toISOString();
+    const { token } = store.accounts.createKey(access.companyId, { name: agentId, role: 'designer' }, access.startedBy, run.id, expiresAt);
     const mcpConfig = join(workDir, 'mcp.json');
     writeFileSync(
       mcpConfig,
       JSON.stringify(
-        { mcpServers: { planner: { command: process.execPath, args: [this.options.mcpScript, '--url', url, '--actor', actor] } } },
+        { mcpServers: { planner: { command: process.execPath, args: [this.options.mcpScript, '--url', url, '--actor', actor], env: { PLANNER_TOKEN: token } } } },
         null,
         2,
       ),
@@ -175,7 +182,7 @@ export class AgentRunner {
     try {
       child = spawn(needsShell ? quoteForCmd(resolved) : resolved, needsShell ? rawArgs.map(quoteForCmd) : rawArgs, {
         cwd: workDir,
-        env: { ...process.env, PLANNER_URL: url, PLANNER_PROJECT: projectId, PLANNER_ACTOR: actor },
+        env: { ...process.env, PLANNER_URL: url, PLANNER_PROJECT: projectId, PLANNER_ACTOR: actor, PLANNER_TOKEN: token },
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: needsShell,
         windowsHide: true,

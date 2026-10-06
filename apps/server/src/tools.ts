@@ -21,6 +21,7 @@ import {
   type Wall,
 } from '@space-planner/core';
 import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { can, itemsOnly, type Permission, type Role } from './permissions.js';
 import type { Store } from './store.js';
 
 /** A tool offered to agents, over MCP and to API agents alike. */
@@ -33,7 +34,43 @@ export interface ToolDef {
 
 export interface ToolContext {
   readonly store: Store;
+  /** Who the history records: decided by the server from the session or key, never by the caller. */
   readonly actor: string;
+  /** The company the caller works in; every project lookup is limited to it. */
+  readonly companyId: string | null;
+  /** The caller's role in that company. */
+  readonly role: Role;
+}
+
+/**
+ * What each tool needs. A tool missing here needs full editing rights (deny by default).
+ * pack_container only reads unless asked to apply, which it checks itself.
+ */
+const TOOL_PERMISSIONS: Readonly<Record<string, Permission>> = {
+  list_projects: 'project.read',
+  get_project: 'project.read',
+  check_project: 'project.read',
+  get_history: 'project.read',
+  warehouse_metrics: 'project.read',
+  find_warehouse_route: 'project.read',
+  production_metrics: 'project.read',
+  depot_metrics: 'project.read',
+  bay_entry_check: 'project.read',
+  restaurant_metrics: 'project.read',
+  table_route: 'project.read',
+  pack_container: 'project.read',
+  create_project: 'project.create',
+  place_items: 'project.edit.items',
+  move_items: 'project.edit.items',
+  remove_items: 'project.edit.items',
+  restore_revision: 'project.restore',
+  apply_commands: 'project.edit.items',
+};
+
+export const toolPermission = (name: string): Permission => TOOL_PERMISSIONS[name] ?? 'project.edit';
+
+function need(ctx: ToolContext, permission: Permission): void {
+  if (!can(ctx.role, permission)) throw new ToolError(`Your role (${ctx.role}) cannot do this.`);
 }
 
 /** A tool failure the agent should read and correct. */
@@ -47,6 +84,7 @@ export function runTool(ctx: ToolContext, name: string, input: unknown): { text:
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) return { text: `Unknown tool "${name}".`, isError: true };
   try {
+    need(ctx, toolPermission(name));
     const args = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
     return { text: tool.run(ctx, args), isError: false };
   } catch (error) {
@@ -91,7 +129,7 @@ const fmtCm = (ticks: number) => `${+toUnit(ticks, 'cm').toFixed(1)} cm`;
 
 function load(ctx: ToolContext, input: Record<string, unknown>): Project {
   const id = str(input, 'project_id');
-  const project = ctx.store.getProject(id);
+  const project = ctx.store.getProjectIn(id, ctx.companyId);
   if (!project) throw new ToolError(`No project "${id}". Call list_projects to see the ids.`);
   return project;
 }
@@ -277,7 +315,7 @@ export const TOOLS: readonly ToolDef[] = [
     description: 'List all projects with id, name, revision and item count.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     run: (ctx) => {
-      const projects = ctx.store.listProjects();
+      const projects = ctx.store.listProjects(ctx.companyId);
       if (projects.length === 0) return 'No projects yet. Use create_project.';
       return projects.map((p) => `${p.id} | ${p.name} | revision ${p.revision} | ${p.itemCount} items | updated ${p.updatedAt}`).join('\n');
     },
@@ -301,41 +339,41 @@ export const TOOLS: readonly ToolDef[] = [
     },
     run: (ctx, input) => {
       if (str(input, 'activity', true) === 'container') {
-        const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor);
+        const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor, undefined, ctx.companyId);
         return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
       if (str(input, 'activity', true) === 'warehouse') {
         const project = input.reference === true
           ? referenceWarehouse(str(input, 'name'))
           : newWarehouse(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 8);
-        const created = ctx.store.createProject(project, ctx.actor);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
         return `Created ${created.id}.\n\n${describeProject(created)}\nWarehouse capacity: ${warehouseMetrics(created).positions} pallet positions.`;
       }
       if (str(input, 'activity', true) === 'production') {
         const project = input.reference === true
           ? referenceProductionLine(str(input, 'name'))
           : newProductionLine(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
-        const created = ctx.store.createProject(project, ctx.actor);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
         return `Created ${created.id}.\n\n${describeProject(created)}\nProduction line: ${productionMetrics(created).stations} stations, ${(productionMetrics(created).flowLength / 10_000).toFixed(1)} m flow length.`;
       }
       if (str(input, 'activity', true) === 'depot') {
         const project = input.reference === true
           ? referenceVehicleDepot(str(input, 'name'))
           : newVehicleDepot(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
-        const created = ctx.store.createProject(project, ctx.actor);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
         return `Created ${created.id}.\n\n${describeProject(created)}\nDepot: ${depotMetrics(created).bays} bays, ${depotMetrics(created).vehicles} vehicles.`;
       }
       if (str(input, 'activity', true) === 'restaurant') {
         const project = input.reference === true
           ? referenceRestaurant(str(input, 'name'))
           : newRestaurant(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 3.2);
-        const created = ctx.store.createProject(project, ctx.actor);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
         return `Created ${created.id}.\n\n${describeProject(created)}\nRestaurant: ${restaurantMetrics(created).tables} tables, ${restaurantMetrics(created).covers} covers.`;
       }
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
       if (width < 1 || depth < 1 || width > 500 || depth > 500) throw new ToolError('room sides must be between 1 and 500 m');
-      const project = ctx.store.createProject(newRoom(str(input, 'name'), width, depth, num(input, 'ceiling_m', true), packOf(str(input, 'activity', true)).id), ctx.actor);
+      const project = ctx.store.createProject(newRoom(str(input, 'name'), width, depth, num(input, 'ceiling_m', true), packOf(str(input, 'activity', true)).id), ctx.actor, undefined, ctx.companyId);
       return `Created ${project.id}.\n\n${describeProject(project)}`;
     },
   },
@@ -741,6 +779,7 @@ export const TOOLS: readonly ToolDef[] = [
         .map((c, i) => `${i + 1}. ${c.label}: ${c.explanation}${c.leftOver.length ? ` Did not fit: ${[...new Set(c.leftOver)].join(', ')}.` : ''}`)
         .join('\n');
       if (input.apply !== true) return `Candidates (nothing changed):\n${text}`;
+      need(ctx, 'project.edit.items');
       const chosen = candidates[0]!;
       if (chosen.commands.length === 0) return `Nothing to place.\n${text}`;
       const updated = commit(ctx, project, [...chosen.commands], str(input, 'summary', true) || `Packed ${chosen.commands.length} pieces (${chosen.label.toLowerCase()})`);
@@ -818,6 +857,7 @@ export const TOOLS: readonly ToolDef[] = [
       const project = load(ctx, input);
       const commands = input.commands;
       if (!Array.isArray(commands) || commands.length === 0) throw new ToolError('"commands" must be a non-empty array');
+      if (!itemsOnly(commands as Command[])) need(ctx, 'project.edit');
       const updated = commit(ctx, project, commands as Command[], str(input, 'summary', true) || '');
       return afterChange(updated, `Applied ${commands.length} command(s).`);
     },

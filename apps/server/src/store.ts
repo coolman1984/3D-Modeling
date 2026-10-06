@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { ACCOUNT_SCHEMA, Accounts, type AccountsOptions } from './accounts.js';
 import {
   apply,
   deserializeProject,
@@ -15,6 +16,7 @@ import {
 
 export interface ProjectSummary {
   readonly id: string;
+  readonly companyId: string | null;
   readonly name: string;
   readonly revision: number;
   readonly itemCount: number;
@@ -49,8 +51,8 @@ export type ApplyResult =
 
 /** Change notifications for live views. */
 export interface StoreEvents {
-  project: [{ projectId: string; revision: number; actor: string; summary: string }];
-  projects: [];
+  project: [{ projectId: string; companyId: string | null; revision: number; actor: string; summary: string }];
+  projects: [{ companyId: string | null }];
   run: [{ runId: string; projectId: string; status: AgentRun['status']; line?: string }];
 }
 
@@ -99,13 +101,21 @@ const MAX_LOG = 200_000;
  */
 export class Store extends EventEmitter<StoreEvents> {
   private readonly db: DatabaseSync;
+  readonly accounts: Accounts;
 
-  constructor(path: string) {
+  constructor(path: string, options: AccountsOptions = {}) {
     super();
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.db.exec(SCHEMA);
+    // Databases from before accounts get the owning company column; their projects are adopted by
+    // the first company at setup. (company, id) is unique so other tables can reference both at once.
+    const columns = this.db.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === 'company_id')) this.db.exec('ALTER TABLE projects ADD COLUMN company_id TEXT');
+    this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS projects_company_id ON projects(company_id, id);');
+    this.db.exec(ACCOUNT_SCHEMA);
+    this.accounts = new Accounts(this.db, options);
     // Runs that were active when the app last stopped cannot still be running.
     this.db.prepare("UPDATE agent_runs SET status = 'stopped', ended_at = ? WHERE status = 'running'").run(now());
   }
@@ -114,12 +124,14 @@ export class Store extends EventEmitter<StoreEvents> {
     this.db.close();
   }
 
-  listProjects(): ProjectSummary[] {
+  /** The projects of one company (null: those from before accounts, not yet adopted). */
+  listProjects(companyId: string | null): ProjectSummary[] {
     const rows = this.db
-      .prepare('SELECT id, name, revision, item_count, created_at, updated_at FROM projects ORDER BY updated_at DESC')
-      .all() as Array<Record<string, string | number>>;
+      .prepare('SELECT id, company_id, name, revision, item_count, created_at, updated_at FROM projects WHERE company_id IS ? ORDER BY updated_at DESC')
+      .all(companyId) as Array<Record<string, string | number | null>>;
     return rows.map((r) => ({
       id: String(r.id),
+      companyId: r.company_id === null ? null : String(r.company_id),
       name: String(r.name),
       revision: Number(r.revision),
       itemCount: Number(r.item_count),
@@ -128,8 +140,24 @@ export class Store extends EventEmitter<StoreEvents> {
     }));
   }
 
-  /** Store a new project; its id is replaced by a fresh one. */
-  createProject(project: Project, actor: string, summary = 'Created the project'): Project {
+  /** Which company owns a project: undefined when there is no such project. */
+  projectCompany(id: string): string | null | undefined {
+    const row = this.db.prepare('SELECT company_id FROM projects WHERE id = ?').get(id) as { company_id: string | null } | undefined;
+    return row ? row.company_id : undefined;
+  }
+
+  /** A company's project; another company's project is exactly as absent as one that never existed. */
+  getProjectIn(id: string, companyId: string | null): Project | null {
+    return this.projectCompany(id) === companyId ? this.getProject(id) : null;
+  }
+
+  /** Projects made before accounts existed join the first company. */
+  adoptOrphans(companyId: string): number {
+    return Number(this.db.prepare('UPDATE projects SET company_id = ? WHERE company_id IS NULL').run(companyId).changes);
+  }
+
+  /** Store a new project for a company; its id is replaced by a fresh one. */
+  createProject(project: Project, actor: string, summary = 'Created the project', companyId: string | null = null): Project {
     const id = `p-${randomUUID().slice(0, 8)}`;
     const fresh: Project = { ...project, id, revision: 0 };
     const problems = validateProject(fresh);
@@ -137,11 +165,12 @@ export class Store extends EventEmitter<StoreEvents> {
     const at = now();
     this.transaction(() => {
       this.db
-        .prepare('INSERT INTO projects (id, name, revision, item_count, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)')
-        .run(id, fresh.name, Object.keys(fresh.items).length, at, at);
+        .prepare('INSERT INTO projects (id, company_id, name, revision, item_count, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)')
+        .run(id, companyId, fresh.name, Object.keys(fresh.items).length, at, at);
       this.insertRevision(fresh, actor, summary, [], at);
+      if (companyId) this.accounts.audit(companyId, actor, 'project.created', id, { name: fresh.name });
     });
-    this.emit('projects');
+    this.emit('projects', { companyId });
     return fresh;
   }
 
@@ -188,6 +217,8 @@ export class Store extends EventEmitter<StoreEvents> {
     if (!current || !old) return { ok: false, status: 404 };
     const restored: Project = { ...old, revision: current.revision + 1 };
     this.commit(restored, actor, `Restored revision ${revision}`, []);
+    const companyId = this.projectCompany(id);
+    if (companyId) this.accounts.audit(companyId, actor, 'project.restored', id, { revision, newRevision: restored.revision });
     return { ok: true, project: restored };
   }
 
@@ -206,16 +237,22 @@ export class Store extends EventEmitter<StoreEvents> {
     }));
   }
 
-  deleteProject(id: string): boolean {
-    const result = this.db.prepare('DELETE FROM projects WHERE id = ?').run(id);
-    if (result.changes > 0) this.emit('projects');
-    return result.changes > 0;
+  deleteProject(id: string, actor = 'system'): boolean {
+    const companyId = this.projectCompany(id);
+    if (companyId === undefined) return false;
+    const name = this.getProject(id)?.name ?? id;
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+      if (companyId) this.accounts.audit(companyId, actor, 'project.deleted', id, { name });
+    });
+    this.emit('projects', { companyId });
+    return true;
   }
 
   duplicateProject(id: string, actor: string): Project | null {
     const source = this.getProject(id);
     if (!source) return null;
-    return this.createProject({ ...source, name: `${source.name} (copy)` }, actor, `Copied from ${source.name}`);
+    return this.createProject({ ...source, name: `${source.name} (copy)` }, actor, `Copied from ${source.name}`, this.projectCompany(id) ?? null);
   }
 
   getSetting<T>(key: string): T | undefined {
@@ -282,8 +319,9 @@ export class Store extends EventEmitter<StoreEvents> {
         .prepare('UPDATE projects SET name = ?, revision = ?, item_count = ?, updated_at = ? WHERE id = ?')
         .run(project.name, project.revision, Object.keys(project.items).length, at, project.id);
     });
-    this.emit('project', { projectId: project.id, revision: project.revision, actor, summary });
-    this.emit('projects');
+    const companyId = this.projectCompany(project.id) ?? null;
+    this.emit('project', { projectId: project.id, companyId, revision: project.revision, actor, summary });
+    this.emit('projects', { companyId });
   }
 
   private insertRevision(project: Project, actor: string, summary: string, commands: readonly Command[], at: string): void {

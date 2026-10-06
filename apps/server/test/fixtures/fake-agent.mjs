@@ -7,7 +7,8 @@ console.log(`got prompt with ${prompt.includes(projectId) ? 'project id' : 'NO p
 const call = async (name, input) => {
   const response = await fetch(`${url}/api/tools/${name}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    // The run's own key, handed over by the app; it stops working when the run ends.
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.PLANNER_TOKEN}` },
     body: JSON.stringify({ input: { project_id: projectId, ...input }, actor }),
   });
   return response.json();
@@ -22,3 +23,4 @@ const result = await call('place_items', {
   summary: 'ترابيزة وكرسيين',
 });
 console.log(result.text.split('\n')[0]);
+process.stdout.write(`token-ends-with-run: ${Boolean(process.env.PLANNER_TOKEN)}\n`);

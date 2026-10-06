@@ -12,6 +12,7 @@ import { handleMessage } from '../src/mcp.js';
 import { saveSettings } from '../src/settings.js';
 import { Store } from '../src/store.js';
 import { runTool } from '../src/tools.js';
+import { client, PASSWORD } from './helpers.js';
 
 const m = (v: number) => fromUnit(v, 'm');
 const fakeAgent = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta.url));
@@ -21,7 +22,8 @@ let store: Store;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'planner-'));
-  store = new Store(join(dir, 'planner.db'));
+  // Tests lower scrypt's cost (2^10 instead of 2^17) so many sign-ups stay fast.
+  store = new Store(join(dir, 'planner.db'), { passwordCost: 10 });
 });
 
 afterEach(() => {
@@ -39,6 +41,17 @@ async function until<T>(check: () => T | undefined | null | false, timeout = 10_
   }
 }
 
+/** Tool access for store-level tests: projects made without a company, full rights. */
+const tools = (s: Store) => ({ store: s, actor: 'agent:test', companyId: null, role: 'owner' as const });
+
+
+
+/** A company with an owner, made directly in the store. */
+async function company(s: Store, name = 'Test Co', email = 'owner@test.example') {
+  const user = await s.accounts.createUser({ email, name: 'Owner', password: PASSWORD });
+  return { user, company: s.accounts.createCompany(name, user) };
+}
+
 describe('store', () => {
   it('keeps every change as a revision with who and what', () => {
     const project = store.createProject(demoHall(), 'human');
@@ -54,7 +67,7 @@ describe('store', () => {
       [1, 'agent:claude-code', 'Added'],
       [0, 'human', 'Created the project'],
     ]);
-    expect(store.listProjects()[0]).toMatchObject({ id: project.id, revision: 1, itemCount: 1 });
+    expect(store.listProjects(null)[0]).toMatchObject({ id: project.id, revision: 1, itemCount: 1 });
   });
 
   it('refuses stale edits and broken commands', () => {
@@ -73,7 +86,7 @@ describe('store', () => {
     const restored = store.restore(project.id, 0, 'human');
     expect(restored.ok && restored.project).toMatchObject({ revision: 2, name: demoHall().name });
     store.close();
-    store = new Store(join(dir, 'planner.db'));
+    store = new Store(join(dir, 'planner.db'), { passwordCost: 10 });
     expect(store.getProject(project.id)).toMatchObject({ revision: 2, name: demoHall().name });
     expect(store.history(project.id)).toHaveLength(3);
   });
@@ -85,7 +98,7 @@ describe('store', () => {
     expect(copy?.name).toContain('(copy)');
     expect(store.deleteProject(project.id)).toBe(true);
     expect(store.getProject(project.id)).toBeNull();
-    expect(store.listProjects()).toHaveLength(1);
+    expect(store.listProjects(null)).toHaveLength(1);
   });
 
   it('never returns the saved API key', async () => {
@@ -100,7 +113,7 @@ describe('store', () => {
 
 describe('agent tools', () => {
   it('creates a warehouse and adds an addressable rack through one revision', () => {
-    const ctx = { store, actor: 'agent:test' };
+    const ctx = tools(store);
     const created = runTool(ctx, 'create_project', { name: 'Warehouse', activity: 'warehouse', reference: true });
     expect(created.isError).toBe(false);
     const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
@@ -117,7 +130,7 @@ describe('agent tools', () => {
   });
 
   it('lets an agent create a container, plan cargo, compare packing candidates and apply one as one revision', () => {
-    const ctx = { store, actor: 'agent:test' };
+    const ctx = tools(store);
     const created = runTool(ctx, 'create_project', { name: 'Order 7', activity: 'container', container_type: '20gp' });
     expect(created.isError).toBe(false);
     const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
@@ -142,14 +155,14 @@ describe('agent tools', () => {
   });
 
   it('keeps a container\'s data when the room is changed through set_room', () => {
-    const ctx = { store, actor: 'agent:test' };
+    const ctx = tools(store);
     const id = /Created (p-[\w]+)/.exec(runTool(ctx, 'create_project', { name: 'C', activity: 'container', container_type: '40hc' }).text)![1]!;
     runTool(ctx, 'set_room', { project_id: id, width_m: 12, depth_m: 2.35 });
     expect(store.getProject(id)!.space.meta).toMatchObject({ pack: 'container', containerType: '40hc' });
   });
 
   it('lets an agent set the room, define an item and place items, with clear feedback', () => {
-    const ctx = { store, actor: 'agent:test' };
+    const ctx = tools(store);
     const project = store.createProject(demoHall(), 'human');
     const room = runTool(ctx, 'set_room', {
       project_id: project.id,
@@ -191,7 +204,7 @@ describe('agent tools', () => {
   });
 
   it('creates an office with the office catalog and checks it against the office rules', () => {
-    const ctx = { store, actor: 'agent:test' };
+    const ctx = tools(store);
     const created = runTool(ctx, 'create_project', { name: 'مكتب', width_m: 8, depth_m: 6, ceiling_m: 3, activity: 'office' }).text;
     const id = /Created (\S+)\./.exec(created)![1]!;
     expect(store.getProject(id)!.catalog['desk-140']).toBeDefined();
@@ -207,7 +220,7 @@ describe('agent tools', () => {
   });
 
   it('gives round tables a round footprint, so chairs can circle them', () => {
-    const ctx = { store, actor: 'agent:test' };
+    const ctx = tools(store);
     const project = store.createProject(demoHall(), 'human');
     runTool(ctx, 'define_item', { project_id: project.id, id: 'round-180', name: 'مدورة ١٨٠', category: 'round-table', width_cm: 180, depth_cm: 180, height_cm: 75 });
     expect(store.getProject(project.id)!.catalog['round-180']?.footprint).toBe('round');
@@ -220,7 +233,7 @@ describe('agent tools', () => {
   });
 
   it('reports mistakes so the agent can correct them', () => {
-    const ctx = { store, actor: 'agent:test' };
+    const ctx = tools(store);
     const project = store.createProject(demoHall(), 'human');
     expect(runTool(ctx, 'place_items', { project_id: project.id, items: [{ definition_id: 'sofa-x', x_m: 1, y_m: 1 }] }).text).toMatch(/broken-reference/);
     expect(runTool(ctx, 'set_room', { project_id: project.id, doors: [{ wall: 'south', offset_m: 9.5, width_cm: 90 }] }).text).toMatch(/does not fit on the south wall/);
@@ -243,20 +256,26 @@ describe('agent output', () => {
 describe('HTTP app', () => {
   let app: App;
   let base: string;
+  let owner: { companyId: string; call: ReturnType<typeof client>['call'] };
 
   beforeEach(async () => {
     app = createApp({ store, dataDir: dir, mcpScript: join(dir, 'missing-mcp.mjs') });
     base = `http://127.0.0.1:${await app.listen(0)}`;
+    const browser = client(base);
+    const setup = await browser.call('/api/setup', { method: 'POST', body: JSON.stringify({ companyName: 'Nile Events', name: 'Mona Adel', email: 'mona@nile.example', password: PASSWORD }) });
+    owner = { companyId: setup.body.company.id, call: browser.call };
   });
 
   afterEach(async () => {
     await app.close();
   });
 
-  const json = async (path: string, init?: RequestInit) => {
-    const response = await fetch(`${base}${path}`, { ...init, headers: { 'content-type': 'application/json' } });
-    return { status: response.status, body: (await response.json()) as any };
+  const json = (path: string, init?: RequestInit) => owner.call(path, init);
+  const loginCookie = async () => {
+    const response = await fetch(`${base}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'mona@nile.example', password: PASSWORD }) });
+    return response.headers.get('set-cookie')!.split(';')[0]!;
   };
+  const ownedHall = () => store.createProject(demoHall(), 'human', undefined, owner.companyId);
 
   it('creates projects, applies commands with conflict detection, and restores', async () => {
     const created = await json('/api/projects', { method: 'POST', body: JSON.stringify({ name: 'قاعة', width_m: 12, depth_m: 9, ceiling_m: 3 }) });
@@ -281,10 +300,10 @@ describe('HTTP app', () => {
 
   it('pushes live events when anything changes', async () => {
     const controller = new AbortController();
-    const response = await fetch(`${base}/api/events`, { signal: controller.signal });
+    const response = await fetch(`${base}/api/events`, { signal: controller.signal, headers: { cookie: (await loginCookie()) } });
     const reader = response.body!.getReader();
-    const project = store.createProject(demoHall(), 'human');
-    runTool({ store, actor: 'agent:x' }, 'place_items', { project_id: project.id, items: [{ definition_id: 'chair', x_m: 8, y_m: 6 }] });
+    const project = ownedHall();
+    runTool({ ...tools(store), companyId: owner.companyId, actor: 'agent:x' }, 'place_items', { project_id: project.id, items: [{ definition_id: 'chair', x_m: 8, y_m: 6 }] });
     let text = '';
     while (!text.includes('event: project')) text += new TextDecoder().decode((await reader.read()).value);
     expect(text).toContain(`"projectId":"${project.id}"`);
@@ -292,8 +311,12 @@ describe('HTTP app', () => {
   });
 
   it('answers MCP requests through the bridge', async () => {
-    const project = store.createProject(demoHall(), 'human');
-    const options = { url: base, actor: 'agent:claude-code' };
+    const project = ownedHall();
+    const key = await json('/api/company/api-keys', { method: 'POST', body: JSON.stringify({ name: 'claude-code', role: 'designer' }) });
+    expect(key.status).toBe(201);
+    const options = { url: base, actor: 'ignored:the-server-decides', token: key.body.token as string };
+    const refused = (await handleMessage({ jsonrpc: '2.0', id: 9, method: 'tools/list' }, { url: base, actor: 'x' })) as any;
+    expect(refused.error.message).toContain('refused the key');
     const init = (await handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }, options)) as any;
     expect(init.result.protocolVersion).toBe('2025-06-18');
     const list = (await handleMessage({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, options)) as any;
@@ -313,7 +336,7 @@ describe('HTTP app', () => {
     saveSettings(store, {
       agents: { fake: { label: 'Fake agent', command: [process.execPath, fakeAgent, '{url}', '{projectId}', '{actor}'], promptOnStdin: true } },
     });
-    const project = store.createProject(demoHall(), 'human');
+    const project = ownedHall();
     const started = await json(`/api/projects/${project.id}/agent-runs`, { method: 'POST', body: JSON.stringify({ agent: 'fake', prompt: 'اعمل قاعة ١٢×٩ فيها ترابيزة وكرسيين' }) });
     expect(started.status).toBe(201);
     const run = await until(() => {
@@ -322,6 +345,8 @@ describe('HTTP app', () => {
     });
     expect(run.status).toBe('done');
     expect(run.log).toContain('got prompt with project id');
+    // The run's key is revoked with the run: nothing it leaked can be used afterwards.
+    expect(store.accounts.keys(owner.companyId, true).every((k) => k.revoked)).toBe(true);
     const designed = store.getProject(project.id)!;
     expect(readRoom(designed.space)).toMatchObject({ width: m(12), depth: m(9) });
     expect(Object.keys(designed.items).sort()).toEqual(['chair-1', 'chair-2', 'table-180-1']);
@@ -338,7 +363,7 @@ describe('HTTP app', () => {
     saveSettings(store, {
       agents: { slow: { label: 'Slow', command: [process.execPath, '-e', 'setTimeout(() => {}, 60000)'], promptOnStdin: false } },
     });
-    const project = store.createProject(demoHall(), 'human');
+    const project = ownedHall();
     const started = await json(`/api/projects/${project.id}/agent-runs`, { method: 'POST', body: JSON.stringify({ agent: 'slow', prompt: 'x' }) });
     expect((await json(`/api/agent-runs/${started.body.id}/stop`, { method: 'POST' })).body.stopped).toBe(true);
     const run = await until(() => {
@@ -350,7 +375,7 @@ describe('HTTP app', () => {
 
   it('explains a missing agent program', async () => {
     saveSettings(store, { agents: { ghost: { label: 'Ghost', command: ['definitely-not-installed-xyz'], promptOnStdin: true } } });
-    const project = store.createProject(demoHall(), 'human');
+    const project = ownedHall();
     const started = await json(`/api/projects/${project.id}/agent-runs`, { method: 'POST', body: JSON.stringify({ agent: 'ghost', prompt: 'x' }) });
     const run = store.getRun(started.body.id)!;
     expect(run.status).toBe('failed');
@@ -404,8 +429,9 @@ describe('API agent', () => {
     saveSettings(store, { api: { provider: 'anthropic', apiKey: 'sk-test', model: 'claude-opus-5', baseUrl: fakeUrl } });
     const app = createApp({ store, dataDir: dir, mcpScript: 'unused' });
     try {
-      const project = store.createProject(demoHall(), 'human');
-      const run = app.runner.start(project.id, 'api', 'حط كرسيين');
+      const { company: co } = await company(store);
+      const project = store.createProject(demoHall(), 'human', undefined, co.id);
+      const run = app.runner.start(project.id, 'api', 'حط كرسيين', { companyId: co.id, startedBy: 'test' });
       const finished = await until(() => {
         const r = store.getRun(run.id);
         return r && r.status !== 'running' ? r : null;
@@ -431,8 +457,9 @@ describe('API agent', () => {
     delete process.env.ANTHROPIC_API_KEY;
     const app = createApp({ store, dataDir: dir, mcpScript: 'unused' });
     try {
-      const project = store.createProject(demoHall(), 'human');
-      const run = app.runner.start(project.id, 'api', 'x');
+      const { company: co } = await company(store);
+      const project = store.createProject(demoHall(), 'human', undefined, co.id);
+      const run = app.runner.start(project.id, 'api', 'x', { companyId: co.id, startedBy: 'test' });
       const finished = await until(() => {
         const r = store.getRun(run.id);
         return r && r.status !== 'running' ? r : null;
@@ -494,8 +521,9 @@ describe('protection against other websites', () => {
     expect(await raw('POST', '/api/projects', { host: `localhost:${port}` }, '{}')).toBe(415);
   });
 
-  it('accepts the app itself', async () => {
-    expect(await raw('PUT', '/api/settings', { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json' }, '{}')).toBe(200);
-    expect(await raw('GET', '/api/projects', { host: `localhost:${port}` })).toBe(200);
+  it('accepts the app itself, and still asks it to sign in', async () => {
+    expect(await raw('PUT', '/api/settings', { host: `127.0.0.1:${port}`, origin: `http://127.0.0.1:${port}`, 'content-type': 'application/json' }, '{}')).toBe(401);
+    expect(await raw('GET', '/api/projects', { host: `localhost:${port}` })).toBe(401);
+    expect(await raw('GET', '/api/health', { host: `localhost:${port}` })).toBe(200);
   });
 });

@@ -1,5 +1,31 @@
 # TASKS
 
+## Now: T11 — shared accounts, companies, collaboration (plan §7, decision 0015)
+
+**Finish line:** one Atrium server hosts several companies whose projects, people, events, links
+and logs are isolated from each other; people sign in, work in the role their membership gives
+them in each company, invite colleagues, give agents revocable keys, share a pinned revision with
+a client and approve revisions; every security-relevant action is in an append-only, hash-chained
+company audit log; the first launch sets up the first company and keeps existing projects; six
+realistic demo companies show all of it; cross-tenant tests, browser journeys and `pnpm check`
+pass.
+
+- [ ] Plan: scope in plan §7, decision 0015
+- [ ] Server: schema (companies, users, memberships, sessions, invitations, api_keys, share_links,
+      approvals, audit_events + triggers), projects.company_id migration, scrypt passwords
+- [ ] Server: session/key authentication on every route, permissions per route and per tool,
+      company-scoped lookups (404 for other companies), filtered live events
+- [ ] Server: setup, sign-in (lockout), sign-out, company switch, members, invitations, keys,
+      shares, approvals, audit read + chain check, platform-admin-only machine settings
+- [ ] Agents: run-scoped keys, MCP bridge `--token`/`PLANNER_TOKEN`, server-decided actor names
+- [ ] Tests: isolation (every route, every tool), roles, lockout, single-use invites, pinned and
+      expiring shares, key revocation, audit append-only and chain
+- [ ] Editor: setup, sign-in, invite, shared-report pages; account menu + company switcher;
+      Company page (members, invitations, agent keys, audit); share dialog; approve revisions;
+      read-only and operator modes
+- [ ] Demo: six companies seeded with people, projects in every pack, history, approvals, links
+- [ ] Browser journeys (auth setup for all, a multi-company journey), `pnpm check`, docs, README
+
 ## Done: T5 — shared industrial foundation (plan: `docs/03-industrial-packs-plan.md`)
 
 **Done means:**

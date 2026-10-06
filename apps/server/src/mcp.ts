@@ -2,9 +2,11 @@
  * MCP bridge (stdio). Claude Code, Codex or any MCP client starts this program; it forwards
  * tool calls to the running Space Planner app, so every change shows up live and in the history.
  *
- *   node apps/server/dist/mcp.mjs [--url http://127.0.0.1:4600] [--actor agent:claude-code]
+ *   node apps/server/dist/mcp.mjs [--url http://127.0.0.1:4600] [--token atr_…]
  *
- * Without --url it reads the address the app wrote to data/server.json.
+ * Without --url it reads the address the app wrote to data/server.json. The token is a company
+ * API key (Company → Agent keys), also read from PLANNER_TOKEN; the server records changes under
+ * the key's name and limits them to the key's company and role.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -23,12 +25,18 @@ interface JsonRpcRequest {
 export interface BridgeOptions {
   readonly url: string;
   readonly actor: string;
+  readonly token?: string;
   readonly fetchImpl?: typeof fetch;
 }
 
 /** Handle one JSON-RPC message; returns the response, or null for notifications. */
 export async function handleMessage(message: JsonRpcRequest, options: BridgeOptions): Promise<object | null> {
   const doFetch = options.fetchImpl ?? fetch;
+  const auth: Record<string, string> = options.token ? { authorization: `Bearer ${options.token}` } : {};
+  const refused = (status: number) =>
+    status === 401 || status === 403
+      ? 'Space Planner refused the key. Create an agent key in Company → Agent keys and pass it with --token or PLANNER_TOKEN.'
+      : null;
   const reply = (result: unknown) => ({ jsonrpc: '2.0', id: message.id ?? null, result });
   const fail = (code: number, text: string) => ({ jsonrpc: '2.0', id: message.id ?? null, error: { code, message: text } });
   if (message.id === undefined || message.id === null) return null; // notification
@@ -48,7 +56,9 @@ export async function handleMessage(message: JsonRpcRequest, options: BridgeOpti
       return reply({});
     case 'tools/list': {
       try {
-        const response = await doFetch(`${options.url}/api/tools`);
+        const response = await doFetch(`${options.url}/api/tools`, { headers: auth });
+        const why = refused(response.status);
+        if (why) return fail(-32001, why);
         const tools = (await response.json()) as Array<{ name: string; description: string; inputSchema: object }>;
         return reply({ tools });
       } catch {
@@ -60,9 +70,11 @@ export async function handleMessage(message: JsonRpcRequest, options: BridgeOpti
       try {
         const response = await doFetch(`${options.url}/api/tools/${encodeURIComponent(name)}`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', ...auth },
           body: JSON.stringify({ input: message.params?.arguments ?? {}, actor: options.actor }),
         });
+        const why = refused(response.status);
+        if (why) return reply({ content: [{ type: 'text', text: why }], isError: true });
         const result = (await response.json()) as { text: string; isError: boolean };
         return reply({ content: [{ type: 'text', text: result.text }], isError: result.isError });
       } catch {
@@ -100,10 +112,12 @@ function discoverUrl(): string {
 }
 
 function main(): void {
-  const options: BridgeOptions = {
+  let options: BridgeOptions = {
     url: discoverUrl(),
     actor: argument('--actor') ?? process.env.PLANNER_ACTOR ?? 'agent:mcp',
   };
+  const token = argument('--token') ?? process.env.PLANNER_TOKEN;
+  if (token) options = { ...options, token };
   const rl = createInterface({ input: process.stdin });
   rl.on('line', (line) => {
     if (!line.trim()) return;

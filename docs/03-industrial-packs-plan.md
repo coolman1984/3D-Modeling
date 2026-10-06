@@ -252,6 +252,45 @@ person or an agent, like any hall or office item, not auto-arranged by a solver.
 ### T11 — Shared accounts, companies, collaboration
 The master plan's multi-user chapters (§19–§24), now designed around the packs above.
 
+**Scope of this stage (decision 0015).** One server hosts many companies; everything a company
+owns is isolated from every other company. Done means:
+1. **Identity.** Email + password accounts (scrypt, OWASP parameters N=2¹⁷, r=8, p=1, per-hash
+   salt and stored parameters), generic sign-in errors, a per-account failure counter that locks
+   the account for 15 minutes after 5 failures, and a first-run setup that creates the first
+   company and its owner and adopts every project that existed before accounts.
+2. **Sessions.** 256-bit random tokens, only their SHA-256 stored; `HttpOnly`, `SameSite=Strict`
+   cookie (`Secure` behind HTTPS); 2-hour idle and 12-hour absolute timeout; a new token at every
+   sign-in; sign-out and password change end sessions. The existing Origin/Host/JSON guard stays.
+3. **Companies and roles.** A user can belong to several companies; the role is a property of the
+   membership: owner, admin, designer, operator (moves and places items only), reviewer (reads,
+   exports, approves revisions), viewer. The active company comes from the verified session,
+   never from the browser. Deny by default: every route and every agent tool names the permission
+   it needs.
+4. **Isolation.** Every project row carries its company; share links and approvals reference
+   `(company, project)` together so a row can never point into another company; every read goes
+   through a company-scoped lookup that answers "not found" for other companies' projects (no
+   existence leak); live events reach only the owning company's sessions.
+5. **Invitations.** Owners/admins invite by email and role; the link is a single-use 256-bit
+   token stored hashed, valid 7 days, revocable, consumed atomically. No mail server: the link is
+   copied from the Company page.
+6. **Agents.** Company API keys (named, role-limited, hashed, revocable, last-used time) for
+   Claude Code / Codex over the MCP bridge; runs started in the app get a key that expires with
+   the run. The server, not the client, decides the actor name recorded in the history.
+7. **Sharing and approval.** An expiring, revocable read-only link to one pinned revision for a
+   client; reviewers approve a revision, and the project list shows "changed since approval".
+8. **Audit.** An append-only (database triggers refuse update and delete), per-company hash-chained
+   log of sign-ins, membership, invitation, key, share, approval, project create/delete/restore and
+   settings changes, readable by owners/admins with a chain check.
+9. **Demo data.** Six realistic (fictional) companies — logistics, restaurants, events, food
+   manufacturing, fleet, coworking — with people in every role, projects in every pack, history
+   by several people, approvals, share links, pending invitations and agent keys.
+10. Cross-tenant tests (every route and tool, with another company's ids), browser journey, and
+    `pnpm check` green.
+
+Not in this stage (recorded, not forgotten): single sign-on (OIDC/SAML), MFA, email delivery and
+self-service password reset, PostgreSQL with database row-level security, per-company quotas and
+billing, comments, live co-editing, offline sync.
+
 ### Cross-cutting, staged
 - **Variants** (T6 container options first, then every pack): a project can have candidate
   variants; comparison table of metrics and issues; AI proposals arrive as variants, never replacing
