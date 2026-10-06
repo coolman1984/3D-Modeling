@@ -1,0 +1,48 @@
+/* The GMES link page (plan 40-SPACE-PLANNER WP-S1..S3). Tokens come from styles.css; nothing here restyles another screen. */
+.eco-page { max-width: 1120px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 20px; }
+.eco-page h1 { font-family: var(--serif); font-size: 34px; letter-spacing: -0.02em; margin: 0; }
+.eco-back { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); text-decoration: none; font-size: 13px; }
+.eco-card { border: 1px solid var(--line); background: #fff; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.eco-card h2 { font-size: 15px; margin: 0; font-weight: 600; }
+.eco-card .muted { color: var(--ink-3); font-size: 13px; margin: 0; }
+.eco-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.eco-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.eco-msg { font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); background: var(--surface); }
+.eco-msg.is-ok { color: var(--ok); background: var(--ok-soft); border-color: var(--line); }
+.eco-msg.is-error { color: var(--error); background: var(--error-soft); border-color: var(--error-line); }
+.eco-tree { font-size: 13px; margin: 0; padding: 0; list-style: none; max-height: 240px; overflow: auto; border: 1px solid var(--line-soft); }
+.eco-tree li { padding: 3px 8px; display: flex; gap: 8px; align-items: baseline; }
+.eco-tree li.is-area { padding-left: 24px; }
+.eco-tree li.is-line { padding-left: 40px; }
+.eco-tree li.is-station { padding-left: 56px; color: var(--ink-2); }
+.eco-tree li.is-equipment { padding-left: 72px; color: var(--ink-2); }
+.eco-tree code { font-size: 12px; color: var(--ink-3); }
+.eco-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eco-table th { text-align: left; font-weight: 500; color: var(--ink-3); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.eco-table td { padding: 5px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.eco-table select { max-width: 260px; width: 100%; }
+.eco-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.eco-checks li { display: grid; grid-template-columns: 84px 1fr; gap: 10px; font-size: 13px; align-items: start; }
+.eco-status { font-size: 12px; padding: 1px 7px; text-align: center; background: var(--fill); color: var(--ink-2); }
+.eco-status.is-pass { background: var(--ok-soft); color: var(--ok); }
+.eco-status.is-fail { background: var(--error-soft); color: var(--error); }
+.eco-status.is-unknown { background: var(--warning-soft); color: var(--warning); }
+
+.live-plan { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.live-caption { font-size: 13px; color: var(--ink-2); }
+.live-caption.is-live { color: var(--ok); }
+.live-caption.is-lost { color: var(--error); }
+.live-plan svg { width: 100%; height: auto; background: var(--surface); border: 1px solid var(--line); }
+.live-plan svg.is-stale { opacity: 0.55; }
+.live-floor { fill: #fff; stroke: var(--ink); stroke-width: 1.5; }
+.live-zone { fill: none; stroke: var(--accent-line); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.live-output { font-size: 12px; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.live-item { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+.live-item.live-linked { stroke: var(--ink); stroke-width: 1.4; }
+.live-running { fill: #7fd39a; stroke: var(--ok); }
+.live-stopped { fill: #f3a19b; stroke: var(--error); }
+.live-held { fill: #f5cf7a; stroke: var(--warning); }
+.live-starved { fill: #cfd3da; stroke: var(--ink-3); }
+.live-legend { list-style: none; display: flex; gap: 16px; margin: 0; padding: 0; font-size: 12px; color: var(--ink-2); flex-wrap: wrap; }
+.live-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.live-swatch { width: 12px; height: 12px; display: inline-block; border: 1px solid; }

@@ -20,10 +20,19 @@ if (major < 22 || (major === 22 && minor < 13)) {
 }
 
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const builtEditor = join(root, 'apps', 'editor', 'dist', 'index.html');
+const builtServer = join(root, 'apps', 'server', 'dist', 'server.mjs');
+const built = () => existsSync(builtEditor) && existsSync(builtServer);
 function pnpm(args, label) {
   say(label);
   const result = spawnSync(npx, ['--yes', PNPM, ...args], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
-  if (result.status !== 0) fail(`${label}: something went wrong (see the messages above).`);
+  if (result.status === 0) return;
+  // Company networks often block the npm registry. A program that is already built still runs.
+  if (built()) {
+    console.warn(`\n! ${label}: not possible here (no access to the npm registry?). Starting the version that is already built.`);
+    return 'skipped';
+  }
+  fail(`${label}: something went wrong (see the messages above).\n  Where the npm registry is blocked, use the portable copy: on a machine with access run "node scripts/portable.mjs", copy release/SpacePlanner-portable.zip over and start it.`);
 }
 
 function newest(dir) {
@@ -41,22 +50,24 @@ const mtime = (path) => (existsSync(path) ? statSync(path).mtimeMs : 0);
 
 // 1. Dependencies: install when missing or when the lockfile changed.
 const installMarker = join(root, 'node_modules', '.modules.yaml');
+let installed = true;
 if (!existsSync(installMarker) || mtime(join(root, 'pnpm-lock.yaml')) > mtime(installMarker)) {
-  pnpm(['install', '--frozen-lockfile'], 'Installing components (first time only, may take two minutes)');
+  installed = pnpm(['install', '--frozen-lockfile'], 'Installing components (first time only, may take two minutes)') !== 'skipped';
 }
 
-// 2. Build: when anything in the sources is newer than the last build.
-const builtEditor = join(root, 'apps', 'editor', 'dist', 'index.html');
-const builtServer = join(root, 'apps', 'server', 'dist', 'server.mjs');
+// 2. Build: when anything in the sources is newer than the last build (and the components are there).
 const sources = Math.max(newest(join(root, 'packages')), newest(join(root, 'apps', 'editor')), newest(join(root, 'apps', 'server')));
-if (sources > Math.min(mtime(builtEditor), mtime(builtServer))) {
-  pnpm(['--filter', '@space-planner/editor', 'build'], 'Building the interface');
-  pnpm(['--filter', '@space-planner/server', 'build'], 'Building the server');
+if (installed && sources > Math.min(mtime(builtEditor), mtime(builtServer))) {
+  if (pnpm(['--filter', '@space-planner/editor', 'build'], 'Building the interface') !== 'skipped') {
+    pnpm(['--filter', '@space-planner/server', 'build'], 'Building the server');
+  }
 }
 
 // 3. Run.
 say('Starting Atrium');
-const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', builtServer, '--open', ...process.argv.slice(2)], {
+const launchArgs = process.argv.slice(2);
+const noOpen = launchArgs.includes('--no-open');
+const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', builtServer, ...(noOpen ? [] : ['--open']), ...launchArgs.filter((arg) => arg !== '--no-open' && !(noOpen && arg === '--open'))], {
   cwd: root,
   stdio: 'inherit',
 });

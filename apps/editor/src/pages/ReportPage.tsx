@@ -118,7 +118,7 @@ export function ReportPage({ projectId }: { projectId: string }) {
           <CaretLeft size={16} />
           Back to plan
         </a>
-        <span style={{ color: '#c9c5bc' }}>/</span>
+        <span style={{ color: '#c6cbd3' }}>/</span>
         <span style={{ fontWeight: 500 }}>Client report</span>
         <span className="muted" style={{ fontSize: 13 }}>
           · Revision {report.revision} · {PAGES} pages · A4
@@ -415,9 +415,9 @@ export function ReportPage({ projectId }: { projectId: string }) {
               <table className="bom-table" data-testid="report-sequence">
                 <thead>
                   <tr>
-                    <th>Step</th>
+                    <th>Load step</th>
                     <th>Piece</th>
-                    <th>Stop</th>
+                    <th>Delivery drop</th>
                     <th>Centre from front wall × side · underside</th>
                     <th className="r">Orientation</th>
                   </tr>
@@ -500,7 +500,7 @@ export function ReportPage({ projectId }: { projectId: string }) {
                           {SEVERITY_WORD[issue.severity]} · {issue.title}
                           {issue.where ? ` · ${issue.where}` : ''}
                         </div>
-                        <div className="w" style={{ color: '#3d3a35' }}>
+                        <div className="w" style={{ color: '#2a2f39' }}>
                           {issue.text}
                         </div>
                       </div>

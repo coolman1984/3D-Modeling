@@ -192,7 +192,7 @@ describe('isolation between companies', () => {
     expect((await delta.owner.call(`/api/company/members/${monaId}`, { method: 'PATCH', body: body({ role: 'viewer' }) })).status).toBe(404);
     expect((await delta.owner.call(`/api/company/members/${monaId}`, { method: 'DELETE' })).status).toBe(404);
     expect((await delta.owner.call('/api/company/members')).body.map((x: { email: string }) => x.email)).toEqual(['karim@delta.example']);
-    expect((await delta.owner.call('/api/company/audit')).body.events.every((e: { action: string }) => !e.target.includes('sara'))).toBe(true);
+    expect((await delta.owner.call('/api/company/audit')).body.events.every((e: { action: string; target: string }) => !e.target.includes('sara'))).toBe(true);
   });
 
   it('keeps agent keys and agent tools inside their company', async () => {
@@ -343,9 +343,12 @@ describe('invitations, keys and share links', () => {
     const agent = client(base);
     expect((await agent.call('/api/projects', { token: made.token })).status).toBe(200);
     expect((await agent.call('/api/projects', { method: 'POST', token: made.token, body: body({ name: 'x', template: 'demo' }) })).status).toBe(403);
+    // Made before the clock jumps: a day later the owner's own session has ended too.
+    const other = (await owner.call('/api/company/api-keys', { method: 'POST', body: body({ name: 'Codex', role: 'designer' }) })).body;
     clock += 25 * 60 * 60_000;
     expect((await agent.call('/api/projects', { token: made.token })).status).toBe(401);
-    const other = (await owner.call('/api/company/api-keys', { method: 'POST', body: body({ name: 'Codex', role: 'designer' }) })).body;
+    expect((await agent.call('/api/projects', { token: other.token })).status).toBe(200);
+    await owner.call('/api/login', { method: 'POST', body: body({ email: 'mona@nile.example', password: PASSWORD }) });
     await owner.call(`/api/company/api-keys/${other.key.id}`, { method: 'DELETE' });
     expect((await agent.call('/api/projects', { token: other.token })).status).toBe(401);
     expect((await owner.call('/api/company/api-keys', { method: 'POST', body: body({ name: 'too strong', role: 'owner' }) })).status).toBe(400);
@@ -361,9 +364,11 @@ describe('invitations, keys and share links', () => {
     expect(opened.body).toMatchObject({ revision: 0, project: { name: 'Zamalek branch' }, company: { name: 'Nile Logistics' } });
     expect(opened.body.company).not.toHaveProperty('id');
     expect(store.accounts.shares(store.projectCompany(project.id)!, project.id)[0]).toMatchObject({ openCount: 1 });
+    const second = (await owner.call(`/api/projects/${project.id}/shares`, { method: 'POST', body: body({ days: 30 }) })).body;
     clock += 3 * 24 * 60 * 60_000;
     expect((await guest.call(`/api/shared/${made.token}`)).status).toBe(404);
-    const second = (await owner.call(`/api/projects/${project.id}/shares`, { method: 'POST', body: body({ days: 30 }) })).body;
+    expect((await guest.call(`/api/shared/${second.token}`)).status).toBe(200);
+    await owner.call('/api/login', { method: 'POST', body: body({ email: 'mona@nile.example', password: PASSWORD }) });
     await owner.call(`/api/shares/${second.share.id}`, { method: 'DELETE' });
     expect((await guest.call(`/api/shared/${second.token}`)).status).toBe(404);
     expect((await owner.call(`/api/projects/${project.id}/shares`, { method: 'POST', body: body({ days: 365 }) })).status).toBe(400);
@@ -416,7 +421,7 @@ describe('audit log', () => {
 describe('tools with roles', () => {
   it('refuses tools the role does not allow, and lets operators place but not reshape', async () => {
     const { owner, companyId } = await setupFirst();
-    const project = store.createProject(demoHall(), 'test', undefined, companyId);
+    const project = store.createProject(demoHall(), 'test', undefined, { companyId: companyId });
     const as = (role: 'viewer' | 'operator') => ({ store, actor: `agent:${role}`, companyId, role });
     expect(runTool(as('viewer'), 'get_project', { project_id: project.id }).isError).toBe(false);
     expect(runTool(as('viewer'), 'place_items', { project_id: project.id, items: [{ definition_id: 'chair', x_m: 8, y_m: 6 }] }).text).toContain('cannot do this');

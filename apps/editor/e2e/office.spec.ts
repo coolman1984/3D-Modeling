@@ -5,7 +5,7 @@ test('an office from creation to report: office items, desks need chairs, office
   const id = await newProject(page, 'Company Office', 8, 6, 'office');
 
   // Office catalog and office rules, recognised from the catalog.
-  await expect(page.locator('[data-add]')).toHaveCount(20);
+  await expect(page.locator('[data-add]')).toHaveCount(25);
   await expect(page.getByTestId('bring-missing')).toHaveCount(0);
   await openTab(page, 'Review');
   await expect(page.locator('select[name="activity"]')).toHaveValue('office');
@@ -36,6 +36,6 @@ test('an office from creation to report: office items, desks need chairs, office
   await page.locator('select[name="activity"]').selectOption('hall');
   await expect(page.locator('[data-rule="area-per-guest"]')).toBeVisible();
   await page.getByRole('button', { name: 'Add 25 missing event hall item types' }).click();
-  await expect(page.locator('[data-add]')).toHaveCount(45);
+  await expect(page.locator('[data-add]')).toHaveCount(50);
   await page.screenshot({ path: 'e2e-results/office.png' });
 });

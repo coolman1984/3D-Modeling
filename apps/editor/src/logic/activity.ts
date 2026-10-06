@@ -32,7 +32,9 @@ export function loadActivity(project: Project): Activity {
   } catch {
     // Unreadable storage: fall back to the catalog.
   }
-  return activityOf(detectPack(project), null);
+  // A project may name its own style (a sample canteen is quick-service); otherwise the pack's first.
+  const style = project.space.meta?.style;
+  return activityOf(detectPack(project), typeof style === 'string' ? style : null);
 }
 
 export function saveActivity(projectId: string, activity: Activity): void {

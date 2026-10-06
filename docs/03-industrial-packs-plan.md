@@ -252,7 +252,7 @@ person or an agent, like any hall or office item, not auto-arranged by a solver.
 ### T11 — Shared accounts, companies, collaboration
 The master plan's multi-user chapters (§19–§24), now designed around the packs above.
 
-**Scope of this stage (decision 0015).** One server hosts many companies; everything a company
+**Scope of this stage (decision 0026).** One server hosts many companies; everything a company
 owns is isolated from every other company. Done means:
 1. **Identity.** Email + password accounts (scrypt, OWASP parameters N=2¹⁷, r=8, p=1, per-hash
    salt and stored parameters), generic sign-in errors, a per-account failure counter that locks

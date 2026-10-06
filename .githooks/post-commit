@@ -1,0 +1,5 @@
+#!/bin/sh
+# Refresh the generated docs (status, changelog, index) after every commit.
+# Turned on per machine with: git config core.hooksPath .githooks
+# The refreshed files are left for the next commit; they never block this one.
+node scripts/docs.mjs >/dev/null 2>&1 || true

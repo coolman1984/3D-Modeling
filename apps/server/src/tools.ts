@@ -20,7 +20,8 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, DEFAULT_VEHICLE, depotMetrics, DEPOT_ZONE_KINDS, detectPack, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
 import { can, itemsOnly, type Permission, type Role } from './permissions.js';
 import type { Store } from './store.js';
 
@@ -52,6 +53,10 @@ const TOOL_PERMISSIONS: Readonly<Record<string, Permission>> = {
   check_project: 'project.read',
   get_history: 'project.read',
   warehouse_metrics: 'project.read',
+  warehouse_stock: 'project.read',
+  // Storing stock writes item metadata only: the people who move pallets may record them.
+  assign_stock: 'project.edit.items',
+  optimize_slotting: 'project.read',
   find_warehouse_route: 'project.read',
   production_metrics: 'project.read',
   depot_metrics: 'project.read',
@@ -60,6 +65,7 @@ const TOOL_PERMISSIONS: Readonly<Record<string, Permission>> = {
   table_route: 'project.read',
   pack_container: 'project.read',
   create_project: 'project.create',
+  plan_shipment: 'project.create',
   place_items: 'project.edit.items',
   move_items: 'project.edit.items',
   remove_items: 'project.edit.items',
@@ -209,11 +215,15 @@ export function describeProject(project: Project): string {
     const w = warehouseMetrics(project);
     lines.push(`Warehouse: ${w.rackRows} rack rows, ${w.bays} bays, ${w.positions} pallet positions (${w.usablePositions} usable), ${w.docks} docks, ${w.floorArea.toFixed(1)} m² gross floor.`);
   }
+  if (detectPack(project) === 'site') {
+    const s = siteMetrics(project);
+    lines.push(`Site: ${s.siteArea} m² plot, ${s.buildings} buildings covering ${s.builtArea} m² (${s.coverage}%), ${s.greenArea} m² green, ${s.busBays} bus bays and ${s.carBays} car bays holding ${s.buses} buses and ${s.cars} cars, ${s.trees} trees. Buildings are one item each; open the building's own project for its inside.`);
+  }
   lines.push(...describeRules(project));
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant' };
+const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant', site: 'Site plan' };
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -339,41 +349,41 @@ export const TOOLS: readonly ToolDef[] = [
     },
     run: (ctx, input) => {
       if (str(input, 'activity', true) === 'container') {
-        const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor, undefined, ctx.companyId);
+        const created = ctx.store.createProject(newContainer(str(input, 'name'), str(input, 'container_type', true) || '20gp'), ctx.actor, undefined, { companyId: ctx.companyId });
         return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
       if (str(input, 'activity', true) === 'warehouse') {
         const project = input.reference === true
           ? referenceWarehouse(str(input, 'name'))
           : newWarehouse(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 8);
-        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, { companyId: ctx.companyId });
         return `Created ${created.id}.\n\n${describeProject(created)}\nWarehouse capacity: ${warehouseMetrics(created).positions} pallet positions.`;
       }
       if (str(input, 'activity', true) === 'production') {
         const project = input.reference === true
           ? referenceProductionLine(str(input, 'name'))
           : newProductionLine(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
-        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, { companyId: ctx.companyId });
         return `Created ${created.id}.\n\n${describeProject(created)}\nProduction line: ${productionMetrics(created).stations} stations, ${(productionMetrics(created).flowLength / 10_000).toFixed(1)} m flow length.`;
       }
       if (str(input, 'activity', true) === 'depot') {
         const project = input.reference === true
           ? referenceVehicleDepot(str(input, 'name'))
           : newVehicleDepot(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
-        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, { companyId: ctx.companyId });
         return `Created ${created.id}.\n\n${describeProject(created)}\nDepot: ${depotMetrics(created).bays} bays, ${depotMetrics(created).vehicles} vehicles.`;
       }
       if (str(input, 'activity', true) === 'restaurant') {
         const project = input.reference === true
           ? referenceRestaurant(str(input, 'name'))
           : newRestaurant(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 3.2);
-        const created = ctx.store.createProject(project, ctx.actor, undefined, ctx.companyId);
+        const created = ctx.store.createProject(project, ctx.actor, undefined, { companyId: ctx.companyId });
         return `Created ${created.id}.\n\n${describeProject(created)}\nRestaurant: ${restaurantMetrics(created).tables} tables, ${restaurantMetrics(created).covers} covers.`;
       }
       const width = num(input, 'width_m');
       const depth = num(input, 'depth_m');
       if (width < 1 || depth < 1 || width > 500 || depth > 500) throw new ToolError('room sides must be between 1 and 500 m');
-      const project = ctx.store.createProject(newRoom(str(input, 'name'), width, depth, num(input, 'ceiling_m', true), packOf(str(input, 'activity', true)).id), ctx.actor, undefined, ctx.companyId);
+      const project = ctx.store.createProject(newRoom(str(input, 'name'), width, depth, num(input, 'ceiling_m', true), packOf(str(input, 'activity', true)).id), ctx.actor, undefined, { companyId: ctx.companyId });
       return `Created ${project.id}.\n\n${describeProject(project)}`;
     },
   },
@@ -430,6 +440,64 @@ export const TOOLS: readonly ToolDef[] = [
       const project = load(ctx, input);
       if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
       return JSON.stringify(warehouseMetrics(project));
+    },
+  },
+  {
+    name: 'warehouse_stock',
+    description: 'Read what is stored in a warehouse: occupied and total pallet locations, units, and pallets per material (id, name, speed class). Give material_id to also list its locations (e.g. "W01-B02-L03-P01" = rack row W01, bay 2, level 3 from the floor, position 1).',
+    inputSchema: { type: 'object', properties: { project_id: projectId, material_id: { type: 'string' } }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      const s = stockMetrics(project);
+      const material = str(input, 'material_id', true);
+      return JSON.stringify({
+        positions: s.positions, occupied: s.occupied, occupancy: Math.round(s.occupancy * 1000) / 10, units: s.units, massKg: s.mass === undefined ? null : Math.round(s.mass / 1000), byVelocity: s.byVelocity,
+        materials: s.byMaterial.map((r) => ({ id: r.material.id, name: r.material.name, velocity: r.material.velocity ?? null, movesPerWeek: r.material.movesPerWeek ?? null, pallets: r.pallets, units: r.units })),
+        ...(material ? { locations: locationsOf(project, material).slice(0, 300) } : {}),
+      });
+    },
+  },
+  {
+    name: 'assign_stock',
+    description: 'Put materials into rack locations or empty them (material_id null), as one revision. Locations look like "W01-B02-L03-P01".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        changes: { type: 'array', minItems: 1, maxItems: 500, items: { type: 'object', properties: { location: { type: 'string' }, material_id: { type: ['string', 'null'] } }, required: ['location', 'material_id'], additionalProperties: false } },
+      },
+      required: ['project_id', 'changes'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const changes = list(input, 'changes').map((c) => {
+        const location = str(c, 'location');
+        if (!/^.+-B\d+-L\d+-P\d+$/.test(location)) throw new ToolError(`Location "${location}" should look like W01-B02-L03-P01.`);
+        const material = c.material_id === null ? null : str(c, 'material_id');
+        return { ...parseSlot(location), material };
+      });
+      const result = stockCommands(project, changes);
+      if (!result.ok) throw new ToolError(`Cannot store that (${result.problem.replace(/-/g, ' ')})${result.slot ? ` at rack ${result.slot.rackId} bay ${result.slot.bay} level ${result.slot.level} position ${result.slot.position}` : ''}.`);
+      const updated = commit(ctx, project, result.commands, `Updated ${changes.length} stock location${changes.length === 1 ? '' : 's'}`);
+      return `Updated ${changes.length} location(s), revision ${updated.revision}.`;
+    },
+  },
+  {
+    name: 'optimize_slotting',
+    description: 'Propose re-slotting the stock on hand so the busiest materials sit nearest the shipping dock and lowest; reports weekly forklift travel before and after. Set apply true to make it one revision.',
+    inputSchema: { type: 'object', properties: { project_id: projectId, dock_id: { type: 'string' }, apply: { type: 'boolean' } }, required: ['project_id'], additionalProperties: false },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      if (detectPack(project) !== 'warehouse') throw new ToolError('This project is not a warehouse.');
+      const dock = str(input, 'dock_id', true);
+      const candidate = optimizeSlotting(project, dock ? { dockId: dock } : {});
+      const facts = JSON.stringify({ ...candidate.metrics, explanation: candidate.explanation, leftOver: candidate.leftOver.length });
+      if (input.apply !== true || candidate.commands.length === 0) return facts;
+      need(ctx, 'project.edit.items');
+      const updated = commit(ctx, project, [...candidate.commands], `Re-slotted stock (${candidate.metrics.saving ?? 0}% less forklift travel)`);
+      return `Applied, revision ${updated.revision}. ${facts}`;
     },
   },
   {
@@ -497,16 +565,18 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'bay_entry_check',
-    description: 'Check whether a vehicle can drive a minimum-turning-radius path from the nearest lane into a named parking bay without its swept body leaving the floor or touching a wall, column, other vehicle or no-go zone. Optionally name a vehicle type id from the catalog (default: sedan).',
+    description: 'Check whether a vehicle can drive a minimum-turning-radius path from the nearest lane into a named parking bay (depot or site plan) without its swept body leaving the floor or touching a wall, column, other vehicle, building, tree or no-go zone. Optionally name a vehicle type id from the catalog (default: a 12 m coach for bus bays, a sedan otherwise).',
     inputSchema: { type: 'object', properties: { project_id: projectId, bay_id: { type: 'string' }, vehicle_type: { type: 'string' } }, required: ['project_id', 'bay_id'], additionalProperties: false },
     run: (ctx, input) => {
       const project = load(ctx, input);
-      if (detectPack(project) !== 'depot') throw new ToolError('This project is not a vehicle depot.');
+      if (detectPack(project) !== 'depot' && detectPack(project) !== 'site') throw new ToolError('This project is not a vehicle depot or site plan.');
       const vehicleType = str(input, 'vehicle_type', true);
-      const profile = vehicleType ? vehicleProfileOf(project.catalog[vehicleType]) : DEFAULT_VEHICLE;
-      if (!profile) throw new ToolError('Unknown vehicle type.');
-      const result = bayEntry(project, str(input, 'bay_id'), profile);
-      return result.clear ? `Clear: ${profile.name} can enter ${result.bayId}.` : `Not clear: ${result.reason}.`;
+      const profile = vehicleType ? vehicleProfileOf(project.catalog[vehicleType]) : undefined;
+      if (vehicleType && !profile) throw new ToolError('Unknown vehicle type.');
+      const bayId = str(input, 'bay_id');
+      const result = bayEntry(project, bayId, profile);
+      const name = (profile ?? referenceVehicleFor(project.space.zones?.find((z) => z.id === bayId))).name;
+      return result.clear ? `Clear: ${name} can enter ${result.bayId}.` : `Not clear: ${result.reason}.`;
     },
   },
   {
@@ -787,6 +857,52 @@ export const TOOLS: readonly ToolDef[] = [
     },
   },
   {
+    name: 'plan_shipment',
+    description:
+      'Work out how many containers a production run needs and load them: give the parts (sizes in millimetres as listed, L × W × H, and quantities) and a container type. Creates one loaded container project per container, grouped as one shipment (the editor shows them side by side with load playback). Parts are loaded wall by wall from the front wall to the doors; may_tilt (default true) lets a part lie on its side. Pieces are laid flat and stacked as high as the container roof allows unless max_layers, max_load_on_top_kg (with mass_kg) or stackable says otherwise: state a limit for anything fragile or heavy. The explanation returned with the plan says when pieces were stacked high with no limit stated.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Shipment name, e.g. "Cushions 05/Oct".' },
+        container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'Default 40hc.' },
+        parts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              length_mm: { type: 'number' },
+              width_mm: { type: 'number' },
+              height_mm: { type: 'number' },
+              quantity: { type: 'number' },
+              mass_kg: { type: 'number', description: 'Per piece, if known.' },
+              may_tilt: { type: 'boolean' },
+              model: { type: 'string', description: 'The TV model this part belongs to. Parts of one model are loaded as complete sets (e.g. 2 sides + 1 top + 1 bottom): each container gets as many full sets as fit.' },
+              max_layers: { type: 'integer', description: 'Most pieces that may stand on each other, the bottom one included. Unstated = up to the container roof (state it for fragile or heavy parts).' },
+              max_load_on_top_kg: { type: 'number', description: 'Weight one piece may carry; with mass_kg it sets how many may stand on it.' },
+              stackable: { type: 'boolean', description: 'false = nothing on top: one layer on the floor.' },
+            },
+            required: ['name', 'length_mm', 'width_mm', 'height_mm', 'quantity'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['name', 'parts'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      let created;
+      try {
+        created = createShipment(ctx.store, readShipmentInput(input), ctx.actor, ctx.companyId);
+      } catch (error) {
+        if (error instanceof ShipmentInputError) throw new ToolError(error.message);
+        throw error;
+      }
+      const lines = created.containers.map((c) => `- ${c.id} ${c.name}: ${Object.entries(c.pieces).map(([id, n]) => `${n} × ${id}`).join(', ')}`);
+      return `${created.explanation}\nShipment ${created.shipment}:\n${lines.join('\n')}${created.tooBig.length ? `\nToo big for this container: ${created.tooBig.join(', ')}.` : ''}`;
+    },
+  },
+  {
     name: 'move_items',
     description: 'Move, rotate and/or raise existing items (one revision). Give only the fields to change; height_m is the underside above the floor (0 = on the floor).',
     inputSchema: {
@@ -903,16 +1019,21 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'restore_revision',
-    description: 'Bring back an earlier revision as a new revision (nothing is erased).',
+    description:
+      'Bring back an earlier revision as a new revision (nothing is erased). Pass base_revision (the revision you last read) so the restore is refused if someone changed the project since.',
     inputSchema: {
       type: 'object',
-      properties: { project_id: projectId, revision: { type: 'integer' } },
+      properties: { project_id: projectId, revision: { type: 'integer' }, base_revision: { type: 'integer' } },
       required: ['project_id', 'revision'],
       additionalProperties: false,
     },
     run: (ctx, input) => {
       const project = load(ctx, input);
-      const result = ctx.store.restore(project.id, Math.round(num(input, 'revision')), ctx.actor);
+      const base = num(input, 'base_revision', true);
+      const result = ctx.store.restore(project.id, Math.round(num(input, 'revision')), ctx.actor, base === undefined ? undefined : Math.round(base));
+      if (!result.ok && result.status === 409) {
+        throw new ToolError(`The project changed since revision ${String(base)}; it is now at revision ${result.project.revision}. Read it again (get_project) before restoring.`);
+      }
       if (!result.ok) throw new ToolError('no such revision');
       return afterChange(result.project, `Restored revision ${String(input.revision)}.`);
     },

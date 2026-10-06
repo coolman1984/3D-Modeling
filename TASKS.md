@@ -1,6 +1,6 @@
 # TASKS
 
-## Now: T11 — shared accounts, companies, collaboration (plan §7, decision 0015)
+## Now: T11 — shared accounts, companies, collaboration (plan §7, decision 0026)
 
 **Finish line:** one Atrium server hosts several companies whose projects, people, events, links
 and logs are isolated from each other; people sign in, work in the role their membership gives
@@ -10,7 +10,7 @@ company audit log; the first launch sets up the first company and keeps existing
 realistic demo companies show all of it; cross-tenant tests, browser journeys and `pnpm check`
 pass.
 
-- [ ] Plan: scope in plan §7, decision 0015
+- [ ] Plan: scope in plan §7, decision 0026
 - [ ] Server: schema (companies, users, memberships, sessions, invitations, api_keys, share_links,
       approvals, audit_events + triggers), projects.company_id migration, scrypt passwords
 - [ ] Server: session/key authentication on every route, permissions per route and per tool,
@@ -25,6 +25,173 @@ pass.
       read-only and operator modes
 - [ ] Demo: six companies seeded with people, projects in every pack, history, approvals, links
 - [ ] Browser journeys (auth setup for all, a multi-company journey), `pnpm check`, docs, README
+
+## Now: review fixes (2 Oct 2026, decision 0025)
+
+**Finish line:** tiny inputs cannot freeze planning; incomplete shipments cannot be saved; owner roof default stays consistent; isolated demo uses fixed port and Chrome helper; checks pass without touching owner data.
+
+- [x] Bound dimensions, face candidates and gaps; tiny cargo regression.
+- [x] Reject partial shipments before storage; HTTP and agent regressions.
+- [x] Isolated demo launcher, fixed port environment, Chrome helper.
+- [x] Typechecks, unit tests, production builds and planted raw-dimension bug verification.
+- [x] Unique online SQLite backup with read-only rehearsal and restore documentation.
+- [x] Backup revision identity regression; restore comparison for every revision, settings and agent log; Windows account-bound key scope documented.
+- [x] Chrome browser verification: oversized cargo names the refusal and disables creation; valid synthetic cargo creates a saved 3D container in an isolated fixture.
+
+Verification: all five package typechecks and fresh server/editor production builds pass.
+472 package unit tests and 2 documentation tests pass (173 core, 16 industry, 158 starter, 59 editor, 66 server). The server
+suite passed alone after one fake-agent five-second timeout under concurrent build/test load;
+no timeout or assertion was relaxed. Browser checks remain separate.
+
+
+## Now: shipments lie flat and stack (1 Oct 2026, decision 0024)
+
+Owner: the loader stood cushions on their long side to fill the height; they must lie flat and be stacked on each
+other so nothing falls or breaks; height is not the priority (cushions are light).
+
+**Finish line (done means):** a part that may be turned lies on its largest face; it stands on its longest side only
+when nothing else fits; stated stack limits (layers, load on top with mass, not stackable) hold in walls and in gaps;
+no piece bridges two others when weight is known; hand-computed tests and planted bugs; server, agent tool and form
+accept the limit; `pnpm check` green.
+
+- [x] Loader: lie flat, stated limits, no bridging under weight (`packages/starter/src/shipment.ts`)
+- [x] Tests: TV55B 1 080 per 40′ HC flat (hand-computed), on-end only when forced, limits in walls and gaps, property test with limits and masses; three planted bugs caught
+- [x] Server input, agent tool `plan_shipment`, form column "Layers"
+- [ ] `pnpm check` green, commit, push
+
+## Done: S1 — shipments: how many containers, side by side, with load playback (29 Sep 2026)
+
+Request (TV cushions, production plan 04/Oct and 05/Oct): "how many containers do we need",
+shown in the program side by side, with every existing container detail and the stuffing playback.
+
+**Finish line (done means):** from the projects page a person enters parts (name, L × W × H mm,
+quantity, may lie on its side, optional mass) and a container type; the program works out how many
+containers the parts need and creates one normal container project per container, loaded, with
+loading steps, grouped as one shipment. A shipment page shows every container of the shipment side
+by side in 3D with one play button for the stuffing, per-container figures, and a way to open each
+container in the full editor (details, colours, cut-away, playback and report as today). The cushion
+request is reproducible (hand-computed: 1 260 × TV55B or 4 920 × TV32C per 40′ HC).
+Old saves still open; `pnpm check` passes; decision record; README; committed (push only after the
+owner says yes).
+
+- [x] 1 Starter: `planShipment` — wall-by-wall loader for large runs of identical parts, split over as many containers as needed; reference numbers + property tests (every container passes the container rules, every piece placed once)
+- [x] 2 Server: `POST /api/shipments` + agent tool `plan_shipment`; projects of one shipment share a collection
+- [x] 3 Editor: "New shipment" form on the projects page; shipment group in the project list
+- [x] 4 Editor: shipment page — containers side by side in 3D, one play button, figures per container, open in editor
+- [x] 5 Browser journey test; decision 0021; README; `pnpm check`; commit
+- [x] 6 Create the two cushion shipments (04/Oct, 05/Oct) in the owner's local app (04/Oct: 5 × 40′ HC, last 51% full; 05/Oct: 4 × 40′ HC, last 14% full; data folder backed up first)
+
+- [x] 7 Six-day plan (04-09/Oct, TV77A from 07/Oct, parts in bags): the paste reader kept empty cells in place and the form picks the day; shipments 06-09/Oct created in the local app (3, 6, 3, 3 containers)
+- [x] 8 Push to GitHub (owner asked: merge and sync with main; origin/main had nothing new, fast-forward)
+
+Found along the way (S1):
+- The extreme-point packer takes about 12 s for 1 260 identical pieces (pieces × corner points); thousands of cartons need the wall loader.
+- Parts of the same size listed separately (cushion top and bottom) left half-empty walls mid-container; they now share walls.
+- Load playback rebuilt the whole 3D scene every step, and the container panels re-measured every piece every render: about 1 s per step on a 2 440-piece container (CDP profile). Playback now hides instances and the figures are cached (0.2-0.4 s blocked per 8 s).
+- The shipment page first ran the full checks on every container before showing anything (5.6 s for 5 containers); checks now run one container at a time after the page appears.
+- Container projects with thousands of pieces also slow the project list's thumbnails and checks (not changed).
+- Push to GitHub waits for the owner's yes.
+
+## Now: B1 — fix the six findings in `bugs.md` (source review, 27 Sep 2026)
+
+**Finish line:** each finding has a regression test that fails before its fix and passes after;
+old saves still open (no schema change); `pnpm check` passes; decision 0020 records the
+behaviour changes; README/TASKS/bugs.md updated; committed and pushed to `main`.
+
+- [x] 1 High: reserved ids (`constructor`, `toString`, `__proto__`…) — own-property lookups in core `apply`; store validates the result before committing
+- [x] 2 High: restore needs `baseRevision`; 409 with the latest project on mismatch; editor shows it and blocks restore while edits are unsaved
+- [x] 3 Medium: offline edits retry on reconnect and on a backoff timer; warn before leaving with unsaved edits
+- [x] 4 Medium: settings validated at the HTTP boundary (400); bad stored agents ignored on load; a failed agent start always finishes its run
+- [x] 5 Medium: deleting a project stops every active run of that project (runner tracks project ids)
+- [x] 6 Low: history `limit` parsed and clamped to 1..500 (400 when invalid), also in `Store.history`
+- [x] Decision 0020, README, bugs.md status, `pnpm check` (392 unit tests, 22 browser journeys), commit, push
+
+Found along the way (B1):
+- Killed agent processes that finish after `Store.close()` threw "database is not open"; the store now ignores late run updates once closed.
+- A speed test (`warehouse.test.ts`, 100 rack rows, limit 2 s) took 2.3 s once while the machine was busy; alone it takes about 0.56 s. The limit was left as it is.
+
+## Now: D2 — Horizon Electronics (invented) sample + 3D engine v2
+
+**Next agent: follow `docs/plans/handoff-d2-closeout.md` step by step, then stop.**
+
+**Finish line:** the projects page offers two sample companies, each listed as its own group:
+(1) Nile Gate Logistics (containers + storage, existing) and (2) Horizon Electronics (an invented
+electronics maker). The set holds an illustrative campus master plan
+(336,000 m² per public figures, buildings, gates, roads, staff bus and car parking, trees), the
+TV & monitor assembly hall, the mobile & tablet plant (~9,000 m², SMT lines), the finished-goods
+warehouse stocked with TVs/monitors/phones, an HR department floor (offices, interview
+rooms, records, onboarding room), a meeting & training centre, a town-hall events hall, the staff
+canteen and break areas, and an export container of TVs. The layout is labelled as illustrative
+(no public floor plans; public facts cited in decision 0016). The 3D view makes a visible quality
+jump for both samples: procedural PBR textures (concrete/epoxy/asphalt/grass/carpet/tile/cladding/
+glass), sky and sun outdoors, ambient occlusion when the camera rests, better models (buses, cars,
+trees, buildings, partitions, office chairs, desks with screens, SMT machines, conveyors) — and is
+faster (render on demand, static shadows, shared materials). Everything goes through core commands
+and the store; no core change; `pnpm check` passes; browser-checked with screenshots.
+
+- [x] Starter: `site` pack (campus: buildings, trees, gates, buses, cars; building + parking rules with sources)
+- [x] Starter: bus bays; bay entry treats every non-vehicle item as an obstacle and prefilters by path box (speed)
+- [x] Starter: office partitions / glass walls / screens / lockers / vending in catalogs; new shapes list
+- [x] Starter: Horizon sample set (10 projects) + tests
+- [x] Server: project collections (stored group), `POST /api/samples/:id`, test
+- [x] Editor: two sample companies, projects grouped by collection
+- [x] Editor 3D v2: texture library, material cache, sky/sun/fog, idle AO, render on demand, static shadows
+- [x] Editor 3D v2: new models (bus, car, tree, building, wall, glass wall, machine, conveyor, workbench, locker, screen, vending) and upgraded old ones
+- [x] Editor 2D: plan drawing for the new shapes
+- [x] Resumed after the interruption: reviewed every uncommitted file; typecheck and 345 unit tests green
+- [x] Decision 0016 (public facts re-checked with sources), agents.md site-plan section
+- [x] Docs system (decision 0017): generated STATUS / CHANGELOG / index, work log, checkpoints, `docs/process/interruptions.md`
+- [x] e2e: Horizon sample journey in `sample.spec.ts`
+- [x] Browser suite: 17/19 first run; `office.spec.ts` count was stale (5 fit-out items added to the office catalog: 20→25, 45→50), fixed, not yet re-run
+- [x] Graphics levels Fast / Balanced (default) / High, toolbar button, auto step-down on slow frames (decision 0018); owner reported lag on their laptop
+- [x] `controls.spec.ts` 3D drag journey no longer times out (29 s, was over 45 s); `office`, `sample`, `controls` journeys pass
+- [x] Container view tools: "Stop" said nothing on single-drop loads; now Cargo type / Delivery drop (only when drops exist) / Weight / Load order, each with a one-line meaning; report and inspector labels match
+- [x] Arrow keys: the 1 cm default step was invisible at normal zoom; Auto step follows the zoom (status bar shows it); with nothing selected arrows pan the plan and turn the 3D camera; the "Cut away side wall" tick box no longer switches the arrows off (planted bug caught)
+- [x] Design: `DESIGN.md` (Paradigm look, decision 0019) applied to all screens: tokens, dark top bars, dark hero band, square buttons, electric blue, pastel status colours; create-dialog activity cards no longer overlap
+- [x] Undid the accidental commit `3b54ab0` (author "t", made by a mis-aimed test command): `git reset --mixed b292f17`, removed the stray local git identity and my scratch `a.txt`; no file changed
+- [x] Full check green (handoff run): typecheck, 355 unit tests (core 148, industry 16, starter 112, editor 47, server 30, scripts 2), all 20 browser journeys; planted bugs caught (graphics slow-frame check, tick-box arrow focus); every screen reviewed in a browser against `DESIGN.md`
+- [x] README status rows; commit, push (this commit)
+
+Found along the way (handoff):
+- The Monitor tool runs Git Bash and cannot see Windows processes; wait for a Windows process with `Wait-Process` in a background PowerShell command instead.
+- A mid-fade screenshot of the sample menu looked see-through; after the 0.14 s fade it is opaque and sits above the list.
+
+Found along the way (D2):
+- The session was interrupted with three checklist items unticked that were in fact written; nothing recorded where it stood. Decision 0017 adds checkpoints and a generated status page.
+- Build output left by the interrupted (sandboxed) session belonged to another Windows identity and could not be deleted, which silently stopped the browser suite; moved aside to `apps/editor/node_modules/.stale-dist-20260926` (safe to delete as administrator).
+- Two starter tests (container property test, sample determinism) hit the 5 s default only under full-suite load (1–2 s alone); they now have a 20 s budget. Neither asserts speed.
+- The sample's header figures were replaced by an invented company (2026-09-30).
+- Bay entry stopped the vehicle with its rear reference point on the bay centre, so the nose poked 1.1 m (car) / 3 m (coach) past the bay; back-to-back rows always looked blocked. It now stops with the body centred, as parked items stand, and swings wide when the lane is narrower than a turning radius.
+- Production and depot "floor area" was 100× too small (30 × 8 m showed 2.4 m²); now computed like the warehouse and restaurant.
+- The nearest lane to a bay can belong to a different car park; the transport yard keeps its car park 20 m clear of the bus lane.
+
+## Done: D1 — client demo: "Nile Gate Logistics" sample company + material slotting + visual polish
+
+**Finish line (1–2 day deadline):** from the projects page, one click adds a realistic fictional
+Egyptian logistics company (Nile Gate Logistics): an electronics distribution centre in 10th of
+Ramadan stocked with TVs and appliances, a port warehouse, loaded inbound containers
+(TV cartons upright, palletised appliances), a multi-stop outbound trailer, an empty container to
+pack live, and a truck yard. In a warehouse a person can see which material sits in which rack
+location (3D pallets coloured by material), assign / move / clear material per location, find a
+material, and run a deterministic slotting optimiser that cuts forklift travel (before/after shown).
+The 3D view looks like a real site (industrial racking colours, pallets, printed TV cartons,
+corrugated container shell, better lighting) while staying fast at 100+ racks. Everything goes
+through core commands and the store; `pnpm check` passes; browser-checked with screenshots.
+
+- [x] Starter: stock slotting module (encoding in rack `meta`, locations, metrics, optimiser) + tests
+- [x] Starter: Nile Gate sample company (warehouses, containers, trailer, yard) + tests
+- [x] Server: `POST /api/samples/nile-gate` creates the sample projects through the store; test
+- [x] Editor: "Add sample company" on the projects page
+- [x] Editor: stock panel (occupancy, materials, find, optimise) + rack location grid in the inspector
+- [x] Editor 3D: stock pallets per location (instanced), racking colours, lighting, TV carton print, container shell, forklifts, dock plates, floor lines
+- [x] Agent tools: `warehouse_stock`, `assign_stock`, `optimize_slotting`
+- [x] Decision record 0015, README, agents.md; planted bug caught; browser review with screenshots; `sample.spec.ts`
+- [x] Full `pnpm check` (typecheck, 314 unit tests, 18 browser journeys); commit on a branch and push
+
+Found along the way (D1):
+- The 20′ phone sample was 12.4% front-heavy on the first build (balance limit 10%); fixed the sample load.
+- Stock in a blocked location is allowed and not yet reported by any rule.
+- Playwright's own Chromium was not installed on this machine; installed it for the browser suite.
 
 ## Done: T5 — shared industrial foundation (plan: `docs/03-industrial-packs-plan.md`)
 

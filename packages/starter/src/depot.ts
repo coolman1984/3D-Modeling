@@ -1,4 +1,4 @@
-import { boundsOf, containsPolygon, createProject, fromUnit, itemPolygon, polygonsOverlap, roomSpace, rotate, type ItemDefinition, type ItemInstance, type Polygon, type Project, type Vec2, type Zone } from '@space-planner/core';
+import { area, boundsOf, containsPolygon, createProject, fromUnit, itemPolygon, polygonsOverlap, roomSpace, rotate, type ItemDefinition, type ItemInstance, type Polygon, type Project, type Vec2, type Zone, toSquareMetres } from '@space-planner/core';
 import { dubinsPath, sampleDubinsPath, vehicleCorners, type Pose } from '@space-planner/industry';
 import type { RuleResult } from './rules.js';
 
@@ -15,8 +15,8 @@ const none = { front: 0, back: 0, left: 0, right: 0 };
  */
 export const DEPOT_ZONE_KINDS = ['bay', 'lane-one-way', 'lane-two-way', 'no-go'] as const;
 
-export type BayType = 'perpendicular' | 'angled' | 'parallel' | 'maintenance' | 'wash' | 'charge';
-export const BAY_TYPES: readonly BayType[] = ['perpendicular', 'angled', 'parallel', 'maintenance', 'wash', 'charge'];
+export type BayType = 'perpendicular' | 'angled' | 'parallel' | 'maintenance' | 'wash' | 'charge' | 'bus';
+export const BAY_TYPES: readonly BayType[] = ['perpendicular', 'angled', 'parallel', 'maintenance', 'wash', 'charge', 'bus'];
 
 const BAY_SIZE: Readonly<Record<BayType, { readonly w: number; readonly d: number }>> = {
   perpendicular: { w: cm(250), d: cm(500) },
@@ -25,6 +25,7 @@ const BAY_SIZE: Readonly<Record<BayType, { readonly w: number; readonly d: numbe
   maintenance: { w: cm(350), d: cm(700) },
   wash: { w: cm(350), d: cm(800) },
   charge: { w: cm(250), d: cm(500) },
+  bus: { w: cm(400), d: cm(1400) },
 };
 
 /** A bay's marked rectangle: `direction` (degrees) is the way a nose-in parked vehicle's front points. */
@@ -41,7 +42,7 @@ export function bayZone(id: string, center: Vec2, type: BayType, directionDeg: n
 export function bayTypeOf(zone: Zone | undefined): BayType | undefined {
   if (zone?.kind !== 'bay') return undefined;
   const type = zone.meta?.bayType;
-  return type === 'perpendicular' || type === 'angled' || type === 'parallel' || type === 'maintenance' || type === 'wash' || type === 'charge' ? type : undefined;
+  return type === 'perpendicular' || type === 'angled' || type === 'parallel' || type === 'maintenance' || type === 'wash' || type === 'charge' || type === 'bus' ? type : undefined;
 }
 
 function bayCenter(zone: Zone): Vec2 {
@@ -78,7 +79,7 @@ export interface VehicleProfile {
 }
 
 export function vehicleProfileOf(definition: ItemDefinition | undefined): VehicleProfile | undefined {
-  if (definition?.category !== 'car' || definition.meta?.kind !== 'vehicle') return undefined;
+  if ((definition?.category !== 'car' && definition?.category !== 'bus') || definition.meta?.kind !== 'vehicle') return undefined;
   const radius = definition.meta?.minTurningRadius;
   const overhang = definition.meta?.rearOverhang;
   if (typeof radius !== 'number' || typeof overhang !== 'number' || radius <= 0 || overhang < 0) return undefined;
@@ -92,6 +93,14 @@ export function vehicleProfileOf(definition: ItemDefinition | undefined): Vehicl
  * answer, the way `DEFAULT_FORKLIFT` gives the warehouse pack one answer for aisle checks.
  */
 export const DEFAULT_VEHICLE: VehicleProfile = vehicleProfileOf(VEHICLE_CATALOG[0]!)!;
+
+/** The reference vehicle for bus bays: a 12 m staff coach turning on an 11 m radius (typical published values, rounded). */
+export const DEFAULT_BUS: VehicleProfile = { name: 'Staff coach 12 m', length: cm(1200), width: cm(255), rearOverhang: cm(300), minTurningRadius: cm(1100) };
+
+/** The vehicle a bay is checked with when none is named: a coach for bus bays, the sedan otherwise. */
+export function referenceVehicleFor(bay: Zone | undefined): VehicleProfile {
+  return bayTypeOf(bay) === 'bus' ? DEFAULT_BUS : DEFAULT_VEHICLE;
+}
 
 export const isVehicleDepot = (project: Project): boolean => project.space.meta?.pack === 'depot';
 
@@ -174,33 +183,60 @@ export interface BayEntryResult {
   readonly path: readonly Vec2[];
 }
 
-/** Whether `vehicle` can drive from the nearest lane into `bayId` without its swept body leaving the room or touching an obstacle, a column, another vehicle or a no-go zone — sampled every 20 cm along the Dubins path. */
-export function bayEntry(project: Project, bayId: string, vehicle: VehicleProfile = DEFAULT_VEHICLE): BayEntryResult {
+/**
+ * Whether `vehicle` can drive from the nearest lane into `bayId` without its swept body leaving the
+ * room or touching a column, another vehicle, any other placed item (a building, a tree, a shade
+ * post) or a no-go zone — sampled every 20 cm along the Dubins path. Only obstacles whose box meets
+ * the path's box are tested, so a campus with hundreds of bays stays fast.
+ */
+export function bayEntry(project: Project, bayId: string, vehicle?: VehicleProfile): BayEntryResult {
   const bay = (project.space.zones ?? []).find((z) => z.id === bayId && bayTypeOf(z));
   if (!bay) return { bayId, clear: false, reason: 'no-bay', path: [] };
   if (occupantOf(project, bay)) return { bayId, clear: false, reason: 'occupied', path: [] };
+  const profile = vehicle ?? referenceVehicleFor(bay);
   const centre = bayCenter(bay);
-  const start = laneApproach(project, centre, vehicle);
-  if (!start) return { bayId, clear: false, reason: 'no-lane', path: [] };
-  const goal = bayPose(bay);
-  const path = dubinsPath(start, goal, vehicle.minTurningRadius);
+  const approach = laneApproach(project, centre, profile);
+  if (!approach) return { bayId, clear: false, reason: 'no-lane', path: [] };
+  const ahead = profile.length - profile.rearOverhang;
+  // The path's pose is the rear reference point; stop where the body is centred in the bay, the
+  // same place a parked vehicle item stands, so a car never noses into the bay across the row.
+  const centred = bayPose(bay);
+  const back = (ahead - profile.rearOverhang) / 2;
+  const goal: Pose = { x: centred.x - Math.cos(centred.heading) * back, y: centred.y - Math.sin(centred.heading) * back, heading: centred.heading };
+  // Swing wide when the bay is closer to the lane line than one turning radius, as a driver does;
+  // otherwise the shortest curve is a full loop. The swept-body test below still judges the room.
+  const side = { x: -Math.sin(approach.heading), y: Math.cos(approach.heading) };
+  const lateral = (goal.x - approach.x) * side.x + (goal.y - approach.y) * side.y;
+  const shift = Math.max(0, profile.minTurningRadius - Math.abs(lateral)) * (lateral < 0 ? 1 : -1);
+  const start: Pose = { x: approach.x + side.x * shift, y: approach.y + side.y * shift, heading: approach.heading };
+  const path = dubinsPath(start, goal, profile.minTurningRadius);
   if (!path) return { bayId, clear: false, reason: 'no-path', path: [] };
-  const ahead = vehicle.length - vehicle.rearOverhang;
-  const halfWidth = vehicle.width / 2;
+  const halfWidth = profile.width / 2;
   const samples = sampleDubinsPath(start, path, cm(20));
+  const reach = Math.max(ahead, profile.rearOverhang, halfWidth);
+  const sweep = boundsOf(samples);
+  const near = (polygon: Polygon) => {
+    const b = boundsOf(polygon);
+    return b.minX < sweep.maxX + reach && sweep.minX - reach < b.maxX && b.minY < sweep.maxY + reach && sweep.minY - reach < b.maxY;
+  };
   const columns = project.space.obstacles.map((o) => o.polygon);
   const noGo = (project.space.zones ?? []).filter((z) => z.kind === 'no-go').map((z) => z.polygon);
-  const otherVehicles = Object.values(project.items)
-    .filter((i) => vehicleProfileOf(project.catalog[i.definitionId]))
+  const placed = Object.values(project.items)
+    .filter((i) => project.catalog[i.definitionId] && !(i.elevation ?? 0) && !isFloorMarking(project.catalog[i.definitionId]!))
     .map((i) => itemPolygon(i, project.catalog[i.definitionId]!));
-  const obstacles: Polygon[] = [...columns, ...noGo, ...otherVehicles];
+  const obstacles: Polygon[] = [...columns, ...noGo, ...placed].filter(near);
   for (const pose of samples) {
-    const corners = vehicleCorners(pose, ahead, vehicle.rearOverhang, halfWidth) as unknown as Polygon;
+    const corners = vehicleCorners(pose, ahead, profile.rearOverhang, halfWidth) as unknown as Polygon;
     if (!containsPolygon(project.space.boundary, corners) || obstacles.some((o) => polygonsOverlap(corners, o))) {
       return { bayId, clear: false, reason: 'blocked', path: samples };
     }
   }
   return { bayId, clear: true, path: samples };
+}
+
+/** Items a vehicle drives over rather than into (floor paint, mats): 5 cm high or less. Raised items (a parking shade roof) are skipped by the caller. */
+function isFloorMarking(definition: ItemDefinition): boolean {
+  return definition.size.h <= cm(5);
 }
 
 export interface DepotMetrics {
@@ -215,12 +251,11 @@ export interface DepotMetrics {
 export function depotMetrics(project: Project): DepotMetrics {
   const bays = (project.space.zones ?? []).filter((z) => bayTypeOf(z));
   const vehicles = Object.values(project.items).filter((i) => vehicleProfileOf(project.catalog[i.definitionId]));
-  const bayTypes = { perpendicular: 0, angled: 0, parallel: 0, maintenance: 0, wash: 0, charge: 0 } as Record<BayType, number>;
+  const bayTypes = { perpendicular: 0, angled: 0, parallel: 0, maintenance: 0, wash: 0, charge: 0, bus: 0 } as Record<BayType, number>;
   for (const bay of bays) bayTypes[bayTypeOf(bay)!]++;
   const occupied = bays.filter((bay) => occupantOf(project, bay));
   const usable = bays.filter((bay) => !occupantOf(project, bay) && bayEntry(project, bay.id).clear);
-  const boundary = boundsOf(project.space.boundary);
-  const floorArea = ((boundary.maxX - boundary.minX) / 100_000) * ((boundary.maxY - boundary.minY) / 100_000);
+  const floorArea = toSquareMetres(Math.abs(area(project.space.boundary)));
   return { bays: bays.length, bayTypes, occupiedBays: occupied.length, usableBays: usable.length, vehicles: vehicles.length, floorArea };
 }
 

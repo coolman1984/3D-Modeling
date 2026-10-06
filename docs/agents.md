@@ -13,6 +13,7 @@ the planner tools.
 | `add_warehouse_rack` | One parametric rack row through one revision; centre in metres, bays, levels and positions |
 | `add_warehouse_zone` | Named polygon (3–32 metre-coordinate vertices) through one revision |
 | `warehouse_metrics` | Storage positions, usable positions, rack/zone areas and docks |
+| `warehouse_stock` / `assign_stock` / `optimize_slotting` | What each rack location holds; fill or empty locations; re-slot stock to cut forklift travel |
 | `find_warehouse_route` | Dock to rack, mover body width and side clearance, reachability and sampled distance |
 | `production_metrics` | Station/machine/buffer counts, buffer capacity, flow length and segment reachability |
 | `add_depot_bay` | One parking bay zone through one revision; centre in metres, bay type and facing direction |
@@ -84,6 +85,12 @@ x from the front wall to the doors at the east end; the roof is the ceiling.
 4. `get_project` / `check_project` report payload, support (70% of the base), load on top,
    orientation, stacking groups, unloading order (last in, first out), balance and unplaced pieces,
    each with the source of its threshold.
+5. `plan_shipment` answers "how many containers": give the parts (`length_mm`, `width_mm`,
+   `height_mm` as listed, `quantity`, optional `mass_kg`, `may_tilt`, default true) and a
+   `container_type` (default `40hc`). It creates one loaded container project per container, grouped
+   as one shipment, and returns the pieces in each. Parts are loaded wall by wall from the front wall
+   to the doors; parts of the same size share walls. The editor shows the shipment side by side at
+   `#/s/<shipment id>`.
 
 ## Warehouse planning
 
@@ -94,6 +101,24 @@ level / position addresses such as `R01-B03-L02-P01` are derived. `add_warehouse
 create an arbitrary simple polygon with a warehouse-owned kind (`receiving`, `staging`, `no-go`,
 `pedestrian`, `main-aisle`, etc.). `check_project` reports rule provenance. Distances use a
 20 cm grid without vehicle-turning simulation; they are planning estimates, not site approval.
+
+Stock: a material is an item type holding one loaded pallet (`meta.sku`). `warehouse_stock` reads
+occupancy and pallets per material (give `material_id` for its locations); `assign_stock` fills or
+empties locations such as `W01-B02-L03-P01` (level 1 is the floor) in one revision;
+`optimize_slotting` proposes moving the busiest pallets nearest the shipping dock and reports
+weekly forklift travel before and after (`apply: true` makes it one revision). The sample
+companies (projects page, "Add sample company": Nile Gate Logistics or Horizon Electronics)
+have fully stocked warehouses to try this on.
+
+## Site plans (whole campuses)
+
+A site plan (pack `site`, from the Horizon sample) is a plot seen from above. A building is one
+item (`category: "building"`, `meta.use`, `meta.storeys`) with its outer size; what happens inside
+is its own project. Roads, lawns, plazas and yards are zones; staff parking uses the depot's bays
+and lanes, so `add_depot_bay`, `add_depot_zone` and `bay_entry_check` work here too (a bus bay
+defaults to a 12 m coach, other bays to a sedan). `get_project` reports plot area, built area and
+coverage, green area and bays; `check_project` adds `building-boundary` (every building inside the
+plot and off the roads) to the depot's bay rules.
 
 ## Production line planning
 

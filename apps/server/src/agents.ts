@@ -17,6 +17,12 @@ export interface AgentRunnerOptions {
   readonly url: () => string;
 }
 
+/** The company a run works in and the person who started it (named on the run's key). */
+export interface RunAccess {
+  readonly companyId: string;
+  readonly startedBy: string;
+}
+
 export interface AgentAvailability {
   readonly id: string;
   readonly label: string;
@@ -54,13 +60,16 @@ function quoteForCmd(arg: string): string {
  * change goes through the same tools and lands in the history under the agent's name.
  */
 export class AgentRunner {
-  private readonly active = new Map<string, { stop: () => void }>();
+  /** Runs in progress, with the project each belongs to, so deleting a project can stop them all. */
+  private readonly active = new Map<string, { projectId: string; stop: () => void }>();
+  private readonly timeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private readonly options: AgentRunnerOptions) {}
 
   availability(): AgentAvailability[] {
     const settings = loadSettings(this.options.store);
     const cli = Object.entries(settings.agents).map(([id, agent]) => {
+      // loadSettings keeps only agents with a command, so this cannot throw on a broken entry.
       const program = agent.command[0] ?? '';
       const found = findProgram(program);
       return {
@@ -90,23 +99,41 @@ export class AgentRunner {
   }
 
   /**
+   * Start a run. The run is recorded first; from then on every way out, including an unexpected
+   * error, finishes that record, so no run stays "running" with nothing behind it (bugs.md finding 4).
    * Agents work inside the company that owns the project, as designers: a coding agent gets its
    * own key that stops working when the run ends (or times out), whatever the agent does with it.
    */
-  start(projectId: string, agentId: string, specification: string, access: { companyId: string; startedBy: string }): AgentRun {
+  start(projectId: string, agentId: string, specification: string, access: RunAccess): AgentRun {
+    const { store } = this.options;
+    const run = store.createRun(projectId, agentId, specification);
+    try {
+      return this.launch(run, projectId, agentId, specification, access);
+    } catch (error) {
+      store.appendRunLog(run.id, `Could not start: ${error instanceof Error ? error.message : String(error)}`);
+      clearTimeout(this.timeouts.get(run.id));
+      this.timeouts.delete(run.id);
+      this.active.get(run.id)?.stop();
+      this.active.delete(run.id);
+      store.finishRun(run.id, 'failed');
+      return store.getRun(run.id) ?? run;
+    }
+  }
+
+  private launch(run: AgentRun, projectId: string, agentId: string, specification: string, access: RunAccess): AgentRun {
     const { store } = this.options;
     const settings = loadSettings(store);
     const prompt = agentPrompt(projectId, specification);
-    const run = store.createRun(projectId, agentId, specification);
     const log = (line: string) => store.appendRunLog(run.id, line);
     const timeout = setTimeout(() => {
       log(`Stopped after ${settings.timeoutMinutes} minutes.`);
       this.stop(run.id);
     }, settings.timeoutMinutes * 60_000);
+    this.timeouts.set(run.id, timeout);
     const finish = (status: 'done' | 'failed' | 'stopped') => {
       clearTimeout(timeout);
+      this.timeouts.delete(run.id);
       this.active.delete(run.id);
-      store.accounts.revokeRunKeys(run.id);
       store.finishRun(run.id, status);
     };
 
@@ -114,6 +141,7 @@ export class AgentRunner {
       const controller = new AbortController();
       let stopped = false;
       this.active.set(run.id, {
+        projectId,
         stop: () => {
           stopped = true;
           controller.abort();
@@ -195,6 +223,7 @@ export class AgentRunner {
 
     let stopped = false;
     this.active.set(run.id, {
+      projectId,
       stop: () => {
         stopped = true;
         child.kill();
@@ -233,6 +262,13 @@ export class AgentRunner {
     if (!active) return false;
     active.stop();
     return true;
+  }
+
+  /** Stop every run of one project (all of them, however many are active). */
+  stopProject(projectId: string): number {
+    const ids = [...this.active].filter(([, a]) => a.projectId === projectId).map(([id]) => id);
+    for (const id of ids) this.stop(id);
+    return ids.length;
   }
 
   stopAll(): void {

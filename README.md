@@ -13,6 +13,10 @@
 
 البيانات كلها بتتحفظ على جهازك في فولدر `data`.
 
+### 🏢 لو موقع npm مقفول (زي شبكة الشركة)
+
+على جهاز فيه نت، شغّل مرة واحدة: `node scripts/portable.mjs --with-data`. هيطلع ملف `release/SpacePlanner-portable.zip` فيه البرنامج جاهز ومعاه كل مشاريعك. انقله لجهاز الشركة، فكّه، ودوس دبل كليك على **Start Space Planner.bat**. مش محتاج نت ولا تثبيت أي حاجة.
+
 ## ✨ البرنامج بيعمل إيه
 
 - 📁 **مشاريع كتير**: تعمل وتنسخ وتمسح، وكل مشروع محفوظ في قاعدة بيانات.
@@ -20,7 +24,10 @@
 - 🪑 **الأصناف**: تعمل أي صنف بمقاساته ومساحة استخدامه وعدد كراسيه وشكله المجسم.
 - ✋ **التصميم بإيدك**: تختار عنصر أو كذا عنصر، تسحب وتلف وترفع وتنسخ وترص، بخطوط رص ذكية ودقة وسرعة بتظبطها، بالماوس أو الكيبورد، في المسطح والمجسم.
 - 🏢 **مكاتب كمان**: تعمل المشروع قاعة أو مكتب، ولكل نشاط أصنافه وقواعده (كل مكتب له كرسي، مساحة كل فرد، الممرات والمخارج).
+- 🚢 **كام حاوية محتاج؟**: تلزق خطة الإنتاج من الإكسل (المقاسات والكميات)، والبرنامج يقولك محتاج كام حاوية ويحمّلها كلها، ويوريك الحاويات جنب بعض مجسمة وزرار تشغيل يوريك التحميل طبقة طبقة.
 - 📦 **مخزن**: رفوف بعدد فتحات ومستويات قابل للتعديل، حساب أماكن التخزين، مناطق مرسومة، ومسار الرافعة من الرصيف للرف.
+- 🏷️ **مكان كل بضاعة**: كل خانة في الرف شايلة إيه، تدور على صنف فيظهر لوحده، تنقل طبلية بالسحب، وزرار «ترتيب ذكي» يقرّب الأصناف السريعة من رصيف الشحن ويقولك الرافعة هتوفر مشي قد إيه.
+- 🏢 **شركة نموذجية للعرض**: زرار واحد يضيف «نايل جيت للخدمات اللوجستية» بمخازنها وحاوياتها وتريلاتها، مليانة شاشات وأجهزة، جاهزة تتعرض على العميل.
 - 🏭 **خط إنتاج**: مصدر وماكينات ومخزن مؤقت وفحص وبضاعة تامة، بمسار حركة المواد بين المحطات وطول الخط محسوب.
 - 🚗 **جراج ومواقف**: مسارات وأماكن ركن (عمودي، مائل، موازي، صيانة، غسيل، شحن)، وحساب مسار دخول كل عربية بأقل نصف قطر دورة وفحص إنها هتعدي من غير ما تلمس حيطة أو عمود أو عربية تانية.
 - 🍽️ **مطعم**: تراسي أنواعها (لـ٢ ولـ٤ ولـ٦ وسفرة مستديرة ومقاعد جداريه وطاولة مشتركة)، مناطق (صالة، بار، تراس، خاص)، عدد الكراسي الكلي، ومسار خدمة من المطبخ لكل طرابيزة.
@@ -38,6 +45,10 @@
 | [`docs/02-core-plan.md`](docs/02-core-plan.md) | خطة النواة الصافية |
 | [`docs/agents.md`](docs/agents.md) | إزاي الوكلاء بيتحكموا في التصميم |
 | [`docs/decisions/`](docs/decisions/) | سجل القرارات المعمارية |
+| [`docs/README.md`](docs/README.md) | فهرس كل الوثائق (بيتحدث لوحده) |
+| [`docs/STATUS.md`](docs/STATUS.md) | فين وصلنا دلوقتي (بيتحدث لوحده) |
+| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | تاريخ كل التعديلات |
+| [`docs/process/interruptions.md`](docs/process/interruptions.md) | إزاي نكمل بعد أي انقطاع |
 | [`CLAUDE.md`](CLAUDE.md) | دليل العمل لوكلاء البرمجة |
 
 ## 🚦 الحالة الحالية
@@ -57,6 +68,14 @@
 | ت٨ — خطوط الإنتاج: مثال مرجعي (مصدر ← ماكينة ← مخزن مؤقت ← ماكينة ← فحص ← بضاعة تامة)، طول المسار وقاعدتا الفحص والتقرير | ✅ |
 | ت٩ — الجراجات: مثال مرجعي (ممر واتجاهين وستة أماكن ركن)، مسار دخول منحني بأقل نصف قطر دورة، وفحص السلامة من الاصطدام | ✅ |
 | ت١٠ — المطاعم: مثال مرجعي (٩ طرابيزات و٤٤ كرسي)، مسار الخدمة من المطبخ، وقواعد المسافة والمخارج والمساحة لكل كرسي | ✅ |
+| د١ — عرض العميل: شركة نموذجية كاملة، مكان كل صنف في الرف، ترتيب ذكي يقلل مشي الرافعة، ومجسم أوضح (رفوف ملونة، طبالي، كراتين مطبوعة، حاوية صاج) | ✅ |
+| د٢ — شركة نموذجية تانية: شركة إلكترونيات مخترعة "هورايزن" (الموقع كله، المصانع، المخزن، الموظفين، الاجتماعات، الحفلات، المطعم)، ومجسم أجمل وأسرع (سما وشمس، خامات حقيقية، ظلال ناعمة) | ✅ |
+| د٢ب — شكل جديد لكل الشاشات زي «باراديم»، أسهم الكيبورد بقت واضحة، وألوان الحاوية بقت مفهومة | ✅ |
+| ب١ — إصلاح ٦ أخطاء من مراجعة الكود: مشروع ما يتقفلش أبداً، الرجوع لنسخة قديمة ما يمسحش شغل حد تاني، التعديلات بتتحفظ لوحدها لما النت يرجع، والوكلاء بيقفوا كلهم لما المشروع يتمسح | ✅ |
+| سجل الشغل — صفحة «فين وصلنا» بتتحدث لوحدها، تاريخ كل التعديلات، ونسخ حفظ للشغل اللي لسه ما خلصش عشان أي انقطاع ما يضيعش حاجة | ✅ |
+| ش١ — الشحنات: كام حاوية محتاج، الحاويات جنب بعض مجسمة، تشغيل التحميل، ولزق خطة الإنتاج من الإكسل | ✅ |
+| E1 — Link to plant (GMES): tag items and zones with the plant tree, checks that name the missing station, the layout snapshot sent or downloaded, and a live view of the stations ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
+| E2 — Sample company Nile Vision (plant, final assembly lines, SMT and THT) whose stations carry their GMES code, and **Link by code** ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
 | ت١١ الحسابات والشركات | 🗓️ مخطط ([الخطة](docs/03-industrial-packs-plan.md)) |
 
 ## 🛠️ للمطورين
@@ -66,3 +85,9 @@ pnpm install
 pnpm check      # فحص الأنواع + كل الاختبارات + اختبارات المتصفح
 pnpm dev        # الواجهة مع تحديث لحظي (محتاجة الخادم شغال)
 ```
+
+### Isolated company demo (2 Oct 2026)
+
+Run `start-demo.bat` for `http://127.0.0.1:4601`, using `data-demo` independently of owner `data`. Custom launches accept `PLANNER_DATA` and `PLANNER_PORT` (or `--data`/`--port`). Explicit ports fail if busy. Browser opening uses the mandatory Google Chrome helper. Shipment creation rejects incomplete plans; dense requests exceeding supported limits are explained. Roof stacking stays the owner-approved default; see decision 0025.
+
+For verified backups, POST JSON `{}` to `/api/backups`. Named SQLite snapshots are stored under the selected data directory in `backups`; response includes integrity/restore rehearsal counts. Snapshots intentionally include stored credentials; protect them like the live database. Restore steps, Windows account-bound keys and scope are in [decision 0025](docs/decisions/0025-bounded-shipment-planning-and-demo.md). Pass `--no-open` to start without opening a Chrome tab.

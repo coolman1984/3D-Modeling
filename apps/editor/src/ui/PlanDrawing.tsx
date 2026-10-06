@@ -1,6 +1,7 @@
 import { add, boundsOf, footprintOf, itemPolygon, rectangle, rotate, type Id, type Issue, type Project } from '@space-planner/core';
 import { formatCount } from '../logic/format.js';
 import { fitViewport, pathOf, toScreen } from '../logic/viewport.js';
+import { zoneStyle } from '../logic/zoneStyle.js';
 
 /**
  * A still, printable plan: walls, door swings, columns, items with the number of their line in
@@ -39,7 +40,10 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
       <path d={pathOf(v, project.space.boundary)} className="wall" style={{ strokeWidth: wall * 2 }} />
       <path d={pathOf(v, project.space.boundary)} className="floor" />
       <path d={grid.join('')} className="grid" />
-      {(project.space.zones ?? []).map((zone) => <path key={zone.id} data-report-zone={zone.id} d={pathOf(v, zone.polygon)} fill={zone.kind === 'no-go' || zone.kind === 'pedestrian' ? '#d7a79d' : '#b9c9e2'} fillOpacity={0.18} stroke="#55789f" strokeDasharray="5 4" />)}
+      {(project.space.zones ?? []).map((zone) => {
+        const style = zoneStyle(zone.kind);
+        return <path key={zone.id} data-report-zone={zone.id} d={pathOf(v, zone.polygon)} fill={style.fill} fillOpacity={style.opacity} stroke={style.stroke} strokeDasharray={style.dash} />;
+      })}
       {project.space.obstacles.map((o) => (
         <path key={o.id} d={pathOf(v, o.polygon)} className={o.kind === 'column' ? 'column' : 'blocked-zone'} style={o.kind === 'column' ? undefined : { fill: 'url(#report-hatch)' }} />
       ))}

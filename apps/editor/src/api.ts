@@ -7,6 +7,8 @@ export interface ProjectSummary {
   itemCount: number;
   createdAt: string;
   updatedAt: string;
+  /** The sample company the project came with, or null for the person's own projects. */
+  collection?: string | null;
 }
 
 export interface RevisionInfo {
@@ -63,6 +65,10 @@ export const api = {
   listProjects: () => request<ProjectSummary[]>('/api/projects'),
   createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference' | 'production-reference' | 'depot-reference' | 'restaurant-reference'; file?: string }) =>
     post<Project>('/api/projects', body),
+  /** Plan how many containers the parts need; the server stores one loaded container project each. */
+  createShipment: (body: { name: string; container_type: string; parts: Array<{ name: string; length_mm: number; width_mm: number; height_mm: number; quantity: number; may_tilt: boolean; model?: string; mass_kg?: number; max_layers?: number }> }) =>
+    post<{ shipment: string; containers: Array<{ id: string; name: string; pieces: Record<string, number> }>; tooBig: string[]; unplanned: string[]; explanation: string }>('/api/shipments', body),
+  addSampleCompany: (company: string) => post<Array<{ id: string; name: string }>>(`/api/samples/${encodeURIComponent(company)}`, {}),
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   deleteProject: (id: string) => request<unknown>(`/api/projects/${id}`, { method: 'DELETE' }),
   duplicateProject: (id: string) => post<Project>(`/api/projects/${id}/duplicate`, {}),
@@ -70,7 +76,9 @@ export const api = {
     post<CommandResult>(`/api/projects/${id}/commands`, { commands, baseRevision, actor: 'human' }),
   history: (id: string) => request<RevisionInfo[]>(`/api/projects/${id}/history?limit=200`),
   revision: (id: string, revision: number) => request<Project>(`/api/projects/${id}/revisions/${revision}`),
-  restore: (id: string, revision: number) => post<{ ok: boolean; project: Project }>(`/api/projects/${id}/restore`, { revision }),
+  /** `baseRevision` is the revision this window last saw; a newer one on the server answers with a conflict. */
+  restore: (id: string, revision: number, baseRevision: number) =>
+    post<{ ok: true; project: Project } | { ok: false; conflict: true; project: Project }>(`/api/projects/${id}/restore`, { revision, baseRevision }),
   agents: () => request<AgentAvailability[]>('/api/agents'),
   runs: (id: string) => request<AgentRun[]>(`/api/projects/${id}/agent-runs`),
   startRun: (id: string, agent: string, prompt: string) => post<AgentRun>(`/api/projects/${id}/agent-runs`, { agent, prompt }),

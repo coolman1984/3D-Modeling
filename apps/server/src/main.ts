@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './http.js';
@@ -14,8 +15,16 @@ function argument(name: string): string | undefined {
 }
 
 function openBrowser(url: string): void {
-  const [command, args] =
-    process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  const helper = [
+    'D:/WORK/Software Development/GitHub/AI CREW/Mandatory To Use Skills/windows-chrome-launcher/scripts/open_chrome.py',
+    join(homedir(), '.codex', 'skills', 'windows-chrome-launcher', 'scripts', 'open_chrome.py'),
+  ].find(existsSync);
+  if (!helper) {
+    console.warn('Chrome launcher helper is unavailable; open the printed address in Google Chrome.');
+    return;
+  }
+  const command = 'python';
+  const args = [helper, url];
   try {
     const child = spawn(command, args, { stdio: 'ignore', detached: true });
     child.on('error', () => undefined); // no browser opener installed: the address is printed below
@@ -36,8 +45,9 @@ async function main(): Promise<void> {
   const listenHost = argument('--host') ?? process.env.PLANNER_HOST ?? '127.0.0.1';
   const app = createApp({ store, dataDir, staticDir, mcpScript: join(here, 'mcp.mjs'), allowedHosts });
 
-  let port = Number(argument('--port') ?? process.env.PORT ?? 4600);
-  const fixedPort = argument('--port') !== undefined;
+  let port = Number(argument('--port') ?? process.env.PLANNER_PORT ?? process.env.PORT ?? 4600);
+  const fixedPort = argument('--port') !== undefined || process.env.PLANNER_PORT !== undefined || process.env.PORT !== undefined;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be an integer from 1 to 65535');
   for (let attempt = 0; ; attempt++) {
     try {
       port = await app.listen(port, listenHost);

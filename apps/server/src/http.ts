@@ -3,11 +3,13 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname, join, normalize, sep } from 'node:path';
 import { TLSSocket } from 'node:tls';
 import { deserializeProject, type Command, type Project } from '@space-planner/core';
-import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse } from '@space-planner/starter';
+import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
 import { AccountError, labelOf, type Company, type KeyPrincipal, type SessionPrincipal, type User } from './accounts.js';
 import { AgentRunner } from './agents.js';
+import { EcoError, ecoRoutes, type FetchLike } from './eco/routes.js';
 import { can, itemsOnly, permissionsOf, type Permission, type Role } from './permissions.js';
-import { loadSettings, publicSettings, saveSettings, type Settings } from './settings.js';
+import { loadSettings, publicSettings, saveSettings, settingsProblems, type Settings } from './settings.js';
+import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
 import type { Store } from './store.js';
 import { runTool, toolSummaries } from './tools.js';
 
@@ -16,6 +18,8 @@ export interface AppOptions {
   readonly dataDir: string;
   /** Built editor to serve; when missing only the API is served. */
   readonly staticDir?: string;
+  /** How calls to GMES are made (tests pass a fake; the default is the platform's fetch). */
+  readonly ecoFetch?: FetchLike;
   readonly mcpScript: string;
   /**
    * Host names (besides the loopback ones) this server answers to, for a company server on the
@@ -172,6 +176,12 @@ export function createApp(options: AppOptions): App {
       user: principal.kind === 'user' ? principal.user : null,
     };
   }
+
+  /** The administrator of this server (the first account): machine-wide settings and backups. */
+  const platformAdmin = (ctx: Context, refusal: string): User => {
+    if (!ctx.user?.platformAdmin) throw new HttpError(403, refusal);
+    return ctx.user;
+  };
 
   const personOnly = (ctx: Context): User => {
     if (!ctx.user) throw new HttpError(403, 'This needs a person signed in, not an agent key.');
@@ -378,10 +388,17 @@ export function createApp(options: AppOptions): App {
     );
   });
 
+  // A backup holds every company's projects, so only the administrator of this server makes one.
+  route('POST', '/api/backups', async (req, res) => {
+    platformAdmin(contextOf(req), 'Only the administrator of this server can make a backup.');
+    await readJson(req);
+    send(res, 201, store.backup(join(options.dataDir, 'backups')));
+  });
+
   route('POST', '/api/projects', async (req, res) => {
     const ctx = contextOf(req, 'project.create');
     const body = await readJson(req);
-    const create = (project: Project) => send(res, 201, store.createProject(project, ctx.actor, undefined, ctx.company.id));
+    const create = (project: Project) => send(res, 201, store.createProject(project, ctx.actor, undefined, { companyId: ctx.company.id }));
     const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 200) : 'New project';
     if (body.template === 'demo') return create({ ...demoHall(), name });
     if (body.template === 'warehouse-reference') return create(referenceWarehouse(name));
@@ -405,12 +422,40 @@ export function createApp(options: AppOptions): App {
     create(newRoom(name, width, depth, ceiling, activity));
   });
 
+  route('GET', '/api/samples', (req, res) => {
+    contextOf(req, 'project.read');
+    send(res, 200, SAMPLE_COMPANIES.map(({ id, name, description }) => ({ id, name, description })));
+  });
+
+  // A sample company's projects, added to the caller's company and grouped by the sample's id.
+  // Created last-first so its main site lists on top.
+  route('POST', '/api/samples/:id', (req, res, [id]) => {
+    const ctx = contextOf(req, 'project.create');
+    const sample = sampleCompany(id!);
+    if (!sample) throw new HttpError(404, 'no such sample company');
+    const created = sample.build().reverse().map(({ project, summary }) => store.createProject(project, 'Sample data', summary, { companyId: ctx.company.id, collection: sample.id }));
+    send(res, 201, created.reverse().map((p) => ({ id: p.id, name: p.name })));
+  });
+
+  // How many containers a production run needs: one loaded container project each, grouped as one shipment.
+  route('POST', '/api/shipments', async (req, res) => {
+    const ctx = contextOf(req, 'project.create');
+    const body = await readJson(req);
+    try {
+      send(res, 201, createShipment(store, readShipmentInput(body), ctx.actor, ctx.company.id));
+    } catch (error) {
+      if (error instanceof ShipmentInputError) throw new HttpError(400, error.message);
+      throw error;
+    }
+  });
+
   route('GET', '/api/projects/:id', (req, res, [id]) => send(res, 200, projectIn(contextOf(req, 'project.read'), id!)));
 
   route('DELETE', '/api/projects/:id', (req, res, [id]) => {
     const ctx = contextOf(req, 'project.delete');
     projectIn(ctx, id!);
-    runnerStopForProject(id!);
+    // Every active agent of the project, not only the newest listed runs (bugs.md finding 5).
+    runner.stopProject(id!);
     store.deleteProject(id!, ctx.actor);
     send(res, 200, { ok: true });
   });
@@ -443,7 +488,11 @@ export function createApp(options: AppOptions): App {
 
   route('GET', '/api/projects/:id/history', (req, res, [id], url) => {
     projectIn(contextOf(req, 'project.read'), id!);
-    send(res, 200, store.history(id!, Math.min(500, Number(url.searchParams.get('limit') ?? 100) || 100)));
+    const raw = url.searchParams.get('limit');
+    const limit = raw === null ? 100 : Number(raw);
+    // A whole number 1..500; SQLite reads a negative LIMIT as "no limit" (bugs.md finding 6).
+    if (!Number.isInteger(limit) || limit < 1) throw new HttpError(400, 'limit must be a whole number from 1 to 500');
+    send(res, 200, store.history(id!, Math.min(500, limit)));
   });
 
   route('GET', '/api/projects/:id/revisions/:rev', (req, res, [id, rev]) => {
@@ -457,9 +506,14 @@ export function createApp(options: AppOptions): App {
     const ctx = contextOf(req, 'project.restore');
     projectIn(ctx, id!);
     const body = await readJson(req);
-    const result = store.restore(id!, Number(body.revision), ctx.actor);
-    if (!result.ok) throw new HttpError(404, 'revision not found');
-    send(res, 200, { ok: true, project: result.project });
+    // The revision this window last saw is required, so a restore never lands on a newer plan unseen.
+    if (!Number.isInteger(body.revision) || !Number.isInteger(body.baseRevision)) {
+      throw new HttpError(400, 'revision and baseRevision (the revision you last saw) are required');
+    }
+    const result = store.restore(id!, body.revision as number, ctx.actor, body.baseRevision as number);
+    if (result.ok) send(res, 200, { ok: true, project: result.project });
+    else if (result.status === 409) send(res, 409, { ok: false, conflict: true, project: result.project });
+    else throw new HttpError(404, 'revision not found');
   });
 
   route('GET', '/api/projects/:id/shares', (req, res, [id]) => {
@@ -522,12 +576,32 @@ export function createApp(options: AppOptions): App {
   route('PUT', '/api/settings', async (req, res) => {
     const ctx = contextOf(req);
     // These settings start programs on the server's computer: only its administrator changes them.
-    if (!ctx.user?.platformAdmin) throw new HttpError(403, 'Only the administrator of this server can change the AI providers.');
-    const body = (await readJson(req)) as Partial<Settings>;
-    const saved = saveSettings(store, body);
+    platformAdmin(ctx, 'Only the administrator of this server can change the AI providers.');
+    const body = await readJson(req);
+    const problems = settingsProblems(body);
+    if (problems.length > 0) throw new HttpError(400, `settings not saved: ${problems.join('; ')}`);
+    const saved = saveSettings(store, body as Partial<Settings>);
     accounts.audit(null, ctx.actor, 'settings.changed', 'settings', { keys: Object.keys(body) });
     send(res, 200, { ...publicSettings(saved), canEdit: true });
   });
+
+  // The link to GMES (plant tree, layout snapshot, live view key): see eco/routes.ts. Calls out only on the person's command.
+  // The link is one per server (one plant): its settings and plant tree are the server administrator's;
+  // a layout is sent or downloaded only by a member of the company that owns it.
+  for (const r of ecoRoutes({ store, ...(options.ecoFetch ? { fetch: options.ecoFetch } : {}) })) {
+    route(r.method, r.pattern, async (req, res, params) => {
+      const ctx = contextOf(req, r.pattern.startsWith('/api/projects/') ? 'project.export' : 'project.read');
+      if (r.pattern.startsWith('/api/projects/')) projectIn(ctx, params[0]!);
+      else if (r.method !== 'GET') platformAdmin(ctx, 'Only the administrator of this server can change the plant link.');
+      try {
+        const out = await r.handler({ body: r.method === 'GET' ? {} : await readJson(req), params });
+        send(res, out.status ?? 200, out.body);
+      } catch (error) {
+        if (error instanceof EcoError) throw new HttpError(error.status, error.message);
+        throw error;
+      }
+    });
+  }
 
   route('GET', '/api/agents', (req, res) => {
     contextOf(req);
@@ -570,10 +644,6 @@ export function createApp(options: AppOptions): App {
     clients.set(res, ctx.company.id);
     req.on('close', () => clients.delete(res));
   });
-
-  function runnerStopForProject(projectId: string) {
-    for (const run of store.listRuns(projectId)) if (run.status === 'running') runner.stop(run.id);
-  }
 
   /**
    * Other websites must not drive this API with a signed-in person's cookie:

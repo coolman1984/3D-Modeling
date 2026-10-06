@@ -44,9 +44,8 @@ describe('bay entry — a small hand-checked scene', () => {
     // (direction 0 = front (0,1), a nose-in parked car's front pointing away from the lane): the
     // vehicle drives east on the lane, set back one turning radius for room to curve, then turns
     // left into the bay — the same kind of curve `dubinsPath` itself is verified against in
-    // packages/industry, exercised here through the depot's own wiring. The extra 3 m of depth
-    // over the 15 m used elsewhere in this file leaves room for the sedan's front overhang past
-    // the bay's own centre once it is fully turned in.
+    // packages/industry, exercised here through the depot's own wiring. The path ends with the
+    // car's body centred in the bay, where a parked vehicle item stands.
     let project = newVehicleDepot('bay entry scene', 20, 18, 4, false);
     project = { ...project, space: { ...project.space, zones: [lane, bayZone('B1', { x: m(10), y: m(12) }, 'perpendicular', 0)] } };
     const result = bayEntry(project, 'B1', DEFAULT_VEHICLE);
@@ -54,12 +53,16 @@ describe('bay entry — a small hand-checked scene', () => {
     const first = result.path[0]!;
     const last = result.path[result.path.length - 1]!;
     // Hand-computed start: the lane point directly below the bay (10, 7.5), facing east, set back
-    // one turning radius (3.2 m) for lead-in room: x = 10 - 3.2 = 6.8 m, y = 7.5 m.
+    // one turning radius (3.2 m) for lead-in room: x = 10 - 3.2 = 6.8 m. The goal (below) is only
+    // 10.65 - 7.5 = 3.15 m from the lane line, 5 cm short of one turning radius, so the car swings
+    // 5 cm wide first: y = 7.5 - 0.05 = 7.45 m.
     expect(first.x).toBe(m(6.8));
-    expect(first.y).toBe(m(7.5));
-    // Hand-computed goal: the bay's own centre (within floating-point sampling tolerance).
+    expect(first.y).toBe(m(7.45));
+    // Hand-computed goal: the rear reference point, so that the 4.5 m body (3.6 m ahead of it,
+    // 0.9 m behind) is centred on the bay centre (10, 12): y = 12 - (3.6 - 0.9) / 2 = 10.65 m.
+    // It used to stop at the bay centre itself, leaving the nose 1.1 m past the bay.
     expect(last.x).toBeCloseTo(m(10), 6);
-    expect(last.y).toBeCloseTo(m(12), 6);
+    expect(last.y).toBeCloseTo(m(10.65), 6);
   });
 
   it('reports "occupied" for a bay a vehicle already sits in, not a blocked path', () => {

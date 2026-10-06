@@ -34,6 +34,15 @@ function isIntegerAngle(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value);
 }
 
+/**
+ * The entry stored under `key`, or undefined. A plain `record[key]` would also find built-in
+ * names such as `constructor` or `__proto__`, so a command naming one would pass the check and
+ * save a project that no longer validates (bugs.md finding 1).
+ */
+function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 /** Every id in the project; ids are unique across all entity kinds. */
 function idsInUse(project: Project, except: 'space' | 'none' = 'none'): Set<string> {
   const ids = new Set<string>([project.id, ...Object.keys(project.catalog), ...Object.keys(project.items)]);
@@ -52,7 +61,7 @@ function applyInner(project: Project, command: Command): Outcome {
       const problems = validateItem(item);
       if (problems.length > 0) return reject('invalid-payload', 'item is not valid', { problems });
       if (idsInUse(project).has(item.id)) return reject('duplicate-id', `id "${item.id}" is already used`);
-      if (!project.catalog[item.definitionId]) {
+      if (!own(project.catalog, item.definitionId)) {
         return reject('broken-reference', `no catalog definition "${item.definitionId}"`);
       }
       return {
@@ -66,7 +75,7 @@ function applyInner(project: Project, command: Command): Outcome {
     case 'item.rotate':
     case 'item.elevate':
     case 'item.lock': {
-      const item = project.items[command.id];
+      const item = own(project.items, command.id);
       if (!item) return reject('not-found', `no item "${command.id}"`);
       let updated;
       let inverse: Command;
@@ -97,7 +106,7 @@ function applyInner(project: Project, command: Command): Outcome {
     }
 
     case 'item.tilt': {
-      const item = project.items[command.id];
+      const item = own(project.items, command.id);
       if (!item) return reject('not-found', `no item "${command.id}"`);
       if (item.locked) return reject('locked', `item "${item.id}" is locked`);
       const to: unknown = command.to;
@@ -108,7 +117,7 @@ function applyInner(project: Project, command: Command): Outcome {
     }
 
     case 'item.meta': {
-      const item = project.items[command.id];
+      const item = own(project.items, command.id);
       if (!item) return reject('not-found', `no item "${command.id}"`);
       if (command.meta !== null) {
         const problems = validateMeta(command.meta);
@@ -120,7 +129,7 @@ function applyInner(project: Project, command: Command): Outcome {
     }
 
     case 'item.remove': {
-      const item = project.items[command.id];
+      const item = own(project.items, command.id);
       if (!item) return reject('not-found', `no item "${command.id}"`);
       if (item.locked) return reject('locked', `item "${item.id}" is locked`);
       const { [item.id]: _removed, ...items } = project.items;
@@ -131,7 +140,7 @@ function applyInner(project: Project, command: Command): Outcome {
       const { definition } = command;
       const problems = validateDefinition(definition);
       if (problems.length > 0) return reject('invalid-payload', 'definition is not valid', { problems });
-      const previous = project.catalog[definition.id];
+      const previous = own(project.catalog, definition.id);
       if (!previous && idsInUse(project).has(definition.id)) {
         return reject('duplicate-id', `id "${definition.id}" is already used`);
       }
@@ -145,7 +154,7 @@ function applyInner(project: Project, command: Command): Outcome {
     }
 
     case 'catalog.remove': {
-      const definition = project.catalog[command.id];
+      const definition = own(project.catalog, command.id);
       if (!definition) return reject('not-found', `no catalog definition "${command.id}"`);
       const user = Object.values(project.items).find((item) => item.definitionId === command.id);
       if (user) return reject('in-use', `definition "${command.id}" is used by item "${user.id}"`);

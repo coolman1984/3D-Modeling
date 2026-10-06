@@ -15,6 +15,7 @@ import {
 } from '@space-planner/core';
 import { bayEntry, checkPack, productionFlowPath, serviceRoute, warehouseRoute, type BayEntryResult } from '@space-planner/starter';
 import {
+  ArrowsOutCardinal,
   ArrowUUpLeft,
   ArrowUUpRight,
   CaretLeft,
@@ -40,6 +41,8 @@ import {
   ListBullets,
   Package,
   Magnet,
+  MapTrifold,
+  Plugs,
   Ruler,
   SidebarSimple,
   Sparkle,
@@ -54,10 +57,11 @@ import {
 import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { actorName, api, subscribe } from '../api.js';
 import { loadActivity, saveActivity, type Activity } from '../logic/activity.js';
-import { acceleratedStep, copyOffset, keyIntent, loadControls, saveControls, turnNudge, type ControlSettings } from '../logic/controls.js';
+import { acceleratedStep, arrowSteps, copyOffset, keyIntent, loadControls, ownsKeys, saveControls, turnNudge, type ControlSettings } from '../logic/controls.js';
 import { formatCount, formatMetres } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
-import { REJECTION_MESSAGES } from '../logic/messages.js';
+import { REJECTION_MESSAGES, RESTORE_CONFLICT } from '../logic/messages.js';
+import { retryDelay } from '../logic/retry.js';
 import { findFreeSpot } from '../logic/placement.js';
 import { reduce, startSession, visibleProject, type Action } from '../logic/session.js';
 import {
@@ -71,7 +75,7 @@ import {
   takenIds,
   toBatch,
 } from '../logic/transform.js';
-import { toWorld, type Viewport } from '../logic/viewport.js';
+import { panBy, toWorld, type Viewport } from '../logic/viewport.js';
 import { AgentPanel } from '../ui/AgentPanel.js';
 import { Brand, Menu, Segmented, useToast } from '../ui/Fields.js';
 import { HistoryPanel } from '../ui/HistoryPanel.js';
@@ -81,6 +85,7 @@ import { ControlsPanel, GRID_OPTIONS, ObjectsPanel } from '../ui/Panels.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
 import { View3D, type SceneLook } from '../ui/View3D.js';
+import type { StockView } from '../ui/Stock.js';
 import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 import { WarehousePanel } from '../ui/Warehouse.js';
 import { ProductionPanel } from '../ui/Production.js';
@@ -95,6 +100,7 @@ const LOAD_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode
 const WAREHOUSE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'warehouse', label: 'Storage', title: 'Warehouse plan', icon: <Warehouse size={21} /> };
 const PRODUCTION_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'production', label: 'Flow', title: 'Production line', icon: <Factory size={21} /> };
 const DEPOT_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'depot', label: 'Bays', title: 'Vehicle depot', icon: <Car size={21} /> };
+const SITE_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'depot', label: 'Site', title: 'Site plan', icon: <MapTrifold size={21} /> };
 const RESTAURANT_PANEL: { id: LeftPanel; label: string; title: string; icon: ReactNode } = { id: 'restaurant', label: 'Covers', title: 'Restaurant', icon: <ForkKnife size={21} /> };
 const LEFT_PANELS: ReadonlyArray<{ id: LeftPanel; label: string; title: string; icon: ReactNode }> = [
   { id: 'library', label: 'Library', title: 'Object library', icon: <SquaresFour size={21} /> },
@@ -161,8 +167,9 @@ function Editor({ initial }: { initial: Project }) {
   const cargo = loadActivity(initial).pack === 'container';
   // A container is easiest to read in 3D next to its floor plan.
   const [view, setView] = useState<ViewMode>(cargo ? 'split' : 'plan');
-  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : loadActivity(initial).pack === 'warehouse' ? 'warehouse' : loadActivity(initial).pack === 'production' ? 'production' : loadActivity(initial).pack === 'depot' ? 'depot' : loadActivity(initial).pack === 'restaurant' ? 'restaurant' : 'library');
+  const [left, setLeft] = useState<LeftPanel | null>(cargo ? 'load' : loadActivity(initial).pack === 'warehouse' ? 'warehouse' : loadActivity(initial).pack === 'production' ? 'production' : loadActivity(initial).pack === 'depot' || loadActivity(initial).pack === 'site' ? 'depot' : loadActivity(initial).pack === 'restaurant' ? 'restaurant' : 'library');
   const [routeEndpoints, setRouteEndpoints] = useState<{ dockId: string; rackId: string } | null>(null);
+  const [stockView, setStockView] = useState<StockView>({ colorBy: 'material', find: null, slot: null });
   const [depotBayId, setDepotBayId] = useState<string | null>(null);
   const [tableRouteEndpoints, setTableRouteEndpoints] = useState<{ doorId: string; tableId: string } | null>(null);
   const [colorBy, setColorBy] = useState<ColorBy>('type');
@@ -221,6 +228,33 @@ function Editor({ initial }: { initial: Project }) {
       });
   }, [session.outbox, project.id, load, retry]);
 
+  // Edits that could not be saved are tried again on their own: on a growing timer while the
+  // server is away, and at once when the live connection comes back (bugs.md finding 3).
+  const attempts = useRef(0);
+  const pendingEdits = session.outbox.length;
+  useEffect(() => {
+    if (!offline) {
+      attempts.current = 0;
+      return;
+    }
+    if (pendingEdits === 0) return;
+    const timer = window.setTimeout(() => {
+      attempts.current += 1;
+      setRetry((n) => n + 1);
+    }, retryDelay(attempts.current));
+    return () => window.clearTimeout(timer);
+  }, [offline, retry, pendingEdits]);
+  // Closing or reloading the tab would lose edits that are not saved yet: ask first.
+  useEffect(() => {
+    if (pendingEdits === 0) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [pendingEdits]);
+
   // Live changes made by agents or other windows.
   const latest = useRef({ revision: project.revision, pending: session.outbox.length });
   latest.current = { revision: project.revision, pending: session.outbox.length };
@@ -252,6 +286,8 @@ function Editor({ initial }: { initial: Project }) {
       // Changes made before the live connection opened (or while it was down) are fetched now.
       open: () => {
         if (latest.current.pending === 0) fetchLatest('Updated with changes made elsewhere');
+        // Back online with edits waiting: send them now rather than at the next click.
+        else setRetry((n) => n + 1);
       },
     });
   }, [project.id, fetchLatest]);
@@ -296,8 +332,13 @@ function Editor({ initial }: { initial: Project }) {
   const clipboard = useRef<readonly ItemInstance[]>([]);
   const blocked = preview !== null || editingType !== null;
   useEffect(() => {
-    const typing = (event: Event) => event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName);
+    const typing = (event: Event) => ownsKeys(event.target);
     const ids = session.selectedIds;
+    const in3d = view === '3d' || (view === 'split' && lastPane.current === '3d');
+    // One press moves a visible amount: a few pixels at the plan's zoom, or a share of the room in 3D.
+    const box = boundsOf(project.space.boundary);
+    const roomPerPixel = Math.max(box.maxX - box.minX, box.maxY - box.minY) / 800;
+    const keys = { ...controls, ...arrowSteps(controls, !in3d && viewport ? 1 / viewport.scale : roomPerPixel) };
     const run = (command: Command | null, select?: readonly Id[]) => command && dispatch({ type: 'command', command, ...(select ? { select } : {}) });
     const endNudge = () => {
       if (!nudge.current) return;
@@ -306,15 +347,22 @@ function Editor({ initial }: { initial: Project }) {
     };
     const onKey = (event: KeyboardEvent) => {
       if (typing(event) || blocked) return;
-      const intent = keyIntent({ key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey }, controls);
+      const intent = keyIntent({ key: event.key, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, alt: event.altKey }, keys);
       if (!intent) return;
+      if (intent.kind === 'nudge' && ids.length === 0) {
+        // Nothing selected: the arrows move the view. The 3D view turns its own camera.
+        if (in3d || !viewport) return;
+        event.preventDefault();
+        const px = event.shiftKey ? 240 : 60;
+        setViewport(panBy(viewport, -Math.sign(intent.dx) * px, Math.sign(intent.dy) * px));
+        return;
+      }
       if (intent.kind === 'nudge' || intent.kind === 'raise') {
         if (ids.length === 0) return;
         event.preventDefault();
         if (session.preview && !nudge.current) return; // a mouse gesture is running
         const n = nudge.current ?? { dx: 0, dy: 0, dz: 0, repeats: 0 };
         const k = acceleratedStep(1, event.repeat ? n.repeats + 1 : 0, controls.keyAcceleration);
-        const in3d = view === '3d' || (view === 'split' && lastPane.current === '3d');
         const arrow = intent.kind === 'nudge' ? turnNudge(intent.dx, intent.dy, in3d ? heading.current : 0) : { dx: 0, dy: 0 };
         const next =
           intent.kind === 'nudge'
@@ -386,7 +434,7 @@ function Editor({ initial }: { initial: Project }) {
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', endNudge);
     };
-  }, [session.selectedIds, session.preview, project, controls, view, blocked, fit, setNotice]);
+  }, [session.selectedIds, session.preview, project, controls, view, blocked, fit, setNotice, viewport]);
 
   const [renaming, setRenaming] = useState(false);
   const saving = session.outbox.length > 0;
@@ -405,20 +453,24 @@ function Editor({ initial }: { initial: Project }) {
   const roomLine = `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m${project.space.ceilingHeight === undefined ? ' · Ceiling not set' : ` · Ceiling ${formatMetres(project.space.ceilingHeight)} m`}`;
   const single = session.selectedIds.length === 1 ? project.items[session.selectedIds[0]!] : undefined;
   const gridLabel = controls.grid <= 1 ? 'off' : (GRID_OPTIONS.find((o) => o.ticks === controls.grid)?.label ?? `${controls.grid / 100} cm`);
+  const roomBox = boundsOf(project.space.boundary);
+  const arrowStep = arrowSteps(controls, view !== '3d' && viewport ? 1 / viewport.scale : Math.max(roomBox.maxX - roomBox.minX, roomBox.maxY - roomBox.minY) / 800).step;
+  const formatLength = (ticks: number) => (ticks >= 10_000 ? `${formatCount(ticks / 10_000)} m` : ticks >= 100 ? `${formatCount(ticks / 100)} cm` : `${formatCount(ticks / 10)} mm`);
   const shownProject = preview ? preview.project : shown;
   const shownIssues = preview ? previewIssues : issues;
   const paneDispatch = useCallback((a: Action) => (preview ? undefined : dispatch(a)), [preview]);
   const isCargo = activity.pack === 'container';
   const isWarehouse = activity.pack === 'warehouse';
   const isProduction = activity.pack === 'production';
-  const isDepot = activity.pack === 'depot';
+  const isSite = activity.pack === 'site';
+  const isDepot = activity.pack === 'depot' || isSite;
   const isRestaurant = activity.pack === 'restaurant';
   const route = useMemo(() => isWarehouse && routeEndpoints ? warehouseRoute(shownProject, routeEndpoints.dockId, routeEndpoints.rackId) : null, [isWarehouse, shownProject, routeEndpoints]);
   const flowPath = useMemo(() => (isProduction ? productionFlowPath(shownProject) : []), [isProduction, shownProject]);
   const depotEntry: BayEntryResult | null = useMemo(() => (isDepot && depotBayId ? bayEntry(shownProject, depotBayId) : null), [isDepot, shownProject, depotBayId]);
   const tableRoute = useMemo(() => isRestaurant && tableRouteEndpoints ? serviceRoute(shownProject, tableRouteEndpoints.doorId, tableRouteEndpoints.tableId) : null, [isRestaurant, shownProject, tableRouteEndpoints]);
   const routePoints = route?.reachable ? route.points : flowPath.length > 0 ? flowPath : depotEntry && depotEntry.path.length > 0 ? depotEntry.path : tableRoute?.reachable ? tableRoute.points : undefined;
-  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : isProduction ? [PRODUCTION_PANEL, ...LEFT_PANELS] : isDepot ? [DEPOT_PANEL, ...LEFT_PANELS] : isRestaurant ? [RESTAURANT_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
+  const panels = isCargo ? [LOAD_PANEL, ...LEFT_PANELS] : isWarehouse ? [WAREHOUSE_PANEL, ...LEFT_PANELS] : isProduction ? [PRODUCTION_PANEL, ...LEFT_PANELS] : isDepot ? [isSite ? SITE_PANEL : DEPOT_PANEL, ...LEFT_PANELS] : isRestaurant ? [RESTAURANT_PANEL, ...LEFT_PANELS] : LEFT_PANELS;
   const leftPanel = panels.find((p) => p.id === left);
   const colors = useMemo(() => (isCargo ? colorsOf(shownProject, colorBy) : null), [isCargo, shownProject, colorBy]);
   const planFills = useMemo(() => (colors ? new Map([...colors.colors].map(([id, c]) => [id, hex(c)])) : undefined), [colors]);
@@ -428,9 +480,14 @@ function Editor({ initial }: { initial: Project }) {
     [isCargo, colorBy, shownProject],
   );
   const look = useMemo<SceneLook | undefined>(
-    () => (isCargo && colors ? { itemColors: colors.colors, hidden: hiddenAfter(shownProject, playStep), cutaway } : routePoints ? { routePoints } : undefined),
-    [isCargo, colors, shownProject, playStep, cutaway, routePoints],
+    () => (isCargo && colors ? { itemColors: colors.colors, hidden: hiddenAfter(shownProject, playStep), cutaway } : isWarehouse ? { ...(routePoints ? { routePoints } : {}), stock: stockView } : routePoints ? { routePoints } : undefined),
+    [isCargo, isWarehouse, colors, shownProject, playStep, cutaway, routePoints, stockView],
   );
+  const onSlot = useCallback((slot: string, rackId: string) => {
+    setStockView((v) => ({ ...v, slot }));
+    dispatch({ type: 'select', ids: [rackId] });
+    setRight('properties');
+  }, []);
 
   const toggleSnap = () => {
     if (controls.grid > 1) {
@@ -497,6 +554,10 @@ function Editor({ initial }: { initial: Project }) {
         <a className={`btn ghost${saving ? ' disabled' : ''}`} href={saving ? undefined : `#/p/${project.id}/report`} aria-disabled={saving} title="Printable report for the client">
           <FileText size={16} />
           <span className="hide-narrow">Client report</span>
+        </a>
+        <a className={`btn ghost${saving ? ' disabled' : ''}`} href={saving ? undefined : `#/p/${project.id}/plant`} aria-disabled={saving} title="Link this plan to the plant of manufacturing (GMES)">
+          <Plugs size={16} />
+          <span className="hide-narrow">Plant link</span>
         </a>
         <button type="button" className={`btn${aiOpen ? ' accent' : ''}`} aria-pressed={aiOpen} onClick={() => setAiOpen((o) => !o)}>
           <Sparkle size={15} />
@@ -571,7 +632,7 @@ function Editor({ initial }: { initial: Project }) {
         <div className="offline-bar" role="status">
           <WifiSlash size={15} />
           <span>
-            <strong style={{ fontWeight: 600 }}>Connection lost.</strong> Your last {formatCount(session.outbox.length)} {session.outbox.length === 1 ? 'change is' : 'changes are'} kept here and will be saved when the server is back.
+            <strong style={{ fontWeight: 600 }}>Connection lost.</strong> {formatCount(session.outbox.length)} {session.outbox.length === 1 ? 'change is' : 'changes are'} not saved yet. Trying again on its own; keep this tab open until it says Saved.
           </span>
           <span className="spacer" />
           <button type="button" className="btn" onClick={() => setRetry((n) => n + 1)}>
@@ -603,9 +664,9 @@ function Editor({ initial }: { initial: Project }) {
               </button>
             </div>
             {left === 'load' && isCargo && <LoadPanel project={project} dispatch={dispatch} />}
-            {left === 'warehouse' && isWarehouse && <WarehousePanel project={project} route={route} onRoute={(dockId, rackId) => setRouteEndpoints({ dockId, rackId })} onAddRack={() => { const rack = project.catalog['warehouse-rack-6']; if (rack) addItem(rack); }} dispatch={dispatch} />}
+            {left === 'warehouse' && isWarehouse && <WarehousePanel project={project} route={route} onRoute={(dockId, rackId) => setRouteEndpoints({ dockId, rackId })} onAddRack={() => { const rack = project.catalog['warehouse-rack-6']; if (rack) addItem(rack); }} stockView={stockView} onStockView={setStockView} dispatch={dispatch} />}
             {left === 'production' && isProduction && <ProductionPanel project={project} dispatch={dispatch} />}
-            {left === 'depot' && isDepot && <DepotPanel project={project} entry={depotEntry} onCheck={setDepotBayId} dispatch={dispatch} />}
+            {left === 'depot' && isDepot && <DepotPanel project={project} entry={depotEntry} onCheck={setDepotBayId} dispatch={dispatch} site={isSite} />}
             {left === 'restaurant' && isRestaurant && <RestaurantPanel project={project} route={tableRoute} onRoute={(doorId, tableId) => setTableRouteEndpoints({ doorId, tableId })} />}
             {left === 'library' && <LibraryPanel project={project} pack={activity.pack} onAdd={(d) => addItem(d)} dispatch={dispatch} onEdit={setEditingType} />}
             {left === 'objects' && <ObjectsPanel project={project} issues={issues} selectedIds={session.selectedIds} dispatch={dispatch} />}
@@ -658,7 +719,9 @@ function Editor({ initial }: { initial: Project }) {
                 fitToken={fitToken}
                 onHeading={(q) => (heading.current = q)}
                 look={look}
+                onSlot={isWarehouse && !preview ? onSlot : undefined}
                 fullWallsAtStart={isCargo}
+                keyboardActive={() => view === '3d' || lastPane.current === '3d'}
               />
               {isCargo && colors && (
                 <ContainerViewTools project={shownProject} colorBy={colorBy} onColorBy={setColorBy} cutaway={cutaway} onCutaway={setCutaway} step={playStep} onStep={setPlayStep} legend={colors.legend} />
@@ -672,11 +735,13 @@ function Editor({ initial }: { initial: Project }) {
               <button
                 type="button"
                 className="btn light"
+                disabled={saving}
+                title={saving ? 'Wait until your latest changes are saved' : undefined}
                 onClick={() => {
                   const revision = preview.revision;
-                  void api.restore(project.id, revision).then((r) => {
+                  void api.restore(project.id, revision, project.revision).then((r) => {
                     setPreview(null);
-                    load(r.project, `Restored revision ${revision}`);
+                    load(r.project, r.ok ? `Restored revision ${revision}` : RESTORE_CONFLICT);
                   });
                 }}
               >
@@ -742,6 +807,7 @@ function Editor({ initial }: { initial: Project }) {
                       }
                     }}
                     onFocusIssue={focusIssue}
+                    {...(isWarehouse ? { stockView, onStockView: setStockView } : {})}
                   />
                 )}
                 {right === 'review' && (
@@ -766,9 +832,9 @@ function Editor({ initial }: { initial: Project }) {
                     busy={saving}
                     previewing={preview?.revision ?? null}
                     onPreview={(revision) => void api.revision(project.id, revision).then((p) => setPreview({ revision, project: p }))}
-                    onRestored={(p, revision) => {
+                    onRestored={(p, revision, conflict) => {
                       setPreview(null);
-                      load(p, `Restored revision ${revision}`);
+                      load(p, conflict ? RESTORE_CONFLICT : `Restored revision ${revision}`);
                     }}
                   />
                 )}
@@ -798,6 +864,10 @@ function Editor({ initial }: { initial: Project }) {
         <span>
           <Cursor size={13} />
           {session.selectedIds.length ? `${formatCount(session.selectedIds.length)} selected` : 'Nothing selected'}
+        </span>
+        <span className="hide-narrow" data-testid="arrow-step" title={controls.autoStep ? 'Each arrow press moves a selected item this far; it follows the zoom (Precision panel to change)' : 'Each arrow press moves a selected item this far (set in the Precision panel)'}>
+          <ArrowsOutCardinal size={13} />
+          Arrow {formatLength(arrowStep)}
         </span>
         <span className="hide-narrow">
           <Crosshair size={13} />

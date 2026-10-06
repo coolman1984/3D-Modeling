@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { fromUnit, readRoom, type Project } from '@space-planner/core';
-import { demoHall } from '@space-planner/starter';
+import { demoHall, nileGateRamadanDC } from '@space-planner/starter';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readableAgentLine } from '../src/agents.js';
 import { createApp, type App } from '../src/http.js';
@@ -53,6 +54,15 @@ async function company(s: Store, name = 'Test Co', email = 'owner@test.example')
 }
 
 describe('store', () => {
+  it('rejects a readable backup whose revision identity does not match its database row', () => {
+    const project = store.createProject(demoHall(), 'human');
+    const database = new DatabaseSync(join(dir, 'planner.db'));
+    try {
+      database.prepare('UPDATE revisions SET snapshot = ? WHERE project_id = ?').run(JSON.stringify({ ...project, revision: 1 }), project.id);
+    } finally { database.close(); }
+    expect(() => store.backup(join(dir, 'backups'))).toThrow('Backup revision identity');
+  });
+
   it('keeps every change as a revision with who and what', () => {
     const project = store.createProject(demoHall(), 'human');
     expect(project.id).toMatch(/^p-/);
@@ -89,6 +99,17 @@ describe('store', () => {
     store = new Store(join(dir, 'planner.db'), { passwordCost: 10 });
     expect(store.getProject(project.id)).toMatchObject({ revision: 2, name: demoHall().name });
     expect(store.history(project.id)).toHaveLength(3);
+  });
+
+  it('opens a database made before project groups and keeps its projects, ungrouped', async () => {
+    store.close();
+    const path = join(dir, 'old.db');
+    const { DatabaseSync } = await import('node:sqlite');
+    const old = new DatabaseSync(path);
+    old.exec("CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, revision INTEGER NOT NULL, item_count INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO projects VALUES ('p-old', 'Old hall', 0, 0, '2026-01-01', '2026-01-01');");
+    old.close();
+    store = new Store(path);
+    expect(store.listProjects(null)).toEqual([expect.objectContaining({ id: 'p-old', name: 'Old hall', collection: null })]);
   });
 
   it('duplicates and deletes projects', () => {
@@ -129,6 +150,23 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'add_warehouse_zone', { project_id: id, kind: 'no-go', vertices: [{ x_m: -1, y_m: 1 }, { x_m: 1, y_m: 1 }, { x_m: 1, y_m: 2 }] }).isError).toBe(true);
   });
 
+  it('lets an agent read stock, move a pallet and re-slot a stocked warehouse, each as one revision', () => {
+    const ctx = tools(store);
+    const dc = store.createProject(nileGateRamadanDC(), 'Sample data');
+    const stock = JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q655' }).text);
+    expect(stock.positions).toBe(1680);
+    const from = stock.locations[0] as string;
+    const moved = runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: from, material_id: null }, { location: 'E04-B02-L03-P01', material_id: 'Q655' }] });
+    expect(moved.isError).toBe(false);
+    expect(JSON.parse(runTool(ctx, 'warehouse_stock', { project_id: dc.id, material_id: 'Q655' }).text).locations).toContain('E04-B02-L03-P01');
+    expect(runTool(ctx, 'assign_stock', { project_id: dc.id, changes: [{ location: 'W01-B99-L01-P01', material_id: 'Q655' }] }).isError).toBe(true);
+    const proposal = JSON.parse(runTool(ctx, 'optimize_slotting', { project_id: dc.id }).text);
+    expect(proposal.saving).toBeGreaterThan(10);
+    expect(store.getProject(dc.id)?.revision).toBe(1);
+    expect(runTool(ctx, 'optimize_slotting', { project_id: dc.id, apply: true }).text).toMatch(/^Applied, revision 2/);
+    expect(store.history(dc.id)[0]).toMatchObject({ actor: 'agent:test' });
+  });
+
   it('lets an agent create a container, plan cargo, compare packing candidates and apply one as one revision', () => {
     const ctx = tools(store);
     const created = runTool(ctx, 'create_project', { name: 'Order 7', activity: 'container', container_type: '20gp' });
@@ -152,6 +190,22 @@ describe('agent tools', () => {
     expect(runTool(ctx, 'place_items', { project_id: id, items: [{ definition_id: 'carton-large', x_m: 5.5, y_m: 2, tilt: 'x', stop: 2 }] }).isError).toBe(false);
     expect(store.getProject(id)!.items['carton-large-1']).toMatchObject({ tilt: 'x', meta: { stop: 2 } });
     expect(runTool(ctx, 'pack_container', { project_id: (store.createProject(demoHall(), 'human')).id }).isError).toBe(true);
+  });
+
+  it('lets an agent plan a shipment: how many containers, each loaded, as the agent', () => {
+    const ctx = tools(store);
+    const result = runTool(ctx, 'plan_shipment', { name: 'Boxes', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 100, may_tilt: false }] });
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain('100 pieces need 2 × 20′ standard');
+    expect(result.text).toMatch(/Boxes · container 1 of 2: 88 × box/);
+    expect(store.listProjects(null).filter((p) => p.collection?.startsWith('shipment:'))).toHaveLength(2);
+    expect(store.history(store.listProjects(null)[0]!.id)[0]).toMatchObject({ actor: 'agent:test' });
+    expect(runTool(ctx, 'plan_shipment', { name: 'Bad', parts: [{ name: 'Box', length_mm: 0, width_mm: 1, height_mm: 1, quantity: 1 }] }).text).toBe('Error: parts[0].length_mm must be a number above 0 up to 20000');
+    expect(runTool(ctx, 'plan_shipment', { name: 'Tiny', parts: [{ name: 'Tiny', length_mm: 0.01, width_mm: 0.01, height_mm: 0.01, quantity: 1 }] }).text).toBe('Error: parts[0].length_mm is smaller than 1 mm: sizes are in millimetres');
+    // what a part may carry decides its height: three layers stated (2 across × 3 × 11 walls = 66), or nothing on top (2 × 11 = 22)
+    expect(runTool(ctx, 'plan_shipment', { name: 'Three', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 100, may_tilt: false, max_layers: 3 }] }).text).toMatch(/Three · container 1 of 2: 66 × box/);
+    expect(runTool(ctx, 'plan_shipment', { name: 'Flat', container_type: '20gp', parts: [{ name: 'Box', length_mm: 1000, width_mm: 500, height_mm: 500, quantity: 30, may_tilt: false, stackable: false }] }).text).toMatch(/Flat · container 1 of 2: 22 × box/);
+    expect(runTool(ctx, 'plan_shipment', { name: 'Bad', parts: [{ name: 'Box', length_mm: 1, width_mm: 1, height_mm: 1, quantity: 1, stackable: 'yes' }] }).text).toBe('Error: parts[0].stackable must be true or false');
   });
 
   it('keeps a container\'s data when the room is changed through set_room', () => {
@@ -275,7 +329,7 @@ describe('HTTP app', () => {
     const response = await fetch(`${base}/api/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'mona@nile.example', password: PASSWORD }) });
     return response.headers.get('set-cookie')!.split(';')[0]!;
   };
-  const ownedHall = () => store.createProject(demoHall(), 'human', undefined, owner.companyId);
+  const ownedHall = () => store.createProject(demoHall(), 'human', undefined, { companyId: owner.companyId });
 
   it('creates projects, applies commands with conflict detection, and restores', async () => {
     const created = await json('/api/projects', { method: 'POST', body: JSON.stringify({ name: 'قاعة', width_m: 12, depth_m: 9, ceiling_m: 3 }) });
@@ -292,10 +346,121 @@ describe('HTTP app', () => {
     expect(stale.body.project.revision).toBe(1);
     expect((await json(`/api/projects/${id}/commands`, { method: 'POST', body: JSON.stringify({ commands: [{ type: 'item.remove', id: 'x' }] }) })).status).toBe(422);
     expect((await json(`/api/projects/${id}/history`)).body).toHaveLength(2);
-    const restored = await json(`/api/projects/${id}/restore`, { method: 'POST', body: JSON.stringify({ revision: 0 }) });
+    // A restore names the revision this window last saw (1, after the add), so it can be refused if stale.
+    const restored = await json(`/api/projects/${id}/restore`, { method: 'POST', body: JSON.stringify({ revision: 0, baseRevision: 1 }) });
     expect(restored.body.project).toMatchObject({ revision: 2, items: {} });
     expect((await json('/api/projects/nope')).status).toBe(404);
     expect((await json('/api/projects', { method: 'POST', body: JSON.stringify({ width_m: -1, depth_m: 3 }) })).status).toBe(400);
+  });
+
+  it('adds the sample company as ordinary stored projects, main site listed first', async () => {
+    const before = (await json('/api/projects')).body.length as number;
+    const added = await json('/api/samples/nile-gate', { method: 'POST', body: '{}' });
+    expect(added.status).toBe(201);
+    expect(added.body).toHaveLength(9);
+    const list = (await json('/api/projects')).body as Array<{ id: string; name: string }>;
+    expect(list).toHaveLength(before + 9);
+    expect(list[0]!.name).toContain('10th of Ramadan DC');
+    const history = (await json(`/api/projects/${list[0]!.id}/history`)).body as Array<{ actor: string }>;
+    expect(history).toEqual([expect.objectContaining({ actor: 'Sample data', revision: 0 })]);
+    expect(list[0]).toMatchObject({ collection: 'nile-gate' });
+  });
+
+  it('lists the sample companies and adds the Horizon one as its own group, campus first', async () => {
+    const companies = (await json('/api/samples')).body as Array<{ id: string; name: string }>;
+    expect(companies.map((c) => c.id)).toEqual(['horizon-electronics', 'nile-gate', 'nile-vision']);
+    const added = await json('/api/samples/horizon-electronics', { method: 'POST', body: '{}' });
+    expect(added.status).toBe(201);
+    expect(added.body).toHaveLength(10);
+    const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
+    expect(list[0]!.name).toContain('campus');
+    expect(list.filter((p) => p.collection === 'horizon-electronics')).toHaveLength(10);
+    expect((await json('/api/samples/unknown', { method: 'POST', body: '{}' })).status).toBe(404);
+    store.createProject(demoHall(), 'human');
+    expect(store.listProjects(null)[0]).toMatchObject({ collection: null });
+  });
+
+  it('plans a shipment as loaded container projects in one group, container 1 listed first', async () => {
+    const cushion = { name: 'TV55B Cushion Top', length_mm: 1335, width_mm: 110, height_mm: 400, quantity: 1750 };
+    const created = await json('/api/shipments', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Cushions 04/Oct', container_type: '40hc', parts: [cushion, { ...cushion, name: 'TV55B Cushion Bot' }] }),
+    });
+    expect(created.status).toBe(201);
+    // 3 500 cushions lying flat at 1 080 per 40′ high cube (hand-computed in the starter tests, decision 0024).
+    expect(created.body.containers.map((c: { pieces: Record<string, number> }) => Object.values(c.pieces).reduce((s, n) => s + n, 0))).toEqual([1080, 1080, 1080, 260]);
+    expect(created.body.containers.map((c: { pieces: unknown }) => c.pieces)).toEqual([
+      { 'tv55b-cushion-top': 1080 },
+      { 'tv55b-cushion-top': 670, 'tv55b-cushion-bot': 410 },
+      { 'tv55b-cushion-bot': 1080 },
+      { 'tv55b-cushion-bot': 260 },
+    ]);
+    const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
+    expect(list.slice(0, 4).map((p) => p.name)).toEqual(['Cushions 04/Oct · container 1 of 4', 'Cushions 04/Oct · container 2 of 4', 'Cushions 04/Oct · container 3 of 4', 'Cushions 04/Oct · container 4 of 4']);
+    expect(new Set(list.slice(0, 4).map((p) => p.collection))).toEqual(new Set([`shipment:${created.body.shipment}`]));
+    const first = (await json(`/api/projects/${created.body.containers[0].id}`)).body as Project;
+    expect(first.space.meta).toMatchObject({ pack: 'container', shipment: created.body.shipment, shipmentIndex: 1, shipmentCount: 4 });
+    expect(first.catalog['tv55b-cushion-top']!.meta).toMatchObject({ quantity: 1080, allowTilt: true });
+
+    const bad = (body: unknown) => json('/api/shipments', { method: 'POST', body: JSON.stringify(body) });
+    expect((await bad({ name: 'x', parts: [] })).status).toBe(400);
+    expect((await bad({ name: 'x', container_type: 'nope', parts: [cushion] })).status).toBe(400);
+    expect((await bad({ name: 'x', parts: [{ ...cushion, length_mm: -5 }] })).body.error).toBe('parts[0].length_mm must be a number above 0 up to 20000');
+    expect((await bad({ name: 'x', parts: [{ ...cushion, quantity: 'many' }] })).status).toBe(400);
+    expect((await bad({ name: 'x', parts: [{ ...cushion, quantity: 150_000 }, { ...cushion, quantity: 60_000 }] })).body.error).toBe('the parts add up to 210000 pieces; one shipment takes at most 200000');
+  });
+
+  it('rejects incomplete shipments before storage through HTTP and the agent tool', async () => {
+    const before = store.listProjects(null).map((p) => p.id);
+    const small = { name: 'Small', length_mm: 500, width_mm: 500, height_mm: 500, quantity: 1 };
+    const beam = { name: 'Beam', length_mm: 7000, width_mm: 100, height_mm: 100, quantity: 1, may_tilt: false };
+    const bad = await json('/api/shipments', { method: 'POST', body: JSON.stringify({ name: 'Partial', container_type: '20gp', parts: [small, beam] }) });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toContain('Shipment is incomplete');
+    expect(bad.body.error).toContain('beam');
+    const set = { length_mm: 4000, width_mm: 2200, height_mm: 2200, quantity: 1, model: 'M', may_tilt: false };
+    const result = runTool(tools(store), 'plan_shipment', { name: 'Partial sets', container_type: '20gp', parts: [small, { ...set, name: 'A' }, { ...set, name: 'B' }] });
+    expect(result.text).toContain('Unplanned models: M');
+    expect(result.text).toContain('Nothing was saved');
+    expect(store.listProjects(null).map((p) => p.id)).toEqual(before);
+    const tiny = await json('/api/shipments', { method: 'POST', body: JSON.stringify({ parts: [{ ...small, width_mm: 0.99 }] }) });
+    expect(tiny.status).toBe(400);
+    expect(tiny.body.error).toContain('smaller than 1 mm');
+  });
+
+  it('backs up and rehearses all revisions, settings and agent history without changing the live store', async () => {
+    const project = store.createProject(demoHall(), 'human');
+    store.applyCommands(project.id, [{ type: 'project.rename', name: 'Revised' }], { actor: 'human' });
+    store.restore(project.id, 0, 'human');
+    store.setSetting('backup-test', { privateValue: 'test only', enabled: true });
+    const run = store.createRun(project.id, 'fake', 'Rehearsal');
+    store.appendRunLog(run.id, 'Test log');
+    store.finishRun(run.id, 'done');
+    const original = store.getProject(project.id);
+    const history = store.history(project.id);
+    const result = await json('/api/backups', { method: 'POST', body: '{}' });
+    expect(result.status).toBe(201);
+    expect(result.body.name).toMatch(/^planner-[a-zA-Z0-9-]+\.db$/);
+    expect(result.body.rehearsal).toEqual({ ok: true, projects: 1, revisions: 3, settings: 1, agentRuns: 1 });
+    expect(JSON.stringify(result.body)).not.toContain('privateValue');
+    const snapshot = join(dir, 'backups', result.body.name);
+    expect(existsSync(snapshot)).toBe(true);
+    // Rehearse restoring a copy, keeping the named snapshot untouched.
+    const restoreFile = join(dir, 'rehearsal.db');
+    copyFileSync(snapshot, restoreFile);
+    const restored = new Store(restoreFile);
+    try {
+      expect(restored.getProject(project.id)).toEqual(original);
+      expect(restored.history(project.id)).toEqual(history);
+      for (let revision = 0; revision <= 2; revision++) expect(restored.getRevision(project.id, revision)).toEqual(store.getRevision(project.id, revision));
+      expect(restored.getSetting('backup-test')).toEqual(store.getSetting('backup-test'));
+      expect(restored.getRun(run.id)).toEqual(store.getRun(run.id));
+    } finally { restored.close(); }
+    const second = await json('/api/backups', { method: 'POST', body: '{}' });
+    expect(second.body.name).not.toBe(result.body.name);
+    expect(store.getProject(project.id)).toEqual(original);
+    expect(store.history(project.id)).toEqual(history);
+    expect((await fetch(`${base}/api/backups`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://evil.example' }, body: '{}' })).status).toBe(403);
   });
 
   it('pushes live events when anything changes', async () => {
@@ -430,7 +595,7 @@ describe('API agent', () => {
     const app = createApp({ store, dataDir: dir, mcpScript: 'unused' });
     try {
       const { company: co } = await company(store);
-      const project = store.createProject(demoHall(), 'human', undefined, co.id);
+      const project = store.createProject(demoHall(), 'human', undefined, { companyId: co.id });
       const run = app.runner.start(project.id, 'api', 'حط كرسيين', { companyId: co.id, startedBy: 'test' });
       const finished = await until(() => {
         const r = store.getRun(run.id);
@@ -458,7 +623,7 @@ describe('API agent', () => {
     const app = createApp({ store, dataDir: dir, mcpScript: 'unused' });
     try {
       const { company: co } = await company(store);
-      const project = store.createProject(demoHall(), 'human', undefined, co.id);
+      const project = store.createProject(demoHall(), 'human', undefined, { companyId: co.id });
       const run = app.runner.start(project.id, 'api', 'x', { companyId: co.id, startedBy: 'test' });
       const finished = await until(() => {
         const r = store.getRun(run.id);
