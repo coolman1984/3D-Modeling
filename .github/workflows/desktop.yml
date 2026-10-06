@@ -45,7 +45,11 @@ jobs:
           if ($page.Content -notmatch '<div id="root"') { throw 'The interface did not load' }
           Invoke-RestMethod "$url/api/projects" | Out-Null
           Write-Host "Installed program answers at $url"
+          # Even when the window is ended abruptly, its server must not stay behind.
           Stop-Process -Id $app.Id
+          for ($i = 0; $i -lt 15 -and (Get-Process Atrium -ErrorAction SilentlyContinue); $i++) { Start-Sleep 1 }
+          if (Get-Process Atrium -ErrorAction SilentlyContinue) { throw 'Atrium was left running after its window ended' }
+          Write-Host 'Nothing left running'
       - uses: actions/upload-artifact@v4
         with:
           name: Atrium-Setup

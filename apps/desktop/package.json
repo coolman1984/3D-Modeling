@@ -10,7 +10,7 @@
     "stage": "node stage.mjs",
     "start": "node stage.mjs && electron .",
     "dist": "node stage.mjs && electron-builder --win nsis --publish never",
-    "test": "node --test test/launch.test.cjs"
+    "test": "node --disable-warning=ExperimentalWarning --test test/launch.test.cjs test/projects.test.cjs"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -20,7 +20,7 @@
     "appId": "app.spaceplanner.desktop",
     "productName": "Atrium",
     "directories": { "output": "../../release/desktop", "buildResources": "build" },
-    "files": ["main.cjs", "launch.cjs", "package.json"],
+    "files": ["main.cjs", "launch.cjs", "projects.cjs", "package.json"],
     "extraResources": [{ "from": "stage", "to": "app" }],
     "win": { "target": "nsis", "icon": "build/icon.png" },
     "linux": { "target": "dir", "icon": "build/icon.png", "executableName": "atrium" },

@@ -18,6 +18,20 @@ and 0022).
   that, then ends the server.
 - Projects live in the user's profile (`%APPDATA%\Atrium\data` on Windows), so reinstalling or
   updating keeps them. Uninstalling does not delete them. File → Open projects folder shows them.
+- The window opens at once on a small waiting page, then shows the program. The server is asked
+  for port 4650 when it is free (the window keeps display settings per address, so a steady port
+  keeps them); otherwise it finds one from 4600 up.
+- Bringing projects over (`projects.cjs`): on the first start with no projects the program asks
+  once whether to bring the projects of the browser version, and File → Bring projects from
+  another copy does it any time. The chosen `planner.db` is copied with `VACUUM INTO` (consistent
+  even while the other copy is running, `-wal` included) and integrity-checked while the program
+  keeps running; only then is the server stopped, the projects here moved to
+  `backups/before-import-<time>.db`, the copy put in place (rolled back if that fails) and the
+  server started again. If the server cannot start on the brought file (say, from a newer
+  version), it is set aside as `backups/refused-<time>.db` and the projects that were here return. It replaces rather than merges: ids could clash, and a whole-file swap is
+  easy to undo. Other files are refused with a plain message and nothing changes.
+- Problems are told in plain words; the technical output goes to `last-problem.log` next to the
+  projects folder. Only the program's own pages may ask for permissions.
 - One window per computer: a second start brings the open window forward. Links to other sites
   open in the normal browser; only the program's own pages stay in the window.
 - `electron-builder` makes an NSIS installer (`Atrium-Setup-<version>.exe`): per user, no admin
@@ -38,5 +52,10 @@ and 0022).
 - The installer is not code-signed: Windows SmartScreen shows "Windows protected your PC" the
   first time (More info → Run anyway). Signing needs a paid certificate; that is the owner's call.
 - No automatic updates yet: a newer version is a new installer run over the old one; the projects stay.
-- The desktop and browser versions keep separate project folders. To move projects, copy
-  `planner.db` from the old `data` folder into the desktop projects folder while both are closed.
+- The desktop and browser versions keep separate project folders; bringing projects copies them
+  once, after which the two copies go their own ways.
+- Verified: a script drives the packaged program (Playwright's Electron driver, dialogs stubbed
+  in the main process) through the first start, the welcome import from a running browser
+  version, opening a project, a refused file, a second import with backup, closing (no process,
+  no `-wal`) and a second start. The Windows workflow installs, starts, checks the answer and that
+  nothing stays running after the window is ended abruptly.

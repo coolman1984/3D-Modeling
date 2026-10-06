@@ -10,7 +10,10 @@ the database cleanly; `pnpm check` green; pushed.
 - [x] Server `--stop-with-stdin`; helper tests (address read only from a complete line)
 - [x] Linux build run on a virtual screen: window shows the projects page; quit leaves no process and no `-wal`
 - [x] Workflow: Windows installer built, installed silently, started, answering
-- [ ] `pnpm check` green, commit, push; Windows run green
+- [x] First push: Windows run green (built, installed silently, started, answered)
+- [x] Owner bar (acceptance): instant waiting page; steady port 4650; welcome + "Bring projects" with backup, rollback, refusal; plain problem messages with log; permissions only for own pages
+- [x] Packaged program driven end to end (15 checks) incl. import from a running browser version; planted plain-copy bug caught
+- [x] `pnpm check` green, commit, push; Windows run green (incl. nothing left running)
 
 ## Now: review fixes (2 Oct 2026, decision 0025)
 

@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { join } = require('node:path');
-const { appFiles, serverArgs, findUrl, isOwnPage } = require('../launch.cjs');
+const { appFiles, serverArgs, findUrl, isOwnPage, statusPage } = require('../launch.cjs');
 
 test('an installed copy reads its files from resources/app; a development run from stage/', () => {
   assert.deepEqual(appFiles({ packaged: true, resourcesPath: join('R'), here: 'H' }), {
@@ -31,4 +31,16 @@ test('only the program\'s own pages stay in the window', () => {
   assert.equal(isOwnPage('http://127.0.0.1:4601/', url), false);
   assert.equal(isOwnPage('https://nodejs.org', url), false);
   assert.equal(isOwnPage('not a url', url), false);
+});
+
+test('the desktop port is asked for only when it is free', () => {
+  assert.deepEqual(serverArgs({ server: 's', web: 'w', data: 'd', port: 4650 }).slice(-2), ['--port', '4650']);
+  assert.equal(serverArgs({ server: 's', web: 'w', data: 'd' }).includes('--port'), false);
+});
+
+test('the waiting page shows the words as text, never as markup', () => {
+  const page = decodeURIComponent(statusPage('A <b>', 'x & "y"').split(',')[1]);
+  assert.match(page, /<h1>A &lt;b&gt;<\/h1>/);
+  assert.match(page, /x &amp; &quot;y&quot;/);
+  assert.match(page, /role="status"/);
 });
