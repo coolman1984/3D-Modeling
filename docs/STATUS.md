@@ -4,15 +4,15 @@
 
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
-- **Branch:** `unknown`
-- **Last commit:** none
+- **Branch:** `ccr-0fdf298a-s28hzp`
+- **Last commit:** `3001579` Desktop: instant window, bring projects over, plain problems, stable port
 - **Uncommitted files:** 0
 
-## Current stage: review fixes (2 Oct 2026, decision 0025)
+## Current stage: desktop program with installer (6 Oct 2026, decision 0026)
 
-**Finish line:** tiny inputs cannot freeze planning; incomplete shipments cannot be saved; owner roof default stays consistent; isolated demo uses fixed port and Chrome helper; checks pass without touching owner data.
+**Finish line (done means):** the program opens in its own window without a browser; a Windows installer is built, installed silently and answers on a Windows runner; closing the window closes the database cleanly; `pnpm check` green; pushed.
 
-7 done, 0 open.
+8 done, 0 open.
 
 ## Uncommitted work
 
@@ -20,11 +20,11 @@ Nothing uncommitted.
 
 ## Recent checkpoints
 
-None yet on `unknown` (`pnpm checkpoint` makes one).
+None yet on `ccr-0fdf298a-s28hzp` (`pnpm checkpoint` makes one).
 
 ## How to resume
 
 1. Read the open items above and the matching section of `TASKS.md`.
-2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/unknown -- .`
+2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/ccr-0fdf298a-s28hzp -- .`
 3. Run `pnpm typecheck` to see what the interrupted work left broken, then continue.
 4. Details: `docs/process/interruptions.md`.

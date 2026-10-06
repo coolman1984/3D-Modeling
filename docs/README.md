@@ -43,6 +43,7 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0023 — Link to plant: tags in meta, the layout snapshot, the live view from the browser](decisions/0023-gmes-link.md)
 - [0024 — Shipments: pieces lie flat and stack; height is not the goal](decisions/0024-lie-flat-and-stack-limits.md)
 - [0025 - Bounded shipment planning and isolated demo launcher](decisions/0025-bounded-shipment-planning-and-demo.md)
+- [0026 — Desktop program with a Windows installer](decisions/0026-desktop-program.md)
 
 ## Generated
 
