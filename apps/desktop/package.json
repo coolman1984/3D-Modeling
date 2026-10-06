@@ -1,0 +1,38 @@
+{
+  "name": "@space-planner/desktop",
+  "productName": "Atrium",
+  "version": "0.1.0",
+  "description": "Atrium space planner, desktop program",
+  "author": "Atrium",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "stage": "node stage.mjs",
+    "start": "node stage.mjs && electron .",
+    "dist": "node stage.mjs && electron-builder --win nsis --publish never",
+    "test": "node --test test/launch.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "app.spaceplanner.desktop",
+    "productName": "Atrium",
+    "directories": { "output": "../../release/desktop", "buildResources": "build" },
+    "files": ["main.cjs", "launch.cjs", "package.json"],
+    "extraResources": [{ "from": "stage", "to": "app" }],
+    "win": { "target": "nsis", "icon": "build/icon.png" },
+    "linux": { "target": "dir", "icon": "build/icon.png", "executableName": "atrium" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Atrium",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Atrium-Setup-${version}.${ext}"
+    }
+  }
+}

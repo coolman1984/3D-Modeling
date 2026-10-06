@@ -14,6 +14,7 @@
     "docs": "node scripts/docs.mjs",
     "log": "node scripts/docs.mjs log",
     "checkpoint": "node scripts/checkpoint.mjs",
-    "portable": "node scripts/portable.mjs"
+    "portable": "node scripts/portable.mjs",
+    "desktop": "pnpm --filter @space-planner/editor build && pnpm --filter @space-planner/server build && pnpm --filter @space-planner/desktop dist"
   }
 }

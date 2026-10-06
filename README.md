@@ -13,6 +13,10 @@
 
 البيانات كلها بتتحفظ على جهازك في فولدر `data`.
 
+### 🖥️ برنامج مستقل بملف تسطيب (ويندوز)
+
+نزّل **Atrium-Setup.exe** من صفحة «Desktop installer» في تبويب Actions على جيت هاب، ودوس عليه دبل كليك. هيتسطب من غير صلاحيات مدير، ويعمل أيقونة على سطح المكتب، ويفتح في شباك لوحده من غير متصفح. أول مرة ويندوز ممكن يقول «Windows protected your PC»: دوس **More info** وبعدين **Run anyway**. مشاريعك بتتحفظ في `%APPDATA%\Atrium\data` وبتفضل موجودة لو حدّثت البرنامج أو شلته ([قرار ٠٠٢٦](docs/decisions/0026-desktop-program.md)).
+
 ### 🏢 لو موقع npm مقفول (زي شبكة الشركة)
 
 على جهاز فيه نت، شغّل مرة واحدة: `node scripts/portable.mjs --with-data`. هيطلع ملف `release/SpacePlanner-portable.zip` فيه البرنامج جاهز ومعاه كل مشاريعك. انقله لجهاز الشركة، فكّه، ودوس دبل كليك على **Start Space Planner.bat**. مش محتاج نت ولا تثبيت أي حاجة.
@@ -76,6 +80,7 @@
 | ش١ — الشحنات: كام حاوية محتاج، الحاويات جنب بعض مجسمة، تشغيل التحميل، ولزق خطة الإنتاج من الإكسل | ✅ |
 | E1 — Link to plant (GMES): tag items and zones with the plant tree, checks that name the missing station, the layout snapshot sent or downloaded, and a live view of the stations ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
 | E2 — Sample company Nile Vision (plant, final assembly lines, SMT and THT) whose stations carry their GMES code, and **Link by code** ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
+| م١ — برنامج مكتبي مستقل: شباك لوحده من غير متصفح، وملف تسطيب لويندوز بيتعمل ويتجرّب أوتوماتيك ([قرار ٠٠٢٦](docs/decisions/0026-desktop-program.md)) | ✅ |
 | ت١١ الحسابات والشركات | 🗓️ مخطط ([الخطة](docs/03-industrial-packs-plan.md)) |
 
 ## 🛠️ للمطورين
@@ -84,6 +89,7 @@
 pnpm install
 pnpm check      # فحص الأنواع + كل الاختبارات + اختبارات المتصفح
 pnpm dev        # الواجهة مع تحديث لحظي (محتاجة الخادم شغال)
+pnpm desktop    # ملف تسطيب ويندوز في release/desktop (على ويندوز)
 ```
 
 ### Isolated company demo (2 Oct 2026)

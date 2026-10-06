@@ -68,6 +68,12 @@ async function main(): Promise<void> {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  // The desktop window keeps a pipe open; when the window closes (or crashes) the pipe ends and the
+  // store is closed cleanly. Windows has no SIGTERM to send a child, so a signal cannot do this.
+  if (process.argv.includes('--stop-with-stdin')) {
+    process.stdin.on('end', shutdown);
+    process.stdin.resume();
+  }
 }
 
 main().catch((error: unknown) => {

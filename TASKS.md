@@ -1,5 +1,17 @@
 # TASKS
 
+## Now: desktop program with installer (6 Oct 2026, decision 0026)
+
+**Finish line (done means):** the program opens in its own window without a browser; a Windows
+installer is built, installed silently and answers on a Windows runner; closing the window closes
+the database cleanly; `pnpm check` green; pushed.
+
+- [x] `apps/desktop`: window, server start with Electron's Node, single window, links to browser, clean stop
+- [x] Server `--stop-with-stdin`; helper tests (address read only from a complete line)
+- [x] Linux build run on a virtual screen: window shows the projects page; quit leaves no process and no `-wal`
+- [x] Workflow: Windows installer built, installed silently, started, answering
+- [ ] `pnpm check` green, commit, push; Windows run green
+
 ## Now: review fixes (2 Oct 2026, decision 0025)
 
 **Finish line:** tiny inputs cannot freeze planning; incomplete shipments cannot be saved; owner roof default stays consistent; isolated demo uses fixed port and Chrome helper; checks pass without touching owner data.
