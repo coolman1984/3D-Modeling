@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { saved } from './helpers.js';
 
-test('sample company: add it, re-slot the main DC, find a material and empty one location', async ({ page }) => {
+test('sample company pack: install it, re-slot the main DC, find a material and empty one location', async ({ page }) => {
   await page.goto('/#/');
-  await page.getByTestId('add-sample').click();
-  await page.getByTestId('add-sample-nile-gate').click();
-  await expect(page.getByRole('status').filter({ hasText: 'Added Nile Gate Logistics' })).toBeVisible();
+  await page.getByTestId('open-packs').click();
+  await page.getByTestId('install-pack-nile-gate').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Installed Nile Gate Logistics' })).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
   const list = await (await page.request.get('/api/projects')).json() as Array<{ id: string; name: string }>;
   const dc = list.find((p) => p.name.includes('10th of Ramadan DC'))!;
   expect(list.filter((p) => p.name.includes('Try it'))).toHaveLength(1);
@@ -38,17 +39,18 @@ test('sample company: add it, re-slot the main DC, find a material and empty one
   await expect(page.getByTestId('view3d').locator('canvas')).toBeVisible();
 });
 
-test('second sample company: Horizon Electronics lists as its own group and its campus opens outdoors in 3D', async ({ page }) => {
+test('second sample company pack: Horizon Electronics lists as its own group and its campus opens outdoors in 3D', async ({ page }) => {
   await page.goto('/#/');
-  await page.getByTestId('add-sample').click();
-  await page.getByTestId('add-sample-horizon-electronics').click();
-  await expect(page.getByRole('status').filter({ hasText: 'Added Horizon Electronics · industrial zone (invented) · 10 projects' })).toBeVisible();
-  const group = page.locator('[data-group="horizon-electronics"]');
+  await page.getByTestId('open-packs').click();
+  await page.getByTestId('install-pack-horizon-electronics').click();
+  await expect(page.getByRole('status').filter({ hasText: 'Installed Horizon Electronics · industrial zone (invented) · 10 projects' })).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+  const group = page.locator('[data-group="pack:horizon-electronics"]');
   await expect(group.locator('.proj-group-count')).toHaveText('10 projects');
 
   const list = await (await page.request.get('/api/projects')).json() as Array<{ id: string; name: string; collection: string | null }>;
-  const campus = list.find((p) => p.collection === 'horizon-electronics' && p.name.includes('campus'))!;
-  expect(list.filter((p) => p.collection === 'horizon-electronics')).toHaveLength(10);
+  const campus = list.find((p) => p.collection === 'pack:horizon-electronics' && p.name.includes('campus'))!;
+  expect(list.filter((p) => p.collection === 'pack:horizon-electronics')).toHaveLength(10);
 
   await page.goto(`/#/p/${campus.id}`);
   await expect(page.locator('[data-item-id]').first()).toBeVisible();

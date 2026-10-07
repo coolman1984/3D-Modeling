@@ -17,7 +17,7 @@ function plantExport() {
 }
 
 test('Nile Vision sample: stations carry GMES codes and "Link by code" tags the whole plan in one revision', async ({ page }) => {
-  const added = await (await page.request.post('/api/samples/nile-vision', { data: {} })).json() as Array<{ id: string; name: string }>;
+  const added = ((await (await page.request.post('/api/packs', { data: { included: 'nile-vision' } })).json()) as { projects: Array<{ id: string; name: string }> }).projects;
   expect(added.map((p) => p.name)).toContain('Nile Vision · Final assembly hall (FA-1, FA-2)');
   const id = added.find((p) => p.name.includes('Final assembly'))!.id;
   const before = await (await page.request.get(`/api/projects/${id}`)).json();

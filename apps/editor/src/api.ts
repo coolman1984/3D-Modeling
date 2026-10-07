@@ -62,6 +62,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const post = <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
+/** A pack installed in this program: its projects are listed as one group. */
+export interface InstalledPack {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly collection: string;
+  readonly installedAt: string;
+  readonly projectCount: number;
+}
+
+/** A pack that comes with the program, ready to install. */
+export interface IncludedPack {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly projectCount: number;
+  readonly installed: boolean;
+}
+
+export interface PackList {
+  readonly installed: readonly InstalledPack[];
+  readonly included: readonly IncludedPack[];
+}
+
 export const api = {
   listProjects: () => request<ProjectSummary[]>('/api/projects'),
   createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference' | 'production-reference' | 'depot-reference' | 'restaurant-reference' | (typeof HOME_TEMPLATES)[number]['id']; file?: string }) =>
@@ -69,7 +93,21 @@ export const api = {
   /** Plan how many containers the parts need; the server stores one loaded container project each. */
   createShipment: (body: { name: string; container_type: string; parts: Array<{ name: string; length_mm: number; width_mm: number; height_mm: number; quantity: number; may_tilt: boolean; model?: string; mass_kg?: number; max_layers?: number }> }) =>
     post<{ shipment: string; containers: Array<{ id: string; name: string; pieces: Record<string, number> }>; tooBig: string[]; unplanned: string[]; explanation: string }>('/api/shipments', body),
-  addSampleCompany: (company: string) => post<Array<{ id: string; name: string }>>(`/api/samples/${encodeURIComponent(company)}`, {}),
+  /** Installed packs, and the packs that come with the program. */
+  packs: () => request<PackList>('/api/packs'),
+  /** Install an included pack (by id) or a pack file (base64); `replace` after the person agreed. */
+  installPack: (body: { included: string; replace?: boolean } | { data: string; replace?: boolean }) =>
+    post<{ pack?: InstalledPack; projects?: Array<{ id: string; name: string }>; error?: string }>('/api/packs', body),
+  removePack: (id: string) => request<{ ok: boolean; removed: number }>(`/api/packs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** A pack's file: an installed pack, or chosen projects as a new pack. */
+  packFile: async (from: { pack: string } | { name: string; description?: string; projectIds: string[] }): Promise<{ name: string; blob: Blob }> => {
+    const response = 'pack' in from
+      ? await fetch(`/api/packs/${encodeURIComponent(from.pack)}/file`)
+      : await fetch('/api/packs/file', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(from) });
+    if (!response.ok) throw new Error(((await response.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${response.status}`);
+    const name = /filename="([^"]+)"/.exec(response.headers.get('content-disposition') ?? '')?.[1] ?? 'pack.atrium';
+    return { name, blob: await response.blob() };
+  },
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
   deleteProject: (id: string) => request<unknown>(`/api/projects/${id}`, { method: 'DELETE' }),
   duplicateProject: (id: string) => post<Project>(`/api/projects/${id}/duplicate`, {}),

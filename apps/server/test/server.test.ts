@@ -12,6 +12,8 @@ import { createApp, type App } from '../src/http.js';
 import { handleMessage } from '../src/mcp.js';
 import { saveSettings } from '../src/settings.js';
 import { Store } from '../src/store.js';
+import { writeSamplePacks } from '../src/makePacks.js';
+import { readPack } from '../src/packs.js';
 import { runTool } from '../src/tools.js';
 
 const m = (v: number) => fromUnit(v, 'm');
@@ -19,6 +21,10 @@ const fakeAgent = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta
 
 let dir: string;
 let store: Store;
+// The packs that come with the program, built once as the build does.
+const packsDir = mkdtempSync(join(tmpdir(), 'planner-packs-'));
+writeSamplePacks(packsDir);
+afterAll(() => rmSync(packsDir, { recursive: true, force: true }));
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'planner-'));
@@ -299,7 +305,7 @@ describe('HTTP app', () => {
   let base: string;
 
   beforeEach(async () => {
-    app = createApp({ store, dataDir: dir, mcpScript: join(dir, 'missing-mcp.mjs') });
+    app = createApp({ store, dataDir: dir, mcpScript: join(dir, 'missing-mcp.mjs'), packsDir });
     base = `http://127.0.0.1:${await app.listen(0)}`;
   });
 
@@ -334,31 +340,83 @@ describe('HTTP app', () => {
     expect((await json('/api/projects', { method: 'POST', body: JSON.stringify({ width_m: -1, depth_m: 3 }) })).status).toBe(400);
   });
 
-  it('adds the sample company as ordinary stored projects, main site listed first', async () => {
-    const before = (await json('/api/projects')).body.length as number;
-    const added = await json('/api/samples/nile-gate', { method: 'POST', body: '{}' });
+  it('lists the included packs and installs one as ordinary stored projects, main site first', async () => {
+    const packs = (await json('/api/packs')).body as { installed: unknown[]; included: Array<{ id: string; projectCount: number; installed: boolean }> };
+    expect(packs.installed).toEqual([]);
+    expect(packs.included.map((p) => [p.id, p.projectCount])).toEqual([['horizon-electronics', 10], ['nile-gate', 9], ['nile-vision', 3]]);
+    const added = await json('/api/packs', { method: 'POST', body: JSON.stringify({ included: 'nile-gate' }) });
     expect(added.status).toBe(201);
-    expect(added.body).toHaveLength(9);
-    const list = (await json('/api/projects')).body as Array<{ id: string; name: string }>;
-    expect(list).toHaveLength(before + 9);
+    expect(added.body.projects).toHaveLength(9);
+    const list = (await json('/api/projects')).body as Array<{ id: string; name: string; collection: string | null }>;
+    expect(list).toHaveLength(9);
     expect(list[0]!.name).toContain('10th of Ramadan DC');
-    const history = (await json(`/api/projects/${list[0]!.id}/history`)).body as Array<{ actor: string }>;
-    expect(history).toEqual([expect.objectContaining({ actor: 'Sample data', revision: 0 })]);
-    expect(list[0]).toMatchObject({ collection: 'nile-gate' });
+    expect(list[0]).toMatchObject({ collection: 'pack:nile-gate' });
+    const history = (await json(`/api/projects/${list[0]!.id}/history`)).body as Array<{ actor: string; summary: string }>;
+    expect(history).toEqual([expect.objectContaining({ actor: 'human', summary: 'Installed from the pack “Nile Gate Logistics”', revision: 0 })]);
+    const after = (await json('/api/packs')).body as { installed: Array<{ id: string; projectCount: number }>; included: Array<{ id: string; installed: boolean }> };
+    expect(after.installed).toMatchObject([{ id: 'nile-gate', projectCount: 9 }]);
+    expect(after.included.find((p) => p.id === 'nile-gate')!.installed).toBe(true);
+    expect((await json('/api/packs', { method: 'POST', body: JSON.stringify({ included: 'unknown' }) })).status).toBe(404);
   });
 
-  it('lists the sample companies and adds the Horizon one as its own group, campus first', async () => {
-    const companies = (await json('/api/samples')).body as Array<{ id: string; name: string }>;
-    expect(companies.map((c) => c.id)).toEqual(['horizon-electronics', 'nile-gate', 'nile-vision']);
-    const added = await json('/api/samples/horizon-electronics', { method: 'POST', body: '{}' });
-    expect(added.status).toBe(201);
-    expect(added.body).toHaveLength(10);
-    const list = (await json('/api/projects')).body as Array<{ name: string; collection: string | null }>;
-    expect(list[0]!.name).toContain('campus');
-    expect(list.filter((p) => p.collection === 'horizon-electronics')).toHaveLength(10);
-    expect((await json('/api/samples/unknown', { method: 'POST', body: '{}' })).status).toBe(404);
-    store.createProject(demoHall(), 'human');
-    expect(store.listProjects()[0]).toMatchObject({ collection: null });
+  it('installing a pack again asks first, then replaces only that pack’s projects', async () => {
+    const own = store.createProject(demoHall(), 'human');
+    await json('/api/packs', { method: 'POST', body: JSON.stringify({ included: 'nile-vision' }) });
+    const first = store.listProjects().filter((p) => p.collection === 'pack:nile-vision').map((p) => p.id);
+    const again = await json('/api/packs', { method: 'POST', body: JSON.stringify({ included: 'nile-vision' }) });
+    expect(again.status).toBe(409);
+    expect(again.body).toMatchObject({ error: 'installed', pack: { id: 'nile-vision', projectCount: 3 } });
+    const replaced = await json('/api/packs', { method: 'POST', body: JSON.stringify({ included: 'nile-vision', replace: true }) });
+    expect(replaced.status).toBe(201);
+    const second = store.listProjects().filter((p) => p.collection === 'pack:nile-vision').map((p) => p.id);
+    expect(second).toHaveLength(3);
+    expect(second.some((id) => first.includes(id))).toBe(false);
+    expect(store.getProject(own.id)).not.toBeNull();
+  });
+
+  it('removes a pack and only its projects', async () => {
+    const own = store.createProject(demoHall(), 'human');
+    await json('/api/packs', { method: 'POST', body: JSON.stringify({ included: 'nile-vision' }) });
+    const removed = await json('/api/packs/nile-vision', { method: 'DELETE' });
+    expect(removed.body).toMatchObject({ ok: true, removed: 3 });
+    expect(store.listProjects().map((p) => p.id)).toEqual([own.id]);
+    expect((await json('/api/packs')).body.installed).toEqual([]);
+    expect((await json('/api/packs/nile-vision', { method: 'DELETE' })).status).toBe(404);
+  });
+
+  it('a pack goes round through a file: download it, remove it, install the file', async () => {
+    await json('/api/packs', { method: 'POST', body: JSON.stringify({ included: 'nile-gate' }) });
+    const names = store.listProjects().map((p) => p.name);
+    const file = await fetch(`${base}/api/packs/nile-gate/file`);
+    expect(file.headers.get('content-disposition')).toBe('attachment; filename="nile-gate.atrium"');
+    const bytes = Buffer.from(await file.arrayBuffer());
+    expect(bytes[0]).toBe(0x1f); // compressed
+    await json('/api/packs/nile-gate', { method: 'DELETE' });
+    const installed = await json('/api/packs', { method: 'POST', body: JSON.stringify({ data: bytes.toString('base64') }) });
+    expect(installed.status).toBe(201);
+    expect(store.listProjects().map((p) => p.name)).toEqual(names);
+  });
+
+  it('refuses files that are not packs, in plain words, and installs nothing', async () => {
+    const send = (data: string) => json('/api/packs', { method: 'POST', body: JSON.stringify({ data }) });
+    const text = (t: string) => Buffer.from(t).toString('base64');
+    expect((await send(text('hello'))).body).toMatchObject({ error: 'This file is not an Atrium pack.' });
+    expect((await send(text(JSON.stringify({ format: 'atrium-pack', version: 9, id: 'x', name: 'X', projects: ['{}'] })))).body.error).toBe('This pack was made by a newer Atrium. Update Atrium to install it.');
+    const damaged = await send(text(JSON.stringify({ format: 'atrium-pack', version: 1, id: 'x', name: 'X', projects: ['{"schemaVersion":2}'] })));
+    expect(damaged.status).toBe(422);
+    expect(damaged.body.error).toMatch(/^Project 1 in this pack cannot be opened/);
+    expect(store.listProjects()).toEqual([]);
+    expect((await json('/api/packs', { method: 'POST', body: '{}' })).status).toBe(400);
+  });
+
+  it('saves chosen projects as a new pack file, named after the pack', async () => {
+    const one = store.createProject(demoHall(), 'human');
+    const made = await fetch(`${base}/api/packs/file`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Client — Villa 12', projectIds: [one.id, 'missing'] }) });
+    expect(made.headers.get('content-disposition')).toBe('attachment; filename="client-villa-12.atrium"');
+    const pack = readPack(Buffer.from(await made.arrayBuffer()));
+    expect(pack).toMatchObject({ id: 'client-villa-12', name: 'Client — Villa 12' });
+    expect(pack.projects.map((p) => p.name)).toEqual([one.name]);
+    expect((await json('/api/packs/file', { method: 'POST', body: JSON.stringify({ name: 'Empty', projectIds: [] }) })).status).toBe(400);
   });
 
   it('plans a shipment as loaded container projects in one group, container 1 listed first', async () => {

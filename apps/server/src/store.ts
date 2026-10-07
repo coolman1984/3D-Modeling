@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS packs (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  installed_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS agent_runs (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -93,6 +100,23 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 `;
 
 const MAX_LOG = 200_000;
+
+/** Sample companies of earlier versions, added by id as a collection; now installed packs. */
+const LEGACY_SAMPLES: ReadonlyArray<readonly [id: string, name: string, description: string]> = [
+  ['nile-gate', 'Nile Gate Logistics', 'Sample company added before packs existed.'],
+  ['horizon-electronics', 'Horizon Electronics', 'Sample company added before packs existed.'],
+  ['nile-vision', 'Nile Vision Electronics', 'Sample company added before packs existed.'],
+];
+
+/** A pack installed in this database: its projects share the collection. */
+export interface InstalledPack {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly collection: string;
+  readonly installedAt: string;
+  readonly projectCount: number;
+}
 
 /**
  * The local database: projects, every revision (who changed what, with a full snapshot),
@@ -113,6 +137,12 @@ export class Store extends EventEmitter<StoreEvents> {
     // Databases made before project groups existed gain the column in place; nothing else changes.
     const columns = this.db.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>;
     if (!columns.some((c) => c.name === 'collection')) this.db.exec('ALTER TABLE projects ADD COLUMN collection TEXT');
+    // Sample companies added before packs existed become installed packs (decision 0027), so they
+    // can be removed in one step like any pack; their projects are not touched.
+    for (const [id, name, description] of LEGACY_SAMPLES) {
+      const has = this.db.prepare('SELECT 1 FROM projects WHERE collection = ? LIMIT 1').get(id);
+      if (has) this.db.prepare('INSERT OR IGNORE INTO packs (id, name, description, collection, installed_at) VALUES (?, ?, ?, ?, ?)').run(id, name, description, id, now());
+    }
     // Runs that were active when the app last stopped cannot still be running.
     this.db.prepare("UPDATE agent_runs SET status = 'stopped', ended_at = ? WHERE status = 'running'").run(now());
   }
@@ -253,6 +283,65 @@ export class Store extends EventEmitter<StoreEvents> {
       commandCount: Number(r.command_count),
       createdAt: String(r.created_at),
     }));
+  }
+
+  /** Installed packs, newest first, with how many of their projects are still here. */
+  listPacks(): InstalledPack[] {
+    const rows = this.db
+      .prepare('SELECT p.id, p.name, p.description, p.collection, p.installed_at, (SELECT count(*) FROM projects WHERE collection = p.collection) AS n FROM packs p ORDER BY p.installed_at DESC, p.id')
+      .all() as Array<Record<string, string | number>>;
+    return rows.map((r) => ({ id: String(r.id), name: String(r.name), description: String(r.description), collection: String(r.collection), installedAt: String(r.installed_at), projectCount: Number(r.n) }));
+  }
+
+  /**
+   * Install a pack's projects as one group, all or nothing. Installing a pack that is already
+   * here replaces its projects (the caller asks the person first); other projects are untouched.
+   */
+  installPack(pack: { id: string; name: string; description: string; projects: readonly Project[] }, actor: string): { pack: InstalledPack; projects: Project[] } {
+    const collection = `pack:${pack.id}`;
+    const at = now();
+    const created: Project[] = [];
+    for (const project of pack.projects) {
+      const fresh: Project = { ...project, id: `p-${randomUUID().slice(0, 8)}`, revision: 0 };
+      const problems = validateProject(fresh);
+      if (problems.length > 0) throw new Error(`invalid project in pack: ${problems.map((p) => p.path).join(', ')}`);
+      created.push(fresh);
+    }
+    this.transaction(() => {
+      const old = this.db.prepare('SELECT collection FROM packs WHERE id = ?').get(pack.id) as { collection: string } | undefined;
+      if (old) this.db.prepare('DELETE FROM projects WHERE collection = ?').run(old.collection);
+      this.db.prepare('INSERT OR REPLACE INTO packs (id, name, description, collection, installed_at) VALUES (?, ?, ?, ?, ?)').run(pack.id, pack.name, pack.description, collection, at);
+      // Inserted last-first, so the pack lists in its own order (newest first in the list).
+      for (const fresh of [...created].reverse()) {
+        this.db
+          .prepare('INSERT INTO projects (id, name, revision, item_count, created_at, updated_at, collection) VALUES (?, ?, 0, ?, ?, ?, ?)')
+          .run(fresh.id, fresh.name, Object.keys(fresh.items).length, at, at, collection);
+        this.insertRevision(fresh, actor, `Installed from the pack “${pack.name}”`, [], at);
+      }
+    });
+    this.emit('projects');
+    return { pack: this.listPacks().find((p) => p.id === pack.id)!, projects: created };
+  }
+
+  /** The current state of a pack's projects, in the order they list. */
+  packProjects(id: string): { pack: InstalledPack; projects: Project[] } | null {
+    const pack = this.listPacks().find((p) => p.id === id);
+    if (!pack) return null;
+    const ids = this.db.prepare('SELECT id FROM projects WHERE collection = ? ORDER BY updated_at DESC, rowid DESC').all(pack.collection) as Array<{ id: string }>;
+    return { pack, projects: ids.map((r) => this.getProject(r.id)).filter((p): p is Project => p !== null) };
+  }
+
+  /** Remove a pack and every project it installed; the person's own projects stay. Returns their ids. */
+  removePack(id: string): string[] | null {
+    const pack = this.listPacks().find((p) => p.id === id);
+    if (!pack) return null;
+    const ids = (this.db.prepare('SELECT id FROM projects WHERE collection = ?').all(pack.collection) as Array<{ id: string }>).map((r) => r.id);
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM projects WHERE collection = ?').run(pack.collection);
+      this.db.prepare('DELETE FROM packs WHERE id = ?').run(id);
+    });
+    this.emit('projects');
+    return ids;
   }
 
   deleteProject(id: string): boolean {

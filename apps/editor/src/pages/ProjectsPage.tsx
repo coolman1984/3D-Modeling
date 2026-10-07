@@ -1,12 +1,10 @@
 import { area, boundsOf, serializeProject, toSquareMetres, type Project } from '@space-planner/core';
-import { CONTAINER_TYPES, HOME_TEMPLATES, packOf, SAMPLE_COMPANIES, type PackId } from '@space-planner/starter';
+import { CONTAINER_TYPES, HOME_TEMPLATES, packOf, type PackId } from '@space-planner/starter';
 import {
   ArrowRight,
   ArrowUpRight,
   Briefcase,
   CaretDown,
-  MapTrifold,
-  Buildings,
   Car,
   ForkKnife,
   Package,
@@ -33,7 +31,8 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, subscribe, type ProjectSummary } from '../api.js';
+import { api, subscribe, type InstalledPack, type ProjectSummary } from '../api.js';
+import { PacksDialog } from '../ui/PacksDialog.js';
 import { formatAgo, formatCount, formatMetres, plural } from '../logic/format.js';
 import { Dialog, LineTabs, Menu, NumberField, Segmented, useToast } from '../ui/Fields.js';
 import { ShipmentDialog } from '../ui/ShipmentDialog.js';
@@ -126,41 +125,24 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
   const recentCard = recent ? cards.get(recent.id) : undefined;
   const recentShipment = recent && isShipped(recent) ? shipments.find((s) => s.collection === recent.collection) : undefined;
 
-  const [addingSample, setAddingSample] = useState(false);
-  const addSample = (company: (typeof SAMPLE_COMPANIES)[number]) => {
-    setAddingSample(true);
-    void api
-      .addSampleCompany(company.id)
-      .then((created) => showToast(`Added ${company.name} · ${created.length} projects`))
-      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : String(error)))
-      .finally(() => setAddingSample(false));
-  };
-  const sampleMenu = (testId: string) => (
-    <Menu
-      label="Sample companies"
-      button={(isOpen, toggle) => (
-        <button type="button" className="btn" disabled={addingSample} aria-expanded={isOpen} onClick={toggle} data-testid={testId}>
-          <Buildings size={17} />
-          {addingSample ? 'Adding…' : 'Add sample company'}
-          <CaretDown size={13} />
-        </button>
-      )}
-    >
-      {(close) =>
-        SAMPLE_COMPANIES.map((company) => (
-          <button key={company.id} type="button" role="menuitem" className="sample-choice" data-testid={`add-sample-${company.id}`} onClick={() => { close(); addSample(company); }}>
-            <span className="sample-choice-name">{company.name}</span>
-            <span className="sample-choice-desc">{company.description}</span>
-          </button>
-        ))
-      }
-    </Menu>
+  // Installed packs (decision 0027): each is listed as its own group, newest first.
+  const [packs, setPacks] = useState<readonly InstalledPack[]>([]);
+  const [packsOpen, setPacksOpen] = useState(false);
+  useEffect(() => {
+    void api.packs().then((l) => setPacks(l.installed)).catch(() => undefined);
+  }, [projects]);
+  const inPack = (p: ProjectSummary) => packs.some((pack) => pack.collection === p.collection);
+  const packsButton = (testId: string) => (
+    <button type="button" className="btn" onClick={() => setPacksOpen(true)} data-testid={testId}>
+      <Package size={17} />
+      Packs
+    </button>
   );
-  // Sample companies first, each as its own group, then shipments (newest first), then the person's own projects.
+  // Packs first, each as its own group, then shipments (newest first), then the person's own projects.
   const allGroups: Array<{ id: string; title: string; description: string; rows: ProjectSummary[]; shipments?: ShipmentSummary[] }> = [
-    ...SAMPLE_COMPANIES.map((c) => ({ id: c.id, title: c.name, description: c.description, rows: rows.filter((p) => p.collection === c.id) })),
+    ...packs.map((pack) => ({ id: pack.collection, title: pack.name, description: pack.description, rows: rows.filter((p) => p.collection === pack.collection) })),
     { id: 'shipments', title: 'Container shipments', description: 'How many containers each production run needs, loaded and shown side by side.', rows: [], shipments: shownShipments },
-    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !p.collection || !SAMPLE_COMPANIES.some((c) => c.id === p.collection)) },
+    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !inPack(p)) },
   ];
   const groups = allGroups.filter((g) => g.rows.length > 0 || (g.shipments?.length ?? 0) > 0);
   const grouped = groups.some((g) => g.id !== 'own');
@@ -183,7 +165,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             <p className="lede">Measured spaces and the plans inside them. Check that everything fits and works before anything is ordered.</p>
           </div>
           <div className="hero-actions">
-            {sampleMenu('add-sample')}
+            {packsButton('open-packs')}
             <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
               <FolderOpen size={17} />
               Open file
@@ -313,13 +295,13 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             {projects && projects.length === 0 ? (
               <>
                 <div className="serif">No projects yet</div>
-                <p>Start with the room: its size, then doors, columns and items. Or open a stocked sample company to explore.</p>
+                <p>Start with the room: its size, then doors, walls and furniture. Or install a pack of ready-made projects to explore.</p>
                 <div className="hero-actions">
                   <button type="button" className="btn primary" onClick={() => setCreating(true)}>
                     <Plus size={16} />
                     Create project
                   </button>
-                  {sampleMenu('add-sample-empty')}
+                  {packsButton('open-packs-empty')}
                 </div>
               </>
             ) : (
@@ -467,6 +449,16 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
         {toast}
       </div>
       {creating && <CreateDialog onClose={() => setCreating(false)} open={open} />}
+      {packsOpen && (
+        <PacksDialog
+          onClose={() => setPacksOpen(false)}
+          onChanged={(text) => {
+            showToast(text);
+            refresh();
+          }}
+          ownProjectIds={plain.filter((p) => !inPack(p)).map((p) => p.id)}
+        />
+      )}
       {planning && <ShipmentDialog onClose={() => setPlanning(false)} opened={(s) => (window.location.hash = `#/s/${s}`)} />}
     </div>
   );
@@ -478,7 +470,7 @@ const SHIPMENT_PREFIX = 'shipment:';
 function GroupHead({ title, description, count, icon }: { title: string; description: string; count: string; icon: 'sample' | 'shipment' | 'own' }) {
   return (
     <header className="proj-group-head">
-      {icon === 'shipment' ? <Truck size={18} /> : icon === 'sample' ? <MapTrifold size={18} /> : <FolderOpen size={18} />}
+      {icon === 'shipment' ? <Truck size={18} /> : icon === 'sample' ? <Package size={18} /> : <FolderOpen size={18} />}
       <div>
         <div className="serif proj-group-title">{title}</div>
         {description && <div className="proj-group-desc">{description}</div>}

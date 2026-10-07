@@ -1558,3 +1558,25 @@ button.rule-row:hover { background: var(--page); }
 :root[data-theme='dark'] .item.shape-wall { --fill: #8b929d; }
 .furnished-preview { display: block; animation: atr-in 0.2s ease-out; }
 .furnished-preview svg { display: block; }
+
+/* ---------- packs (decision 0027) ---------- */
+.packs-dialog { width: min(720px, calc(100vw - 32px)); }
+.packs { position: relative; }
+.packs.dropping::after { content: 'Drop the .atrium file to install it'; position: absolute; inset: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--accent); border-radius: var(--r-3); background: color-mix(in srgb, var(--accent-soft) 92%, transparent); color: var(--accent); font-weight: 500; z-index: 2; }
+.pack-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.pack-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.pack-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: var(--fill); border-radius: var(--r-2); color: var(--ink-2); }
+.pack-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pack-name { font-weight: 500; font-size: calc(14px * var(--ts, 1)); }
+.pack-desc { color: var(--ink-2); font-size: calc(12.5px * var(--ts, 1)); line-height: 1.45; }
+.pack-count { color: var(--ink-3); font-size: calc(12px * var(--ts, 1)); }
+.pack-actions { display: flex; align-items: center; gap: 6px; }
+.pack-ask { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--warning-soft); color: var(--warning); border-radius: var(--r-2); font-size: calc(13px * var(--ts, 1)); }
+.pack-ask span { flex: 1; }
+.pack-error { display: flex; align-items: center; gap: 6px; font-size: calc(12.5px * var(--ts, 1)); }
+.pack-name-form { display: flex; gap: 8px; }
+.pack-name-form .input { flex: 1; height: 36px; }
+.icon-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line-mid); background: var(--white); border-radius: var(--r-1); color: var(--ink-2); }
+.icon-btn:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); }
+.icon-btn:disabled { opacity: 0.5; cursor: default; }
+.packs-dialog .dialog-body { max-height: min(60vh, 560px); overflow: auto; }

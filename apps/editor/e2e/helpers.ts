@@ -5,7 +5,7 @@ export async function newProject(page: Page, name: string, width = 12, depth = 9
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Create project' }).first().click();
   await page.locator('input[name="project-name"]').fill(name);
-  if (activity !== 'hall') await page.locator(`[data-activity="${activity}"]`).click();
+  await page.locator(`[data-activity="${activity}"]`).click();
   await page.locator('input[name="new-width"]').fill(String(width));
   await page.locator('input[name="new-depth"]').fill(String(depth));
   await page.getByTestId('create-project').click();

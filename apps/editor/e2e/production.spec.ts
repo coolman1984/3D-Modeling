@@ -4,7 +4,8 @@ import { openTab, saved } from './helpers.js';
 test('reference production line: flow length, edit a station order, and print report', async ({ page }) => {
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Create project' }).first().click();
-  await page.locator('[data-template="production"]').click();
+  // Choosing the activity picks its reference layout.
+  await page.locator('[data-activity="production"]').click();
   await page.locator('input[name="project-name"]').fill('Assembly line 1');
   await page.getByTestId('create-project').click();
   await expect(page.locator('h1.project-name')).toHaveText('Assembly line 1');
