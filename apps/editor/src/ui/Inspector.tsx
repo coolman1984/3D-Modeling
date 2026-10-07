@@ -66,24 +66,8 @@ import { CargoGroup, containerFacts } from './Container.js';
 import { RackLocations, type StockView } from './Stock.js';
 import { toTicks } from './units.js';
 
-/** Everything the review counts, shared by the inspector tab, the status bar and the summary box. */
-export interface ReviewSummary {
-  readonly errors: number;
-  readonly warnings: number;
-  readonly passed: number;
-  readonly unknown: number;
-  /** errors + warnings: what the Review tab badge shows. */
-  readonly findings: number;
-}
-
-export function summarize(issues: readonly Issue[], rules: readonly RuleResult[]): ReviewSummary {
-  const errors = issues.filter((i) => i.severity === 'error').length;
-  const warnings = issues.filter((i) => i.severity === 'warning').length + rules.filter((r) => r.status === 'fail').length;
-  const unknown = issues.filter((i) => i.severity === 'info').length + rules.filter((r) => r.status === 'unknown').length;
-  const cleanGroups = ISSUE_GROUPS.filter((g) => !issues.some((i) => ISSUE_GROUP[i.code] === g)).length;
-  const passed = cleanGroups + rules.filter((r) => r.status === 'pass').length;
-  return { errors, warnings, passed, unknown, findings: errors + warnings };
-}
+export { summarize, type ReviewSummary } from '../logic/review.js';
+import { summarize, type ReviewSummary } from '../logic/review.js';
 
 export function statusLine(s: ReviewSummary): { tone: 'error' | 'warning' | 'ok'; text: string } {
   if (s.errors > 0) return { tone: 'error', text: `${plural(s.errors, 'error')} · ${plural(s.warnings, 'warning')}` };

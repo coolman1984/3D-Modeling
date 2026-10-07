@@ -5,7 +5,7 @@ import { api } from '../api.js';
 import { loadActivity } from '../logic/activity.js';
 import { pathOf, fitViewport, toScreen } from '../logic/viewport.js';
 import { homeFill, homeSymbol } from './PlanSymbols.js';
-import { summarize, type ReviewSummary } from './Inspector.js';
+import { summarize, type ReviewSummary } from '../logic/review.js';
 import { Brand } from './Fields.js';
 
 /** Header of the projects and settings pages: brand, navigation and whether the local server answers. */

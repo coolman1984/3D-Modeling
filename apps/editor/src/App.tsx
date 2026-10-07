@@ -1,10 +1,25 @@
-import { useEffect, useState } from 'react';
-import { EditorPage } from './pages/EditorPage.js';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ProjectsPage } from './pages/ProjectsPage.js';
-import { PlantPage } from './pages/PlantPage.js';
-import { ReportPage } from './pages/ReportPage.js';
-import { SettingsPage } from './pages/SettingsPage.js';
-import { ShipmentPage } from './pages/ShipmentPage.js';
+
+// The projects page loads first and alone; the editor (with the 3D engine) and the other pages
+// load on demand, and the editor is fetched in the background once the list is up, so opening a
+// project is still immediate.
+const loadEditor = () => import('./pages/EditorPage.js');
+const EditorPage = lazy(() => loadEditor().then((m) => ({ default: m.EditorPage })));
+const PlantPage = lazy(() => import('./pages/PlantPage.js').then((m) => ({ default: m.PlantPage })));
+const ReportPage = lazy(() => import('./pages/ReportPage.js').then((m) => ({ default: m.ReportPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage.js').then((m) => ({ default: m.SettingsPage })));
+const ShipmentPage = lazy(() => import('./pages/ShipmentPage.js').then((m) => ({ default: m.ShipmentPage })));
+
+/** While a page's code arrives: a quiet line, no layout jump. */
+function Opening() {
+  return (
+    <div className="opening" role="status" aria-live="polite">
+      <span className="opening-bar" />
+      <span className="sr-only">Opening…</span>
+    </div>
+  );
+}
 
 type Route = { page: 'projects' } | { page: 'settings' } | { page: 'editor'; id: string } | { page: 'report'; id: string } | { page: 'plant'; id: string } | { page: 'shipment'; id: string };
 
@@ -29,10 +44,18 @@ export function App() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  if (route.page === 'report') return <ReportPage projectId={route.id} />;
-  if (route.page === 'plant') return <PlantPage key={route.id} projectId={route.id} />;
-  if (route.page === 'editor') return <EditorPage key={route.id} projectId={route.id} />;
-  if (route.page === 'settings') return <SettingsPage />;
-  if (route.page === 'shipment') return <ShipmentPage key={route.id} shipmentId={route.id} />;
-  return <ProjectsPage open={(id) => (window.location.hash = `#/p/${id}`)} />;
+  useEffect(() => {
+    const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 400));
+    idle(() => void loadEditor());
+  }, []);
+  if (route.page === 'projects') return <ProjectsPage open={(id) => (window.location.hash = `#/p/${id}`)} />;
+  return (
+    <Suspense fallback={<Opening />}>
+      {route.page === 'report' && <ReportPage projectId={route.id} />}
+      {route.page === 'plant' && <PlantPage key={route.id} projectId={route.id} />}
+      {route.page === 'editor' && <EditorPage key={route.id} projectId={route.id} />}
+      {route.page === 'settings' && <SettingsPage />}
+      {route.page === 'shipment' && <ShipmentPage key={route.id} shipmentId={route.id} />}
+    </Suspense>
+  );
 }
