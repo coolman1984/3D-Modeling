@@ -1,15 +1,19 @@
 import type { ItemDefinition } from '@space-planner/core';
 import { shapeOf } from '@space-planner/starter';
 import { useSyncExternalStore } from 'react';
-import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { buildModel } from './models3d.js';
+import type * as THREE_NS from 'three';
+
+// The 3D engine loads only when the first picture is drawn, so the editor opens without it.
+type Engine = { THREE: typeof THREE_NS; RoomEnvironment: typeof import('three/examples/jsm/environments/RoomEnvironment.js').RoomEnvironment; buildModel: typeof import('./models3d.js').buildModel };
+let engine: Promise<Engine> | undefined;
+const loadEngine = () =>
+  (engine ??= Promise.all([import('three'), import('three/examples/jsm/environments/RoomEnvironment.js'), import('./models3d.js')]).then(([THREE, env, models]) => ({ THREE, RoomEnvironment: env.RoomEnvironment, buildModel: models.buildModel })));
 
 /**
  * Catalogue pictures of item types, rendered from their own 3D models (decision 0027): a soft
  * studio light, a three-quarter view from the front, a transparent background. One small
- * renderer draws them one at a time between frames, so opening the library never stalls the
- * editor; each picture is made once per item type and kept for the session. Where WebGL is not
+ * renderer draws them one at a time when the browser is idle, after the page has opened, so the
+ * library never slows opening the editor; each picture is drawn once and kept on this device. Where WebGL is not
  * available the library keeps its line drawings.
  */
 
@@ -19,14 +23,14 @@ const waiting: ItemDefinition[] = [];
 const listeners = new Set<() => void>();
 let version = 0;
 let scheduled = false;
-let studio: { renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera } | null | undefined;
+let studio: { renderer: THREE_NS.WebGLRenderer; scene: THREE_NS.Scene; camera: THREE_NS.PerspectiveCamera } | null | undefined;
 
 /** Same type, same picture: the key holds everything the model is drawn from. */
 function keyOf(d: ItemDefinition): string {
   return `${d.id}|${d.category}|${d.size.w}x${d.size.d}x${d.size.h}|${d.footprint ?? ''}|${JSON.stringify(d.meta ?? {})}`;
 }
 
-function setUp(): typeof studio {
+function setUp({ THREE, RoomEnvironment }: Engine): typeof studio {
   if (studio !== undefined) return studio;
   try {
     const canvas = document.createElement('canvas');
@@ -60,8 +64,9 @@ function setUp(): typeof studio {
   return studio;
 }
 
-function render(d: ItemDefinition): string | null {
-  const s = setUp();
+function render(e: Engine, d: ItemDefinition): string | null {
+  const { THREE, buildModel } = e;
+  const s = setUp(e);
   if (!s) return null;
   const m = (ticks: number) => ticks / 10_000;
   const model = buildModel(shapeOf(d.category), m(d.size.w), m(d.size.d), m(d.size.h), { definition: d });
@@ -84,7 +89,7 @@ function render(d: ItemDefinition): string | null {
   const url = s.renderer.domElement.toDataURL('image/webp', 0.86);
   s.scene.remove(model);
   model.traverse((o) => {
-    const mesh = o as THREE.Mesh;
+    const mesh = o as THREE_NS.Mesh;
     if (mesh.isMesh) {
       mesh.geometry.dispose();
       for (const material of [mesh.material].flat()) if (!material.userData.shared) material.dispose();
@@ -93,7 +98,18 @@ function render(d: ItemDefinition): string | null {
   return url;
 }
 
-function work(): void {
+async function work(): Promise<void> {
+  let e: Engine;
+  try {
+    e = await loadEngine();
+  } catch {
+    // No 3D engine (offline chunk failed): the library keeps its line drawings.
+    for (const d of waiting.splice(0)) pictures.set(keyOf(d), null);
+    version++;
+    for (const listener of listeners) listener();
+    scheduled = false;
+    return;
+  }
   scheduled = false;
   const started = performance.now();
   // A few pictures per slice, then give the frame back.
@@ -103,23 +119,43 @@ function work(): void {
     if (pictures.has(key)) continue;
     let url: string | null = null;
     try {
-      url = render(d);
+      url = render(e, d);
     } catch {
       url = null;
     }
     pictures.set(key, url);
+    if (url) remember(key, url);
     version++;
   }
   for (const listener of listeners) listener();
   if (waiting.length > 0) schedule();
 }
 
-function schedule(): void {
+/** Pictures already drawn on this device, by key; drawn once, kept across visits. */
+// Change the version when the 3D models change, so old pictures are drawn again.
+const STORE = 'atrium.thumb.v1:';
+function remembered(key: string): string | null {
+  try {
+    return globalThis.localStorage?.getItem(STORE + key) ?? null;
+  } catch {
+    return null;
+  }
+}
+function remember(key: string, url: string): void {
+  try {
+    globalThis.localStorage?.setItem(STORE + key, url);
+  } catch {
+    // Storage full or refused: the picture is drawn again next visit.
+  }
+}
+
+/** Never compete with opening a page: wait until the browser has nothing else to do. */
+function schedule(delay = 0): void {
   if (scheduled) return;
   scheduled = true;
-  const idle = (globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
-  if (idle) idle(work, { timeout: 200 });
-  else setTimeout(work, 16);
+  const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
+  const run = () => void work();
+  setTimeout(() => (idle ? idle(run) : setTimeout(run, 50)), delay);
 }
 
 const subscribe = (listener: () => void) => {
@@ -132,9 +168,14 @@ export function useThumbnail(d: ItemDefinition): string | null | undefined {
   useSyncExternalStore(subscribe, () => version);
   const key = keyOf(d);
   if (pictures.has(key)) return pictures.get(key);
+  const kept = remembered(key);
+  if (kept) {
+    pictures.set(key, kept);
+    return kept;
+  }
   if (typeof document !== 'undefined' && !waiting.some((w) => keyOf(w) === key)) {
     waiting.push(d);
-    schedule();
+    schedule(1200); // after the page that asked has opened
   }
   return undefined;
 }

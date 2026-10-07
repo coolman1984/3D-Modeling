@@ -2,8 +2,8 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { ProjectsPage } from './pages/ProjectsPage.js';
 
 // The projects page loads first and alone; the editor (with the 3D engine) and the other pages
-// load on demand, and the editor is fetched in the background once the list is up, so opening a
-// project is still immediate.
+// load on demand, and the editor is fetched right after the list is up, so opening a project is
+// still immediate.
 const loadEditor = () => import('./pages/EditorPage.js');
 const EditorPage = lazy(() => loadEditor().then((m) => ({ default: m.EditorPage })));
 const PlantPage = lazy(() => import('./pages/PlantPage.js').then((m) => ({ default: m.PlantPage })));
@@ -45,8 +45,9 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   useEffect(() => {
-    const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 400));
-    idle(() => void loadEditor());
+    // Right after the first screen: the editor is small now (the 3D engine loads on its own).
+    const timer = setTimeout(() => void loadEditor(), 0);
+    return () => clearTimeout(timer);
   }, []);
   if (route.page === 'projects') return <ProjectsPage open={(id) => (window.location.hash = `#/p/${id}`)} />;
   return (

@@ -54,7 +54,7 @@ import {
   WifiSlash,
   XCircle,
 } from '@phosphor-icons/react';
-import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { actorName, api, subscribe } from '../api.js';
 import { loadActivity, saveActivity, type Activity } from '../logic/activity.js';
 import { acceleratedStep, arrowSteps, copyOffset, keyIntent, loadControls, ownsKeys, saveControls, turnNudge, type ControlSettings } from '../logic/controls.js';
@@ -84,7 +84,10 @@ import { ItemTypeDialog, LibraryPanel } from '../ui/ItemTypes.js';
 import { ControlsPanel, GRID_OPTIONS, ObjectsPanel } from '../ui/Panels.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
-import { View3D, type SceneLook } from '../ui/View3D.js';
+import type { SceneLook } from '../ui/View3D.js';
+
+// The 3D engine is large: the editor opens on the plan at once and the 3D view arrives on its own.
+const View3D = lazy(() => import('../ui/View3D.js').then((m) => ({ default: m.View3D })));
 import type { StockView } from '../ui/Stock.js';
 import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 import { WarehousePanel } from '../ui/Warehouse.js';
@@ -716,6 +719,7 @@ function Editor({ initial }: { initial: Project }) {
           )}
           {view !== 'plan' && (
             <section className="pane" aria-label="3D pane" onPointerDownCapture={() => (lastPane.current = '3d')}>
+              <Suspense fallback={<div className="view3d view3d-loading" role="status">Loading 3D…</div>}>
               <View3D
                 project={shownProject}
                 saved={preview ? preview.project : project}
@@ -730,6 +734,7 @@ function Editor({ initial }: { initial: Project }) {
                 fullWallsAtStart={isCargo}
                 keyboardActive={() => view === '3d' || lastPane.current === '3d'}
               />
+              </Suspense>
               {isCargo && colors && (
                 <ContainerViewTools project={shownProject} colorBy={colorBy} onColorBy={setColorBy} cutaway={cutaway} onCutaway={setCutaway} step={playStep} onStep={setPlayStep} legend={colors.legend} />
               )}

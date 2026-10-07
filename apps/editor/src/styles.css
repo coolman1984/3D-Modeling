@@ -1585,3 +1585,4 @@ button.rule-row:hover { background: var(--page); }
 @keyframes opening { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 @media (prefers-reduced-motion: reduce) { .opening-bar { animation: none; background: var(--accent-line); } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.view3d-loading { display: flex; align-items: center; justify-content: center; color: var(--ink-3); font-size: calc(13px * var(--ts, 1)); }
