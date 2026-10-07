@@ -1,5 +1,7 @@
+import { homeFill, homeSymbol } from './PlanSymbols.js';
 import {
   add,
+  area,
   boundsOf,
   doorPolygon,
   footprintOf,
@@ -7,6 +9,7 @@ import {
   itemPolygon,
   rectangle,
   rotate,
+  toSquareMetres,
   type Aabb,
   type Id,
   type Issue,
@@ -16,7 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { CornersOut, Minus, Plus } from '@phosphor-icons/react';
 import type { ControlSettings } from '../logic/controls.js';
-import { formatCentimetres, formatCount, formatDegrees, formatLength, formatMetres } from '../logic/format.js';
+import { formatCentimetres, formatCount, formatDegrees, formatLength, formatMetres, formatSquareMetres } from '../logic/format.js';
 import type { Action } from '../logic/session.js';
 import { snapAngle, snapMove, type Guide } from '../logic/snap.js';
 import { boxCentre, itemsInBox, movable, moveCommands, rotateCommands, selectionBounds } from '../logic/transform.js';
@@ -320,7 +323,9 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
   const barMetres = [0.5, 1, 2, 5, 10, 20, 50].reduce((best, m) => (Math.abs(m * pxPerMetre - 90) < Math.abs(best * pxPerMetre - 90) ? m : best), 1);
 
   // Floor items first, then raised ones on top, so a lamp over a table can still be picked.
-  const items = Object.values(project.items).sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0));
+  // Drawn bottom up: floor coverings (rugs) first, then what stands on the floor, then what hangs higher.
+  const layer = (item: (typeof project.items)[string]) => (project.catalog[item.definitionId]?.surface ? -1 : (item.elevation ?? 0));
+  const items = Object.values(project.items).sort((a, b) => layer(a) - layer(b));
   const selected = new Set(selectedIds);
   const box = selectionBounds(project, selectedIds);
   const canTurn = !readOnly && movable(project, selectedIds).length > 0;
@@ -390,6 +395,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
           const b = boundsOf(zone.polygon);
           const p = toScreen(v, { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 });
           const style = zoneStyle(zone.kind);
+          if (style.room) return null; // rooms are named after the furniture, on top (below)
           return <g key={zone.id} data-zone={zone.id} pointerEvents="none" className="warehouse-zone">
             <path d={pathOf(v, zone.polygon)} fill={style.fill} fillOpacity={style.opacity} stroke={style.stroke} strokeWidth={1} strokeDasharray={style.dash} />
             {style.label && Math.min(b.maxX - b.minX, b.maxY - b.minY) * v.scale > 14 && <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="var(--ink-2)" fontSize={10}>{zone.kind.replace(/-/g, ' ')}</text>}
@@ -459,18 +465,39 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
           const straight = item.rotation % 90_000 === 0;
           const label = itemLabels?.get(item.id) ?? definition.name;
           const showLabel = (straight || itemLabels !== undefined) && across * v.scale > 6.2 * label.length + 10 && tall * v.scale > 16;
-          const fill = itemFills?.get(item.id);
+          const symbol = homeSymbol(definition);
+          const fill = itemFills?.get(item.id) ?? (symbol ? homeFill(definition) : undefined);
           return (
             <g key={item.id} data-item-id={item.id} className={classes.join(' ').replace(/\s+/g, ' ').trim()} onPointerDown={(e) => onItemDown(e, item.id)} style={fill ? ({ '--fill': fill } as CSSProperties) : undefined}>
               <path d={pathOf(v, body)} className="item-body" />
-              <line x1={front[0]!.x} y1={front[0]!.y} x2={front[1]!.x} y2={front[1]!.y} className="item-front" />
-              {showLabel && (
+              {symbol ? (
+                // The symbol is drawn in the item's frame: front up at rotation 0, turned like the item.
+                <g transform={`translate(${centre.x.toFixed(1)},${centre.y.toFixed(1)}) rotate(${(-item.rotation / 1000).toFixed(2)}) scale(${v.scale})`} className="item-symbol" pointerEvents="none">
+                  {symbol}
+                </g>
+              ) : (
+                <line x1={front[0]!.x} y1={front[0]!.y} x2={front[1]!.x} y2={front[1]!.y} className="item-front" />
+              )}
+              {showLabel && !symbol && (
                 <text x={centre.x} y={centre.y} className="item-label">
                   {label}
                 </text>
               )}
             </g>
           );
+        })}
+        {(project.space.zones ?? []).map((zone) => {
+          if (!zoneStyle(zone.kind).room) return null;
+          // A room: its name and floor area in the top-left corner, on a paper halo over any furniture.
+          const b = boundsOf(zone.polygon);
+          const corner = toScreen(v, { x: b.minX, y: b.maxY });
+          const name = typeof zone.meta?.label === 'string' ? zone.meta.label : zone.kind;
+          const fits = (b.maxX - b.minX) * v.scale > 70 && (b.maxY - b.minY) * v.scale > 30;
+          return fits ? (
+            <text key={zone.id} data-zone={zone.id} x={corner.x + 8} y={corner.y + 16} className="room-label" pointerEvents="none">
+              {`${name.toUpperCase()} · ${formatSquareMetres(toSquareMetres(area(zone.polygon)))}`}
+            </text>
+          ) : null;
         })}
         {route && route.length > 0 && (
           <g data-testid="warehouse-route" pointerEvents="none">

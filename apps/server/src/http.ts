@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
-import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
+import { demoHall, HOME_TEMPLATES, newContainer, newHome, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { EcoError, ecoRoutes, type FetchLike } from './eco/routes.js';
 import { loadSettings, publicSettings, saveSettings, settingsProblems, type Settings } from './settings.js';
@@ -131,6 +131,7 @@ export function createApp(options: AppOptions): App {
     else if (body.template === 'production-reference') project = referenceProductionLine(name);
     else if (body.template === 'depot-reference') project = referenceVehicleDepot(name);
     else if (body.template === 'restaurant-reference') project = referenceRestaurant(name);
+    else if (typeof body.template === 'string' && HOME_TEMPLATES.some((t) => t.id === body.template)) project = HOME_TEMPLATES.find((t) => t.id === body.template)!.build(name);
     else if (typeof body.file === 'string') {
       const opened = deserializeProject(body.file);
       if (!opened.ok) throw new HttpError(422, `This file is not a valid plan: ${opened.problems[0]?.path ?? ''}`);
@@ -153,6 +154,10 @@ export function createApp(options: AppOptions): App {
       }
       if (activity === 'depot') {
         send(res, 201, store.createProject(newVehicleDepot(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling ?? 4), 'human'));
+        return;
+      }
+      if (activity === 'home') {
+        send(res, 201, store.createProject(newHome(name, positiveNumber(body.width_m, 'width_m', 100), positiveNumber(body.depth_m, 'depth_m', 100), ceiling ?? 2.8), 'human'));
         return;
       }
       if (activity === 'restaurant') {

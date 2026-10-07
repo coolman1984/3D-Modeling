@@ -50,7 +50,8 @@ export type RuleCode =
   | 'bay-entry'
   | 'area-per-cover'
   | 'table-reachability'
-  | 'building-boundary';
+  | 'building-boundary'
+  | 'bed-access';
 export type RuleStatus = 'pass' | 'fail' | 'unknown';
 
 /**
@@ -76,6 +77,7 @@ const EGRESS: RuleSource = {
 
 /** The source of every starter rule, by rule code. */
 export const RULE_SOURCES: Readonly<Record<RuleCode, RuleSource>> = {
+  'bed-access': { kind: 'common-guidance', title: 'A 60 cm clear strip along at least one long side of every bed, as in common residential planning guidance', ruleSet: 'starter.home.v1' },
   walkway: { kind: 'common-guidance', title: 'Clear walkway from every seat to a door, width by planning style', ruleSet: 'starter.egress.v1' },
   exits: EGRESS,
   'door-width': EGRESS,
@@ -112,11 +114,11 @@ export interface RuleResult {
   /** What was measured and what the rule asks for, in the rule's own unit (see `unit`). */
   readonly measured?: number;
   readonly required?: number;
-  readonly unit: 'ticks' | 'square-metres' | 'doors' | 'seats' | 'desks' | 'grams' | 'percent' | 'items';
+  readonly unit: 'ticks' | 'square-metres' | 'doors' | 'seats' | 'desks' | 'grams' | 'percent' | 'items' | 'beds';
   /** Items the rule is about: the seats with no way out, the desks with no chair. */
   readonly entityIds: readonly Id[];
   /** Why the result is "unknown", when it is. */
-  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station' | 'no-bays' | 'no-lanes' | 'all-occupied' | 'no-tables' | 'no-pass' | 'no-buildings';
+  readonly reason?: 'no-seats' | 'no-doors' | 'no-desks' | 'no-cargo' | 'no-mass' | 'no-payload' | 'no-stops' | 'no-quantities' | 'no-orientation-data' | 'no-stacking-data' | 'no-racks' | 'rack-data' | 'no-zones' | 'no-stations' | 'one-station' | 'no-bays' | 'no-lanes' | 'all-occupied' | 'no-tables' | 'no-pass' | 'no-buildings' | 'no-beds';
   /** Where the threshold comes from; filled in by `checkPack`. */
   readonly source?: RuleSource;
 }
@@ -188,7 +190,7 @@ export function exitRules(project: Project): [RuleResult, RuleResult] {
  * Seats with no walkway of the given width to any door.
  *
  * The floor is sampled on a grid (5 cm, coarser for very large halls). Cells under walls,
- * columns, blocked zones and furniture below head room are blocked. A walkway of width W passes
+ * columns, blocked zones and furniture below head room are blocked; floor coverings are not. A walkway of width W passes
  * through a free cell when the nearest blocked cell is at least W/2 away (exact Euclidean
  * distance transform). Walking starts in the doorway, spreads through such cells, and a seat
  * is reached when a walkway cell's centre lies within W/2 + SEAT_REACH of the seat's outline
@@ -212,7 +214,8 @@ export function seatsWithoutWayOut(project: Project, width: Tick, seatIds: reado
   for (const o of project.space.obstacles) fill(o.polygon);
   for (const item of Object.values(project.items)) {
     const definition = project.catalog[item.definitionId];
-    if (definition && (item.elevation ?? 0) < HEAD_ROOM) fill(itemPolygon(item, definition));
+    // People walk over floor coverings (rugs) and under things hung above head room.
+    if (definition && definition.surface !== true && (item.elevation ?? 0) < HEAD_ROOM) fill(itemPolygon(item, definition));
   }
 
   const clearance = distanceToBlocked(blocked, nx, ny); // in cells

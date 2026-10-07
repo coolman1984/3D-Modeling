@@ -21,6 +21,11 @@ const TOOL_WORDS: Readonly<Record<string, string>> = {
 };
 
 const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
+  home: [
+    'Furnish the living room for four: a sofa, two armchairs, a rug and a coffee table 45 cm from the sofa.',
+    'Fit a queen bed with nightstands in the bedroom and keep 60 cm free along one side.',
+    'Lay a dining table for six near the kitchen with 75 cm behind every chair.',
+  ],
   site: [
     'Add a second row of 20 bus bays next to the bus park and check a coach can turn into every empty one.',
     'Plant a row of shade trees along the spine road, 12 m apart, without touching roads or buildings.',

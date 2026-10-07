@@ -134,7 +134,7 @@ const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'cat
 const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'zones', 'ceilingHeight', 'meta'] as const;
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
 const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing', 'meta'] as const;
-const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint', 'mass', 'meta'] as const;
+const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint', 'surface', 'mass', 'meta'] as const;
 const ITEM_FIELDS = ['id', 'definitionId', 'position', 'rotation', 'locked', 'elevation', 'tilt', 'meta'] as const;
 const POINT_FIELDS = ['x', 'y'] as const;
 
@@ -261,6 +261,7 @@ function checkDefinition(c: Collector, value: unknown, path: string, key?: strin
   if (definition.footprint !== undefined && definition.footprint !== 'rect' && definition.footprint !== 'round') {
     c.add('wrong-type', `${path}.footprint`, 'expected "rect" or "round"');
   }
+  if (definition.surface !== undefined && definition.surface !== true) c.add('wrong-type', `${path}.surface`, 'expected true, or no value');
   if (definition.mass !== undefined) c.integer(definition.mass, `${path}.mass`, 1, MAX_MASS);
   if (definition.meta !== undefined) checkMeta(c, definition.meta, `${path}.meta`);
 }

@@ -99,6 +99,11 @@ export interface ItemDefinition {
   readonly seats?: number;
   /** Floor outline: a rectangle (default) or an ellipse inscribed in width × depth (round tables, pots). */
   readonly footprint?: 'rect' | 'round';
+  /**
+   * A floor covering (rug, mat, dance floor): other items stand on it, so it never overlaps them or
+   * takes their clearance. Missing means an ordinary item; stored only when true.
+   */
+  readonly surface?: true;
   /** Mass of one piece in grams. Missing means unknown, so weight checks report "unknown". */
   readonly mass?: number;
   /** Pack-owned data about the type; stored only when not empty. */

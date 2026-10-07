@@ -8,8 +8,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { addEnvironment, addLights, aimSun, isSoftwareRenderer, StillPass } from './environment3d.js';
 import { DEFAULT_QUALITY, FrameWatch, lighter, loadQuality, nextQuality, QUALITY_LABEL, QUALITY_PROFILES, saveQuality, type Quality } from '../logic/graphics.js';
 import { buildModel, COLORS, M } from './models3d.js';
+import { zoneStyle } from '../logic/zoneStyle.js';
 import { stockColor, type StockView } from './Stock.js';
-import { asphalt, carpet, cartonStack, ceramic, cladding, concreteFloor, corrugated, epoxyFloor, grass, marble, pavers, planks, plaster, precast, sand, type Surface } from './textures.js';
+import { asphalt, carpet, cartonStack, ceramic, chevronOak, cladding, concreteFloor, corrugated, epoxyFloor, grass, marble, pavers, planks, plaster, precast, sand, type Surface } from './textures.js';
 import { headingQuarter, ownsKeys, type ControlSettings } from '../logic/controls.js';
 import type { Action } from '../logic/session.js';
 import { snapMove } from '../logic/snap.js';
@@ -235,6 +236,8 @@ function surfaceMaterial(s: Surface | null, color: number, extra: THREE.MeshStan
 /** The floor finish of each activity: what the room would really be paved with. */
 function floorMaterial(pack: PackId, project: Project): THREE.Material {
   switch (pack) {
+    case 'home':
+      return surfaceMaterial(chevronOak(), 0xffffff);
     case 'container':
       return new THREE.MeshStandardMaterial({ color: COLORS.containerFloor, map: planks(), roughness: 0.8 });
     case 'warehouse':
@@ -357,6 +360,7 @@ function outdoorZones(project: Project, group: THREE.Group, lines: Lines, span: 
 function indoorZones(project: Project, group: THREE.Group, lines: Lines, painted: boolean): void {
   for (const zone of project.space.zones ?? []) {
     const kind = zone.kind;
+    if (zoneStyle(kind).room) continue; // rooms of an apartment: the walls and floor already show them
     const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind === 'bay' ? 0xd8d3c6 : kind.includes('aisle') ? 0x7bb198 : kind === 'clean-room' ? 0x9fc3e0 : kind === 'break' || kind === 'lounge' ? 0xd9b98f : 0x829fc3;
     const overlay = zoneMesh(zone, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.06 : painted ? 0.12 : 0.18, side: THREE.DoubleSide, depthWrite: false }), 0.009);
     group.add(overlay);

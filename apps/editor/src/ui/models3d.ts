@@ -2,6 +2,7 @@ import type { ItemDefinition } from '@space-planner/core';
 import { STARTER_CATALOG, type RackSpec, type ShapeKey } from '@space-planner/starter';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { buildHomeModel, HOME_SHAPES } from './homeModels.js';
 import {
   barrierStripes,
   cartonFace,
@@ -118,7 +119,7 @@ export const M = {
 
 // ─── Mesh helpers ─────────────────────────────────────────────────────────────────────────────
 
-function mesh(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[], x = 0, y = 0, z = 0, shadow = true): THREE.Mesh {
+export function mesh(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[], x = 0, y = 0, z = 0, shadow = true): THREE.Mesh {
   const m = new THREE.Mesh(geometry, material);
   m.position.set(x, y, z);
   m.castShadow = shadow;
@@ -127,16 +128,16 @@ function mesh(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.M
 }
 
 /** A box from its size and centre. */
-function bx(w: number, h: number, d: number, material: THREE.Material | THREE.Material[], x = 0, y = h / 2, z = 0): THREE.Mesh {
+export function bx(w: number, h: number, d: number, material: THREE.Material | THREE.Material[], x = 0, y = h / 2, z = 0): THREE.Mesh {
   return mesh(new THREE.BoxGeometry(Math.max(0.001, w), Math.max(0.001, h), Math.max(0.001, d)), material, x, y, z);
 }
 
-function rbx(w: number, h: number, d: number, radius: number, material: THREE.Material, x = 0, y = h / 2, z = 0): THREE.Mesh {
+export function rbx(w: number, h: number, d: number, radius: number, material: THREE.Material, x = 0, y = h / 2, z = 0): THREE.Mesh {
   const r = Math.max(0.001, Math.min(radius, w / 2 - 0.001, h / 2 - 0.001, d / 2 - 0.001));
   return mesh(new RoundedBoxGeometry(Math.max(0.002, w), Math.max(0.002, h), Math.max(0.002, d), 2, r), material, x, y, z);
 }
 
-function cyl(rTop: number, rBottom: number, h: number, material: THREE.Material, x = 0, y = h / 2, z = 0, segments = 20): THREE.Mesh {
+export function cyl(rTop: number, rBottom: number, h: number, material: THREE.Material, x = 0, y = h / 2, z = 0, segments = 20): THREE.Mesh {
   return mesh(new THREE.CylinderGeometry(rTop, rBottom, Math.max(0.001, h), segments), material, x, y, z);
 }
 
@@ -194,6 +195,8 @@ export function buildModel(shape: ShapeKey, w: number, d: number, h: number, ctx
   const g = new THREE.Group();
   const def = ctx.definition;
   const id = def.id;
+  // Home pieces (and home variants of shared shapes, such as a sofa with a fabric) have their own models.
+  if ((HOME_SHAPES.has(shape) || (shape === 'sofa' && def.meta?.fabric !== undefined)) && buildHomeModel(g, shape, w, d, h, def)) return g;
   switch (shape) {
     case 'table':
       table(g, w, d, h, def);

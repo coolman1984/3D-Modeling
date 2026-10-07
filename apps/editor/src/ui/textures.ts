@@ -676,3 +676,142 @@ export function checker(): THREE.Texture | null {
     }
   }, true);
 }
+
+// ─── Home ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Oiled oak chevron parquet: four columns of planks at 45°, alternating direction, 30 cm wide
+ * columns and 15 cm planks per 1.2 m tile, every plank its own tone. The floor of the apartments.
+ */
+export function chevronOak(): Surface | null {
+  const size = 1024;
+  return surface('chevron-oak', size, 1.2, (u, v) => {
+    const col = Math.floor(u * 4);
+    const lx = u * 4 - col; // 0–1 across the column
+    const dir = col % 2 === 0 ? 1 : -1;
+    const t = v * 8 + dir * lx * 2; // planks: 8 per tile, rising one plank-width per half column
+    const plank = Math.floor(t);
+    const across = t - plank;
+    const id = (((plank % 8) + 8) % 8) * 7 + col * 131; // the 8 planks of a column repeat with the tile
+    const tint = hash(id, col, 211) * 0.16 - 0.08;
+    const grain = fbm(lx * 0.4 + hash(id, 1, 213), across * 2, 6, 3, 223 + (id & 7)) * 0.14;
+    const seam = across < 0.035 || lx < 0.012 || lx > 0.988;
+    const base: [number, number, number] = [198, 160, 118];
+    const c = seam ? shade(base, 0.58) : shade(base, 0.9 + tint + grain - 0.07);
+    return { rgb: c, height: seam ? 0 : 0.6 + grain, rough: seam ? 0.9 : 0.4 + grain * 0.5 };
+  }, 0.8);
+}
+
+/** A seeded abstract painting for wall art: soft fields, an arc, a line, in a designer palette. */
+export function artwork(seed: number): THREE.Texture | null {
+  return canvasTexture(`art:${seed}`, 512, 512, (g) => {
+    const r = (k: number) => hash(seed, k, 401);
+    const palettes = [
+      ['#efe7da', '#c86f4b', '#2f3c55', '#d9b77c', '#8a9a7b'],
+      ['#f2efe9', '#1f2329', '#b8694a', '#c9b79c', '#e2d4bf'],
+      ['#ebe4d8', '#7d8f7a', '#d9a066', '#3e4a5c', '#f4ede2'],
+      ['#f6f1ea', '#a5543c', '#e9c9a1', '#2b2b2b', '#9fb2b8'],
+    ];
+    const p = palettes[seed % palettes.length]!;
+    g.fillStyle = p[0]!;
+    g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 3; i++) {
+      g.fillStyle = p[1 + ((i + seed) % 4)]!;
+      g.globalAlpha = 0.85;
+      const x = r(i) * 360;
+      const y = r(i + 10) * 360;
+      if (i === 1) {
+        g.beginPath();
+        g.arc(x + 80, y + 80, 60 + r(i + 20) * 90, 0, Math.PI * 2);
+        g.fill();
+      } else {
+        g.fillRect(x, y, 120 + r(i + 30) * 200, 90 + r(i + 40) * 220);
+      }
+    }
+    g.globalAlpha = 1;
+    g.strokeStyle = p[(seed + 2) % 4 + 1]!;
+    g.lineWidth = 6;
+    g.beginPath();
+    g.arc(256, 512, 150 + r(50) * 140, Math.PI, Math.PI * 2);
+    g.stroke();
+    // Paper grain.
+    for (let i = 0; i < 2600; i++) {
+      g.fillStyle = `rgba(0,0,0,${hash(i, seed, 409) * 0.05})`;
+      g.fillRect(hash(i, 1, 411) * 512, hash(i, 2, 413) * 512, 2, 2);
+    }
+  });
+}
+
+/** A woven rug: a border and a soft geometric field in tones of the given colour. */
+export function rugPattern(seed: number, colour: number): THREE.Texture | null {
+  return canvasTexture(`rug:${seed}:${colour}`, 512, 512, (g) => {
+    const rgb = [(colour >> 16) & 255, (colour >> 8) & 255, colour & 255] as const;
+    const css = (k: number, a = 1) => `rgba(${Math.min(255, rgb[0] * k)},${Math.min(255, rgb[1] * k)},${Math.min(255, rgb[2] * k)},${a})`;
+    g.fillStyle = css(1);
+    g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = css(0.72);
+    g.lineWidth = 14;
+    g.strokeRect(26, 26, 460, 460);
+    g.lineWidth = 3;
+    g.strokeRect(50, 50, 412, 412);
+    g.strokeStyle = css(1.14, 0.9);
+    g.lineWidth = 5;
+    const kind = seed % 3;
+    for (let i = 0; i < 8; i++) {
+      const t = 80 + i * 44;
+      g.beginPath();
+      if (kind === 0) g.moveTo(80, t), g.lineTo(432, t);
+      else if (kind === 1) g.moveTo(256, t - 20), g.lineTo(256 + (t - 80) * 0.8, 256), g.lineTo(256, 512 - t + 20), g.lineTo(256 - (t - 80) * 0.8, 256), g.closePath();
+      else g.arc(256, 256, 30 + i * 26, 0, Math.PI * 2);
+      g.stroke();
+    }
+    // Wool: a fine, irregular pile.
+    for (let i = 0; i < 9000; i++) {
+      g.fillStyle = hash(i, seed, 421) > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+      g.fillRect(hash(i, 3, 423) * 512, hash(i, 4, 425) * 512, 2, 3);
+    }
+  });
+}
+
+/** A row of book spines: varied widths, heights and covers. */
+export function bookSpines(seed: number): THREE.Texture | null {
+  return canvasTexture(`books:${seed}`, 512, 128, (g) => {
+    const covers = ['#2f3c55', '#b8694a', '#e9e2d4', '#7d8f7a', '#1f2329', '#c9a46a', '#8f3b34', '#d8cdb8'];
+    g.clearRect(0, 0, 512, 128);
+    let x = 0;
+    let i = 0;
+    while (x < 512) {
+      const w = 12 + hash(i, seed, 431) * 22;
+      const h = 80 + hash(i, seed, 433) * 48;
+      g.fillStyle = covers[Math.floor(hash(i, seed, 435) * covers.length)]!;
+      g.fillRect(x, 128 - h, w - 1, h);
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+      g.fillRect(x + 2, 128 - h + 10, w - 5, 2);
+      g.fillRect(x + 2, 128 - 18, w - 5, 2);
+      x += w;
+      i++;
+    }
+  });
+}
+
+/** Fine furniture grain, along the length of a board, without plank joints: oak and walnut veneer. */
+export function woodGrain(): THREE.Texture | null {
+  const t = canvasTexture('wood-grain', 512, 512, (g) => {
+    const data = g.createImageData(512, 512);
+    for (let y = 0; y < 512; y++) {
+      for (let x = 0; x < 512; x++) {
+        const u = x / 512;
+        const v = y / 512;
+        const warp = fbm(u, v, 2, 3, 461) * 0.08;
+        const rings = Math.sin((u + warp) * Math.PI * 2 * 26 + fbm(u, v, 4, 2, 463) * 3);
+        const fleck = hash(Math.floor(x / 2), Math.floor(y / 9), 467) > 0.985 ? -0.08 : 0;
+        const k = 0.86 + rings * 0.06 + fbm(u, v * 0.2, 8, 3, 469) * 0.1 + fleck;
+        const i = (y * 512 + x) * 4;
+        data.data[i] = data.data[i + 1] = data.data[i + 2] = Math.max(0, Math.min(255, Math.round(255 * k)));
+        data.data[i + 3] = 255;
+      }
+    }
+    g.putImageData(data, 0, 0);
+  }, true);
+  return t;
+}

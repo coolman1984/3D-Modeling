@@ -426,8 +426,11 @@ select.input { padding: 0 6px; }
 }
 .tile:hover { background: var(--fill); }
 .tile:active { background: var(--accent-soft); }
-.tile-art { height: 88px; display: flex; align-items: center; justify-content: center; background: var(--tile); border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(11, 13, 18, 0.05); }
+.tile-art { height: 104px; display: flex; align-items: center; justify-content: center; background: var(--tile); border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(11, 13, 18, 0.05); }
 .tile-art svg { overflow: visible; }
+.tile-art img { width: 100%; height: 100%; object-fit: contain; display: block; animation: tile-in 0.25s ease-out; }
+@keyframes tile-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tile-art img { animation: none; } }
 .tile-name { padding: 10px 2px 0; font-size: 12.5px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
 .tile-dims { padding: 3px 2px 0; font-size: 11.5px; color: #6f7581; line-height: 1.35; font-variant-numeric: tabular-nums; }
 .tile-edit {
@@ -567,6 +570,9 @@ select.input { padding: 0 6px; }
 .item.locked .item-body { stroke-dasharray: 4 2; }
 .item.raised .item-body { fill-opacity: 0.75; stroke-dasharray: 2 2; }
 .item.selected.raised .item-body { stroke-dasharray: 6 2; }
+.room-label { font-size: 9.5px; font-weight: 500; letter-spacing: 0.12em; fill: var(--ink-2); paint-order: stroke; stroke: var(--paper, #fff); stroke-width: 4px; stroke-linejoin: round; }
+.item-symbol rect, .item-symbol circle, .item-symbol ellipse, .item-symbol path, .item-symbol line { stroke-linecap: round; stroke-linejoin: round; }
+.item.selected .item-symbol * { stroke: var(--accent); }
 .item-label { font-size: 10.5px; fill: var(--ink); text-anchor: middle; dominant-baseline: middle; pointer-events: none; letter-spacing: 0.02em; }
 .item.selected .item-label { fill: var(--accent); }
 .evidence { pointer-events: none; }
