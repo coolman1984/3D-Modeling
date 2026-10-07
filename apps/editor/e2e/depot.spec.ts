@@ -4,7 +4,8 @@ import { openTab, saved } from './helpers.js';
 test('reference vehicle depot: bay counts, entry check, add a bay, and print report', async ({ page }) => {
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Create project' }).first().click();
-  await page.locator('[data-template="depot"]').click();
+  // Choosing the activity picks its reference layout.
+  await page.locator('[data-activity="depot"]').click();
   await page.locator('input[name="project-name"]').fill('Fleet depot 1');
   await page.getByTestId('create-project').click();
   await expect(page.locator('h1.project-name')).toHaveText('Fleet depot 1');

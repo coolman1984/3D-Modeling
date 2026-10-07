@@ -151,6 +151,7 @@ export const RULE_TITLES: Readonly<Record<RuleCode, string>> = {
   'area-per-cover': 'Floor area per cover',
   'table-reachability': 'Waitstaff reaches every table',
   'building-boundary': 'Buildings stand on the plot, off the roads',
+  'bed-access': 'Every bed can be reached from one side',
 };
 
 /** How much weight a rule's numbers carry, in words. */
@@ -231,6 +232,8 @@ export function ruleFigures(project: Project, rule: RuleResult): { measured: str
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} tables` };
     case 'building-boundary':
       return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} clear`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} buildings` };
+    case 'bed-access':
+      return { measured: rule.measured === undefined ? dash : `${formatCount(rule.measured)} reachable`, required: rule.required === undefined ? dash : `${formatCount(rule.required)} beds` };
     case 'orientation':
     case 'stacking-group':
     case 'unloading-order':
@@ -282,6 +285,8 @@ export function describeRule(project: Project, rule: RuleResult): string {
         return 'Add a kitchen pass door (its role set to "pass") so waitstaff have somewhere to start from.';
       case 'no-buildings':
         return 'Add buildings to the site plan to check where they stand.';
+      case 'no-beds':
+        return 'There are no beds in the plan yet.';
       default:
         return 'There are no seats in the plan yet.';
     }
@@ -357,5 +362,9 @@ export function describeRule(project: Project, rule: RuleResult): string {
       return rule.status === 'pass' ? 'Waitstaff can reach every table from the kitchen pass.' : `No route from the pass to: ${list(rule.entityIds)}.`;
     case 'building-boundary':
       return rule.status === 'pass' ? 'Every building stands inside the plot and off the marked roads.' : `Outside the plot or across a road: ${list(rule.entityIds)}. Move the building or the road.`;
+    case 'bed-access':
+      return rule.status === 'pass'
+        ? 'Every bed has a 60 cm strip free along at least one side, to get in and make it.'
+        : `No 60 cm free along either side of ${list(rule.entityIds)}. Move the bed away from the wall or what stands beside it.`;
   }
 }

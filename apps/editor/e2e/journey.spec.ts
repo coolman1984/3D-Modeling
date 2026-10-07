@@ -199,12 +199,15 @@ test('projects page lists, copies and deletes projects', async ({ page }) => {
 
 test('settings show the agents and keep the API key secret', async ({ page }) => {
   await page.goto('/#/settings');
+  // Settings open on Appearance; the assistants are under AI Providers.
+  await page.getByRole('button', { name: 'AI Providers' }).click();
   await expect(page.locator('[data-agent="claude-code"]')).toContainText('Claude Code');
   await expect(page.locator('[data-agent="codex"]')).toContainText('Codex');
   await page.getByLabel('API key').fill('sk-ant-test-9876');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByTestId('settings-state')).toHaveText('All changes saved');
   await page.reload();
+  await page.getByRole('button', { name: 'AI Providers' }).click();
   await expect(page.getByLabel('API key')).toHaveAttribute('placeholder', 'Saved (••••9876) · paste to replace');
   const body = await (await page.request.get('/api/settings')).text();
   expect(body).not.toContain('sk-ant-test');

@@ -44,12 +44,41 @@ export const SHAPES = [
   { key: 'workbench', label: 'Workbench' },
   { key: 'locker', label: 'Lockers' },
   { key: 'vending', label: 'Vending machine' },
+  { key: 'sectional', label: 'Corner sofa' },
+  { key: 'armchair', label: 'Armchair' },
+  { key: 'coffee-table', label: 'Coffee table' },
+  { key: 'side-table', label: 'Side table' },
+  { key: 'tv-unit', label: 'TV unit' },
+  { key: 'bookcase', label: 'Bookcase' },
+  { key: 'rug', label: 'Rug' },
+  { key: 'floor-lamp', label: 'Floor lamp' },
+  { key: 'house-plant', label: 'House plant' },
+  { key: 'curtains', label: 'Curtains' },
+  { key: 'wall-art', label: 'Wall art' },
+  { key: 'mirror', label: 'Mirror' },
+  { key: 'wall-tv', label: 'TV on the wall' },
+  { key: 'wall-shelf', label: 'Wall shelf' },
+  { key: 'dining-set', label: 'Dining set' },
+  { key: 'sideboard', label: 'Sideboard' },
+  { key: 'pendant', label: 'Pendant light' },
+  { key: 'bed', label: 'Bed' },
+  { key: 'nightstand', label: 'Nightstand' },
+  { key: 'wardrobe', label: 'Wardrobe' },
+  { key: 'dresser', label: 'Dresser' },
+  { key: 'kitchen', label: 'Kitchen run' },
+  { key: 'island', label: 'Kitchen island' },
+  { key: 'fridge', label: 'Fridge' },
+  { key: 'bathtub', label: 'Bathtub' },
+  { key: 'shower', label: 'Shower' },
+  { key: 'toilet', label: 'Toilet' },
+  { key: 'basin', label: 'Basin' },
+  { key: 'washer', label: 'Washing machine' },
 ] as const;
 
 export type ShapeKey = (typeof SHAPES)[number]['key'];
 
 /** Shapes whose floor outline is round rather than rectangular. */
-export const ROUND_SHAPES: readonly ShapeKey[] = ['round-table', 'plant', 'tree', 'lamp'];
+export const ROUND_SHAPES: readonly ShapeKey[] = ['round-table', 'plant', 'tree', 'lamp', 'side-table', 'house-plant', 'pendant'];
 
 export function shapeOf(category: string): ShapeKey {
   return SHAPES.some((s) => s.key === category) ? (category as ShapeKey) : 'box';
@@ -117,3 +146,4 @@ export * from './horizon.js';
 export * from './sampleCompanies.js';
 export * from './nileVision.js';
 export * from './plantLink.js';
+export * from './home.js';

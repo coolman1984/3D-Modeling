@@ -1,12 +1,10 @@
-import { boundsOf, serializeProject } from '@space-planner/core';
-import { CONTAINER_TYPES, packOf, SAMPLE_COMPANIES, type PackId } from '@space-planner/starter';
+import { area, boundsOf, serializeProject, toSquareMetres, type Project } from '@space-planner/core';
+import { CONTAINER_TYPES, HOME_TEMPLATES, packOf, type PackId } from '@space-planner/starter';
 import {
   ArrowRight,
   ArrowUpRight,
   Briefcase,
   CaretDown,
-  MapTrifold,
-  Buildings,
   Car,
   ForkKnife,
   Package,
@@ -19,6 +17,7 @@ import {
   DotsThree,
   DownloadSimple,
   Factory,
+  House,
   FolderOpen,
   ListBullets,
   MagnifyingGlass,
@@ -32,7 +31,8 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, subscribe, type ProjectSummary } from '../api.js';
+import { api, subscribe, type InstalledPack, type ProjectSummary } from '../api.js';
+import { PacksDialog } from '../ui/PacksDialog.js';
 import { formatAgo, formatCount, formatMetres, plural } from '../logic/format.js';
 import { Dialog, LineTabs, Menu, NumberField, Segmented, useToast } from '../ui/Fields.js';
 import { ShipmentDialog } from '../ui/ShipmentDialog.js';
@@ -125,41 +125,24 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
   const recentCard = recent ? cards.get(recent.id) : undefined;
   const recentShipment = recent && isShipped(recent) ? shipments.find((s) => s.collection === recent.collection) : undefined;
 
-  const [addingSample, setAddingSample] = useState(false);
-  const addSample = (company: (typeof SAMPLE_COMPANIES)[number]) => {
-    setAddingSample(true);
-    void api
-      .addSampleCompany(company.id)
-      .then((created) => showToast(`Added ${company.name} · ${created.length} projects`))
-      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : String(error)))
-      .finally(() => setAddingSample(false));
-  };
-  const sampleMenu = (testId: string) => (
-    <Menu
-      label="Sample companies"
-      button={(isOpen, toggle) => (
-        <button type="button" className="btn" disabled={addingSample} aria-expanded={isOpen} onClick={toggle} data-testid={testId}>
-          <Buildings size={17} />
-          {addingSample ? 'Adding…' : 'Add sample company'}
-          <CaretDown size={13} />
-        </button>
-      )}
-    >
-      {(close) =>
-        SAMPLE_COMPANIES.map((company) => (
-          <button key={company.id} type="button" role="menuitem" className="sample-choice" data-testid={`add-sample-${company.id}`} onClick={() => { close(); addSample(company); }}>
-            <span className="sample-choice-name">{company.name}</span>
-            <span className="sample-choice-desc">{company.description}</span>
-          </button>
-        ))
-      }
-    </Menu>
+  // Installed packs (decision 0027): each is listed as its own group, newest first.
+  const [packs, setPacks] = useState<readonly InstalledPack[]>([]);
+  const [packsOpen, setPacksOpen] = useState(false);
+  useEffect(() => {
+    void api.packs().then((l) => setPacks(l.installed)).catch(() => undefined);
+  }, [projects]);
+  const inPack = (p: ProjectSummary) => packs.some((pack) => pack.collection === p.collection);
+  const packsButton = (testId: string) => (
+    <button type="button" className="btn" onClick={() => setPacksOpen(true)} data-testid={testId}>
+      <Package size={17} />
+      Packs
+    </button>
   );
-  // Sample companies first, each as its own group, then shipments (newest first), then the person's own projects.
+  // Packs first, each as its own group, then shipments (newest first), then the person's own projects.
   const allGroups: Array<{ id: string; title: string; description: string; rows: ProjectSummary[]; shipments?: ShipmentSummary[] }> = [
-    ...SAMPLE_COMPANIES.map((c) => ({ id: c.id, title: c.name, description: c.description, rows: rows.filter((p) => p.collection === c.id) })),
+    ...packs.map((pack) => ({ id: pack.collection, title: pack.name, description: pack.description, rows: rows.filter((p) => p.collection === pack.collection) })),
     { id: 'shipments', title: 'Container shipments', description: 'How many containers each production run needs, loaded and shown side by side.', rows: [], shipments: shownShipments },
-    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !p.collection || !SAMPLE_COMPANIES.some((c) => c.id === p.collection)) },
+    { id: 'own', title: 'My projects', description: '', rows: rows.filter((p) => !inPack(p)) },
   ];
   const groups = allGroups.filter((g) => g.rows.length > 0 || (g.shipments?.length ?? 0) > 0);
   const grouped = groups.some((g) => g.id !== 'own');
@@ -182,7 +165,7 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             <p className="lede">Measured spaces and the plans inside them. Check that everything fits and works before anything is ordered.</p>
           </div>
           <div className="hero-actions">
-            {sampleMenu('add-sample')}
+            {packsButton('open-packs')}
             <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
               <FolderOpen size={17} />
               Open file
@@ -264,17 +247,20 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
           <LineTabs
             value={filter}
             onChange={setFilter}
-            tabs={[
-              { id: 'all', label: 'All', count: count('all') },
-              { id: 'hall', label: 'Event hall', count: count('hall') },
-              { id: 'office', label: 'Office', count: count('office') },
-              { id: 'container', label: 'Container', count: count('container') },
-              { id: 'warehouse', label: 'Warehouse', count: count('warehouse') },
-              { id: 'production', label: 'Production', count: count('production') },
-              { id: 'depot', label: 'Parking', count: count('depot') },
-              { id: 'restaurant', label: 'Canteen', count: count('restaurant') },
-              { id: 'site', label: 'Site plan', count: count('site') },
-            ]}
+            tabs={(
+              [
+                { id: 'all', label: 'All', count: count('all') },
+                { id: 'home', label: 'Apartments', count: count('home') },
+                { id: 'hall', label: 'Event hall', count: count('hall') },
+                { id: 'office', label: 'Office', count: count('office') },
+                { id: 'container', label: 'Container', count: count('container') },
+                { id: 'warehouse', label: 'Warehouse', count: count('warehouse') },
+                { id: 'production', label: 'Production', count: count('production') },
+                { id: 'depot', label: 'Parking', count: count('depot') },
+                { id: 'restaurant', label: 'Canteen', count: count('restaurant') },
+                { id: 'site', label: 'Site plan', count: count('site') },
+              ] as const
+            ).filter((t) => t.id === 'all' || t.id === filter || t.count > 0)}
           />
           <span className="spacer" />
           <label className="search">
@@ -309,13 +295,13 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
             {projects && projects.length === 0 ? (
               <>
                 <div className="serif">No projects yet</div>
-                <p>Start with the room: its size, then doors, columns and items. Or open a stocked sample company to explore.</p>
+                <p>Start with the room: its size, then doors, walls and furniture. Or install a pack of ready-made projects to explore.</p>
                 <div className="hero-actions">
                   <button type="button" className="btn primary" onClick={() => setCreating(true)}>
                     <Plus size={16} />
                     Create project
                   </button>
-                  {sampleMenu('add-sample-empty')}
+                  {packsButton('open-packs-empty')}
                 </div>
               </>
             ) : (
@@ -420,11 +406,11 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                 </span>
                 <span className="proj-card-title">
                   <span className="serif">{s.name}</span>
-                  <span className="faint" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                  <span className="faint" style={{ fontSize: 'calc(12px * var(--ts, 1))', whiteSpace: 'nowrap' }}>
                     {formatAgo(s.updatedAt)}
                   </span>
                 </span>
-                <span className="proj-sub" style={{ fontSize: 13, marginTop: 6 }}>
+                <span className="proj-sub" style={{ fontSize: 'calc(13px * var(--ts, 1))', marginTop: 6 }}>
                   Container shipment · {plural(s.containers, 'container')} · {formatCount(s.pieces)} pieces
                 </span>
               </a>
@@ -438,14 +424,14 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
                   <span className="proj-card-art">{card && <ProjectThumb project={card.project} width={230} height={160} />}</span>
                   <span className="proj-card-title">
                     <span className="serif">{p.name}</span>
-                    <span className="faint" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                    <span className="faint" style={{ fontSize: 'calc(12px * var(--ts, 1))', whiteSpace: 'nowrap' }}>
                       {formatAgo(p.updatedAt)}
                     </span>
                   </span>
-                  <span className="proj-sub" style={{ fontSize: 13, marginTop: 6 }}>
+                  <span className="proj-sub" style={{ fontSize: 'calc(13px * var(--ts, 1))', marginTop: 6 }}>
                     {[card ? packOf(card.activity.pack).label : null, room ? `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m` : null, plural(p.itemCount, 'item')].filter(Boolean).join(' · ')}
                   </span>
-                  <span className={`proj-state state-${state.tone}`} style={{ fontSize: 13, marginTop: 10 }}>
+                  <span className={`proj-state state-${state.tone}`} style={{ fontSize: 'calc(13px * var(--ts, 1))', marginTop: 10 }}>
                     {state.icon}
                     {state.text}
                   </span>
@@ -463,6 +449,16 @@ export function ProjectsPage({ open }: { open: (id: string) => void }) {
         {toast}
       </div>
       {creating && <CreateDialog onClose={() => setCreating(false)} open={open} />}
+      {packsOpen && (
+        <PacksDialog
+          onClose={() => setPacksOpen(false)}
+          onChanged={(text) => {
+            showToast(text);
+            refresh();
+          }}
+          ownProjectIds={plain.filter((p) => !inPack(p)).map((p) => p.id)}
+        />
+      )}
       {planning && <ShipmentDialog onClose={() => setPlanning(false)} opened={(s) => (window.location.hash = `#/s/${s}`)} />}
     </div>
   );
@@ -474,7 +470,7 @@ const SHIPMENT_PREFIX = 'shipment:';
 function GroupHead({ title, description, count, icon }: { title: string; description: string; count: string; icon: 'sample' | 'shipment' | 'own' }) {
   return (
     <header className="proj-group-head">
-      {icon === 'shipment' ? <Truck size={18} /> : icon === 'sample' ? <MapTrifold size={18} /> : <FolderOpen size={18} />}
+      {icon === 'shipment' ? <Truck size={18} /> : icon === 'sample' ? <Package size={18} /> : <FolderOpen size={18} />}
       <div>
         <div className="serif proj-group-title">{title}</div>
         {description && <div className="proj-group-desc">{description}</div>}
@@ -542,11 +538,11 @@ function CardMeta({ card, items }: { card: ProjectCard; items: number }) {
   const pack = packOf(card.activity.pack);
   const room = boundsOf(card.project.space.boundary);
   const seats = Object.values(card.project.items).reduce((n, i) => n + (card.project.catalog[i.definitionId]?.seats ?? 0), 0);
-  return (
-    <>
-      {[pack.label, pack.styles.find((s) => s.id === card.activity.style)?.label, `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`, seats ? plural(seats, 'seat') : plural(items, 'item')].filter(Boolean).join(' · ')}
-    </>
-  );
+  const style = pack.styles.find((s) => s.id === card.activity.style)?.label;
+  const size = `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`;
+  // An apartment is described by its floor area and pieces, not by seats.
+  const amount = pack.id === 'home' ? `${formatCount(Math.round(toSquareMetres(area(card.project.space.boundary))))} m² · ${plural(items, 'piece')}` : seats ? plural(seats, 'seat') : plural(items, 'item');
+  return <>{[pack.label, style === pack.label ? undefined : style, size, amount].filter(Boolean).join(' · ')}</>;
 }
 
 function RowMenu({ project, open, onDone }: { project: ProjectSummary; open: (id: string) => void; onDone: (text: string) => void }) {
@@ -615,9 +611,15 @@ interface Template {
   readonly pack: PackId;
   /** The ready-made 10 × 8 m demo hall from the server, with a door and a column. */
   readonly demo?: boolean;
+  /** A furnished apartment from the home pack (its id is the server template). */
+  readonly furnished?: boolean;
 }
 
 const TEMPLATES: readonly Template[] = [
+  { id: 'home-empty', name: 'Empty apartment', desc: 'Your measurements · add walls and furniture', width: 9, depth: 7, ceiling: 2.8, pack: 'home' },
+  { id: 'home-studio', name: 'Studio', desc: '7.5 × 6.5 m · 49 m² · furnished', width: 7.5, depth: 6.5, ceiling: 2.8, pack: 'home', furnished: true },
+  { id: 'home-one-bedroom', name: 'One bedroom', desc: '10 × 7 m · 70 m² · furnished', width: 10, depth: 7, ceiling: 2.8, pack: 'home', furnished: true },
+  { id: 'home-two-bedroom', name: 'Two bedrooms', desc: '12 × 9 m · 108 m² · furnished', width: 12, depth: 9, ceiling: 2.8, pack: 'home', furnished: true },
   { id: 'hall', name: 'Event hall', desc: '24 × 16 m · 4.5 m ceiling · one door', width: 24, depth: 16, ceiling: 4.5, pack: 'hall' },
   { id: 'office', name: 'Open office', desc: '32 × 18 m · 3.0 m ceiling · one door', width: 32, depth: 18, ceiling: 3, pack: 'office' },
   { id: 'meeting', name: 'Meeting room', desc: '7.2 × 5.4 m · 2.8 m ceiling · one door', width: 7.2, depth: 5.4, ceiling: 2.8, pack: 'office' },
@@ -633,14 +635,21 @@ const TEMPLATES: readonly Template[] = [
   { id: 'blank', name: 'Blank', desc: 'Any size · add everything yourself', width: 12, depth: 9, ceiling: 3, pack: 'hall' },
 ];
 
+/** A furnished apartment, built once in the browser for its preview. */
+const previews = new Map<string, Project>();
+function homePreview(id: string): Project {
+  if (!previews.has(id)) previews.set(id, HOME_TEMPLATES.find((t) => t.id === id)!.build());
+  return previews.get(id)!;
+}
+
 /** "Start with the room": name, activity, size and a live preview; opens the editor when done. */
 function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: string) => void }) {
-  const [template, setTemplate] = useState<Template>(TEMPLATES.find((t) => t.id === 'blank')!);
+  const [template, setTemplate] = useState<Template>(TEMPLATES.find((t) => t.id === 'home-empty')!);
   const [name, setName] = useState('');
-  const [activity, setActivity] = useState<PackId>('hall');
-  const [width, setWidth] = useState<number | undefined>(12);
-  const [depth, setDepth] = useState<number | undefined>(9);
-  const [ceiling, setCeiling] = useState<number | undefined>(3);
+  const [activity, setActivity] = useState<PackId>('home');
+  const [width, setWidth] = useState<number | undefined>(9);
+  const [depth, setDepth] = useState<number | undefined>(7);
+  const [ceiling, setCeiling] = useState<number | undefined>(2.8);
   const [touched, setTouched] = useState(false);
   const [containerId, setContainerId] = useState(CONTAINER_TYPES[0]!.id);
   const isContainer = activity === 'container';
@@ -648,7 +657,8 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sizeOk = isContainer || ((width ?? 0) > 0 && (depth ?? 0) > 0);
-  const valid = sizeOk && (name.trim() !== '' || template.demo === true);
+  const furnished = template.furnished === true && activity === 'home' && width === template.width && depth === template.depth;
+  const valid = sizeOk && (name.trim() !== '' || template.demo === true || furnished);
   const w = isContainer ? container.length / 10_000 : (width ?? 0);
   const d = isContainer ? container.width / 10_000 : (depth ?? 0);
   const k = w > 0 && d > 0 ? Math.min(300 / w, 130 / d) : 0;
@@ -669,6 +679,8 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
     try {
       const project = isContainer
         ? await api.createProject({ name: name.trim(), activity: 'container', container_type: containerId })
+        : furnished
+        ? await api.createProject({ name: name.trim() || `${template.name} apartment`, template: template.id as (typeof HOME_TEMPLATES)[number]['id'] })
         : template.id === 'warehouse' && activity === 'warehouse' && width === 30 && depth === 20 && ceiling === 8
         ? await api.createProject({ name: name.trim() || 'Reference warehouse', template: 'warehouse-reference' })
         : template.id === 'production' && activity === 'production' && width === 30 && depth === 8 && ceiling === 4
@@ -706,7 +718,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
             className={`input${touched && !name.trim() && !template.demo ? ' invalid' : ''}`}
             name="project-name"
             autoFocus
-            placeholder="Client — venue"
+            placeholder={activity === "home" ? "Client — apartment" : "Client — venue"}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -716,6 +728,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
           <div className="activity-cards" role="group" aria-label="Activity">
             {(
               [
+                ['home', 'Apartment', 'Living, bedrooms, kitchen and bath', <House size={22} />],
                 ['hall', 'Event hall', 'Weddings, conferences, galas', <Confetti size={22} />],
                 ['office', 'Office', 'Workstations, meeting rooms', <Briefcase size={22} />],
                 ['container', 'Container', 'Cargo loading plans', <Package size={22} />],
@@ -737,13 +750,14 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                   else if (id === 'production') choose(TEMPLATES.find((t) => t.id === 'production')!);
                   else if (id === 'depot') choose(TEMPLATES.find((t) => t.id === 'depot')!);
                   else if (id === 'restaurant') choose(TEMPLATES.find((t) => t.id === 'restaurant')!);
+                  else if (id === 'home') choose(TEMPLATES.find((t) => t.id === 'home-empty')!);
                   else setActivity(id);
                   if (id === 'container' && template.demo) setTemplate(TEMPLATES.find((t) => t.id === 'blank')!);
                 }}
               >
                 {icon}
                 <span>
-                  <span style={{ display: 'block', fontSize: 13.5, fontWeight: 500 }}>{label}</span>
+                  <span style={{ display: 'block', fontSize: 'calc(13.5px * var(--ts, 1))', fontWeight: 500 }}>{label}</span>
                   <span className="hint">{hint}</span>
                 </span>
               </button>
@@ -769,13 +783,13 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
         </div>
         )}
         {!sizeOk && (
-          <p className="error-text" style={{ marginTop: 8, fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <p className="error-text" style={{ marginTop: 8, fontSize: 'calc(12px * var(--ts, 1))', display: 'flex', gap: 6, alignItems: 'center' }}>
             <XCircle size={14} />
             Width and depth must be more than 0.
           </p>
         )}
         {error && (
-          <p className="error-text" style={{ marginTop: 8, fontSize: 12 }}>
+          <p className="error-text" style={{ marginTop: 8, fontSize: 'calc(12px * var(--ts, 1))' }}>
             {error}
           </p>
         )}
@@ -783,16 +797,22 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
       </form>
       <div className="create-side">
         <div className="room-preview">
-          <span className="room" style={{ width: Math.max(8, Math.round(w * k)), height: Math.max(8, Math.round(d * k)) }}>
-            <span className="w">{w.toFixed(2)} m</span>
-            <span className="d">{d.toFixed(2)} m</span>
-          </span>
+          {furnished ? (
+            <span className="furnished-preview" data-testid="furnished-preview">
+              <ProjectThumb project={homePreview(template.id)} width={380} height={170} />
+            </span>
+          ) : (
+            <span className="room" style={{ width: Math.max(8, Math.round(w * k)), height: Math.max(8, Math.round(d * k)) }}>
+              <span className="w">{w.toFixed(2)} m</span>
+              <span className="d">{d.toFixed(2)} m</span>
+            </span>
+          )}
         </div>
-        <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        <div className="muted" style={{ marginTop: 10, fontSize: 'calc(12px * var(--ts, 1))' }}>
           {isContainer
             ? `Inside ${w.toFixed(2)} × ${d.toFixed(2)} × ${(container.height / 10_000).toFixed(2)} m · ${(w * d * (container.height / 10_000)).toFixed(1)} m³ · typical payload ${(container.maxPayload / 1_000_000).toFixed(1)} t`
             : w && d
-              ? `Floor area ${(w * d).toFixed(0)} m²${ceiling === undefined ? ' · ceiling not set' : ` · ceiling ${ceiling.toFixed(2)} m`}`
+              ? `Floor area ${(w * d).toFixed(0)} m²${ceiling === undefined ? ' · ceiling not set' : ` · ceiling ${ceiling.toFixed(2)} m`}${furnished ? ' · every check passes' : ''}`
               : 'Enter a width and depth'}
         </div>
         <div className="kicker" style={{ marginTop: 28, letterSpacing: '.12em' }}>
@@ -817,7 +837,7 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
                 </button>
               );
             })}
-          {!isContainer && TEMPLATES.map((t) => {
+          {!isContainer && TEMPLATES.filter((t) => t.pack === activity || t.id === 'blank').map((t) => {
             const kk = Math.min(46 / t.width, 32 / t.depth);
             return (
               <button key={t.id} type="button" className={`template${template.id === t.id ? ' active' : ''}`} aria-pressed={template.id === t.id} data-template={t.id} onClick={() => choose(t)}>
@@ -835,8 +855,8 @@ function CreateDialog({ onClose, open }: { onClose: () => void; open: (id: strin
         </div>
         <span className="spacer" style={{ minHeight: 24 }} />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span className="spacer faint" style={{ fontSize: 12 }}>
-            {valid ? 'Opens the plan editor' : 'Add a project name to continue'}
+          <span className="spacer faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
+            {valid ? (furnished && !name.trim() ? `Named “${template.name} apartment”; rename it any time` : 'Opens the plan editor') : 'Add a project name to continue'}
           </span>
           <button type="button" className="btn large" onClick={onClose}>
             Cancel

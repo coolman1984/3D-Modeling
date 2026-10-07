@@ -4,7 +4,8 @@ import { openTab, saved } from './helpers.js';
 test('reference restaurant: covers, service route to a table, and print report', async ({ page }) => {
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Create project' }).first().click();
-  await page.locator('[data-template="restaurant"]').click();
+  // Choosing the activity picks its reference layout.
+  await page.locator('[data-activity="restaurant"]').click();
   await page.locator('input[name="project-name"]').fill('Bistro 1');
   await page.getByTestId('create-project').click();
   await expect(page.locator('h1.project-name')).toHaveText('Bistro 1');

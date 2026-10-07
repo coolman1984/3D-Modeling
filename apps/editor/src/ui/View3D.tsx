@@ -8,8 +8,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { addEnvironment, addLights, aimSun, isSoftwareRenderer, StillPass } from './environment3d.js';
 import { DEFAULT_QUALITY, FrameWatch, lighter, loadQuality, nextQuality, QUALITY_LABEL, QUALITY_PROFILES, saveQuality, type Quality } from '../logic/graphics.js';
 import { buildModel, COLORS, M } from './models3d.js';
+import { zoneStyle } from '../logic/zoneStyle.js';
 import { stockColor, type StockView } from './Stock.js';
-import { asphalt, carpet, cartonStack, ceramic, cladding, concreteFloor, corrugated, epoxyFloor, grass, marble, pavers, planks, plaster, precast, sand, type Surface } from './textures.js';
+import { asphalt, carpet, cartonStack, ceramic, chevronOak, cladding, concreteFloor, corrugated, epoxyFloor, grass, marble, pavers, planks, plaster, precast, sand, type Surface } from './textures.js';
 import { headingQuarter, ownsKeys, type ControlSettings } from '../logic/controls.js';
 import type { Action } from '../logic/session.js';
 import { snapMove } from '../logic/snap.js';
@@ -235,6 +236,8 @@ function surfaceMaterial(s: Surface | null, color: number, extra: THREE.MeshStan
 /** The floor finish of each activity: what the room would really be paved with. */
 function floorMaterial(pack: PackId, project: Project): THREE.Material {
   switch (pack) {
+    case 'home':
+      return surfaceMaterial(chevronOak(), 0xffffff);
     case 'container':
       return new THREE.MeshStandardMaterial({ color: COLORS.containerFloor, map: planks(), roughness: 0.8 });
     case 'warehouse':
@@ -357,6 +360,7 @@ function outdoorZones(project: Project, group: THREE.Group, lines: Lines, span: 
 function indoorZones(project: Project, group: THREE.Group, lines: Lines, painted: boolean): void {
   for (const zone of project.space.zones ?? []) {
     const kind = zone.kind;
+    if (zoneStyle(kind).room) continue; // rooms of an apartment: the walls and floor already show them
     const color = kind === 'no-go' || kind === 'pedestrian' ? 0xb76e64 : kind === 'bay' ? 0xd8d3c6 : kind.includes('aisle') ? 0x7bb198 : kind === 'clean-room' ? 0x9fc3e0 : kind === 'break' || kind === 'lounge' ? 0xd9b98f : 0x829fc3;
     const overlay = zoneMesh(zone, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: kind === 'storage' ? 0.06 : painted ? 0.12 : 0.18, side: THREE.DoubleSide, depthWrite: false }), 0.009);
     group.add(overlay);
@@ -626,6 +630,9 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
   for (const item of ordered) {
     const definition = project.catalog[item.definitionId];
     if (!definition || look.hidden?.has(item.id)) continue;
+    // With the walls cut, art and mirrors hung above the cut would float in the air: leave them
+    // out unless selected (they show with full-height walls).
+    if (wallCut !== null && definition.meta?.mount === 'wall' && mt(item.elevation ?? 0) >= wallCut && !selected.has(item.id)) continue;
     const state: ItemState = selected.has(item.id) ? 'selected' : (severity.get(item.id) ?? 'normal');
     const color = look.itemColors?.get(item.id);
     // Raised shades draw posts down to the ground, so their height above it is part of the model.
@@ -1073,6 +1080,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   // Rebuild the model whenever the project, issues, selection or look change. Load playback only
   // changes which items are hidden, so that part of the look is applied separately below.
   const hidden = look?.hidden;
+  const [painted, setPainted] = useState(false);
   const buildLook = useMemo(() => {
     if (!look) return undefined;
     const { hidden: _hidden, ...rest } = look;
@@ -1082,6 +1090,12 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   useEffect(() => {
     const t = three.current;
     if (!t) return;
+    // The first build waits one frame, so the 3D pane (its backdrop and tools) shows at once and the
+    // room fills in right after; later rebuilds are immediate, so edits never lag.
+    if (!painted) {
+      const timer = setTimeout(() => setPainted(true), 0);
+      return () => clearTimeout(timer);
+    }
     if (t.content) {
       t.scene.remove(t.content);
       disposeTree(t.content);
@@ -1096,7 +1110,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     t.renderer.shadowMap.needsUpdate = true;
     t.invalidate();
     hostRef.current?.setAttribute('data-selected', selectedIds.join(' '));
-  }, [project, issues, selectedIds, fullWalls, buildLook, quality]);
+  }, [project, issues, selectedIds, fullWalls, buildLook, quality, painted]);
 
   // Hidden items (load playback) get an empty matrix; shown ones their own again. Thousands of
   // items change in a millisecond or two, where a rebuild took most of a second.
@@ -1115,7 +1129,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     t.renderer.shadowMap.needsUpdate = true;
     t.invalidate();
     hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length - (hidden?.size ?? 0)));
-  }, [hidden, project, issues, selectedIds, fullWalls, buildLook, quality]);
+  }, [hidden, project, issues, selectedIds, fullWalls, buildLook, quality, painted]);
 
   // Frame the room when asked, and when the room itself changes size.
   const room = boundsOf(project.space.boundary);

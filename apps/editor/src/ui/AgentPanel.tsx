@@ -21,6 +21,11 @@ const TOOL_WORDS: Readonly<Record<string, string>> = {
 };
 
 const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
+  home: [
+    'Furnish the living room for four: a sofa, two armchairs, a rug and a coffee table 45 cm from the sofa.',
+    'Fit a queen bed with nightstands in the bedroom and keep 60 cm free along one side.',
+    'Lay a dining table for six near the kitchen with 75 cm behind every chair.',
+  ],
   site: [
     'Add a second row of 20 bus bays next to the bus park and check a coach can turn into every empty one.',
     'Plant a row of shade trees along the spine road, 12 m apart, without touching roads or buildings.',
@@ -163,7 +168,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
         <div className="ai-body" aria-label="AI Planner">
           <div>
             <h3>Describe the plan you need.</h3>
-            <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+            <p className="muted" style={{ marginTop: 8, fontSize: 'calc(13px * var(--ts, 1))' }}>
               The planner edits this project with the same tools you use. Every change is saved as a revision you can undo.
             </p>
           </div>
@@ -186,7 +191,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
           )}
           {error && <p className="error-text">{error}</p>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="spacer muted" style={{ fontSize: 12 }}>
+            <span className="spacer muted" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
               Starts from revision {project.revision}
             </span>
             <button type="button" className="btn primary" style={{ height: 38, padding: '0 18px' }} disabled={empty || !agent} onClick={() => void start(prompt)}>
@@ -215,7 +220,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
         </div>
         <div className="ai-headline">
           <span className="serif">{headline}</span>
-          <span className="muted num" style={{ fontSize: 12 }}>
+          <span className="muted num" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
             {tools} {tools === 1 ? 'step' : 'steps'}
           </span>
         </div>
@@ -301,7 +306,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
           )}
         </div>
         {!running && (
-          <button type="button" className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setDismissed(latest.id)}>
+          <button type="button" className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 'calc(13px * var(--ts, 1))' }} onClick={() => setDismissed(latest.id)}>
             <Plus size={14} />
             New request
           </button>

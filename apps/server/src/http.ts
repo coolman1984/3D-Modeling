@@ -1,12 +1,13 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { deserializeProject, type Command } from '@space-planner/core';
-import { demoHall, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, SAMPLE_COMPANIES, sampleCompany } from '@space-planner/starter';
+import { demoHall, HOME_TEMPLATES, newContainer, newHome, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
 import { EcoError, ecoRoutes, type FetchLike } from './eco/routes.js';
 import { loadSettings, publicSettings, saveSettings, settingsProblems, type Settings } from './settings.js';
 import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
+import { bundledPacks, packId, PackError, readPack, writePack, type Pack } from './packs.js';
 import type { Store } from './store.js';
 import { runTool, toolSummaries } from './tools.js';
 
@@ -18,6 +19,8 @@ export interface AppOptions {
   /** How calls to GMES are made (tests pass a fake; the default is the platform's fetch). */
   readonly ecoFetch?: FetchLike;
   readonly mcpScript: string;
+  /** Folder of the packs that come with the program (sample companies…); none when missing. */
+  readonly packsDir?: string;
 }
 
 export interface App {
@@ -131,6 +134,7 @@ export function createApp(options: AppOptions): App {
     else if (body.template === 'production-reference') project = referenceProductionLine(name);
     else if (body.template === 'depot-reference') project = referenceVehicleDepot(name);
     else if (body.template === 'restaurant-reference') project = referenceRestaurant(name);
+    else if (typeof body.template === 'string' && HOME_TEMPLATES.some((t) => t.id === body.template)) project = HOME_TEMPLATES.find((t) => t.id === body.template)!.build(name);
     else if (typeof body.file === 'string') {
       const opened = deserializeProject(body.file);
       if (!opened.ok) throw new HttpError(422, `This file is not a valid plan: ${opened.problems[0]?.path ?? ''}`);
@@ -155,6 +159,10 @@ export function createApp(options: AppOptions): App {
         send(res, 201, store.createProject(newVehicleDepot(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling ?? 4), 'human'));
         return;
       }
+      if (activity === 'home') {
+        send(res, 201, store.createProject(newHome(name, positiveNumber(body.width_m, 'width_m', 100), positiveNumber(body.depth_m, 'depth_m', 100), ceiling ?? 2.8), 'human'));
+        return;
+      }
       if (activity === 'restaurant') {
         send(res, 201, store.createProject(newRestaurant(name, positiveNumber(body.width_m, 'width_m', 500), positiveNumber(body.depth_m, 'depth_m', 500), ceiling ?? 3.2), 'human'));
         return;
@@ -164,14 +172,63 @@ export function createApp(options: AppOptions): App {
     send(res, 201, store.createProject(project, 'human'));
   });
 
-  route('GET', '/api/samples', (_q, res) => send(res, 200, SAMPLE_COMPANIES.map(({ id, name, description }) => ({ id, name, description }))));
-
-  // A sample company, stored like any other projects and grouped by its id. Created last-first so its main site lists on top.
-  route('POST', '/api/samples/:id', (_q, res, [id]) => {
-    const company = sampleCompany(id!);
-    if (!company) throw new HttpError(404, 'no such sample company');
-    const created = company.build().reverse().map(({ project, summary }) => store.createProject(project, 'Sample data', summary, company.id));
-    send(res, 201, created.reverse().map((p) => ({ id: p.id, name: p.name })));
+  // Packs (decision 0027): ready-made projects installed from a file and removed again.
+  const packFile = (res: ServerResponse, pack: Pack) => {
+    const bytes = writePack(pack);
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-disposition': `attachment; filename="${pack.id}.atrium"`, 'cache-control': 'no-store' });
+    res.end(bytes);
+  };
+  route('GET', '/api/packs', (_q, res) => {
+    const installed = store.listPacks();
+    const included = bundledPacks(options.packsDir).map((p) => ({ ...p, installed: installed.some((i) => i.id === p.id) }));
+    send(res, 200, { installed, included });
+  });
+  route('POST', '/api/packs', async (req, res) => {
+    const body = await readJson(req);
+    let pack: Pack;
+    try {
+      if (typeof body.included === 'string') {
+        const entry = bundledPacks(options.packsDir).find((p) => p.id === body.included);
+        if (!entry) throw new HttpError(404, 'no such pack');
+        pack = readPack(readFileSync(join(options.packsDir!, entry.file)));
+      } else if (typeof body.data === 'string') {
+        pack = readPack(Buffer.from(body.data, 'base64'));
+      } else {
+        throw new HttpError(400, 'send "included" (a pack id) or "data" (the pack file, base64)');
+      }
+    } catch (error) {
+      if (error instanceof PackError) throw new HttpError(422, error.message);
+      throw error;
+    }
+    const existing = store.listPacks().find((p) => p.id === pack.id);
+    if (existing && body.replace !== true) {
+      send(res, 409, { ok: false, error: 'installed', pack: existing });
+      return;
+    }
+    if (existing) for (const id of store.packProjects(existing.id)?.projects.map((p) => p.id) ?? []) runner.stopProject(id);
+    const installed = store.installPack(pack, 'human');
+    send(res, 201, { pack: installed.pack, projects: installed.projects.map((p) => ({ id: p.id, name: p.name })) });
+  });
+  route('DELETE', '/api/packs/:id', (_q, res, [id]) => {
+    for (const projectId of store.packProjects(id!)?.projects.map((p) => p.id) ?? []) runner.stopProject(projectId);
+    const removed = store.removePack(id!);
+    if (!removed) throw new HttpError(404, 'no such pack');
+    send(res, 200, { ok: true, removed: removed.length });
+  });
+  route('GET', '/api/packs/:id/file', (_q, res, [id]) => {
+    const found = store.packProjects(id!);
+    if (!found || found.projects.length === 0) throw new HttpError(404, 'no such pack');
+    packFile(res, { id: found.pack.id, name: found.pack.name, description: found.pack.description, projects: found.projects });
+  });
+  // Any projects as a new pack, to hand a job to someone else: { name, description?, projectIds }.
+  route('POST', '/api/packs/file', async (req, res) => {
+    const body = await readJson(req);
+    const name = typeof body.name === 'string' ? body.name.trim().slice(0, 200) : '';
+    if (!name) throw new HttpError(400, 'a pack needs a name');
+    const ids = Array.isArray(body.projectIds) ? body.projectIds.filter((v): v is string => typeof v === 'string') : [];
+    const projects = ids.map((id) => store.getProject(id)).filter((p): p is NonNullable<typeof p> => p !== null);
+    if (projects.length === 0) throw new HttpError(400, 'choose at least one project');
+    packFile(res, { id: packId(name), name, description: typeof body.description === 'string' ? body.description.slice(0, 1000) : '', projects });
   });
 
   // How many containers a production run needs: one loaded container project each, grouped as one shipment.

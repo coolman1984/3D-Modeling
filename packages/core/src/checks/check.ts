@@ -200,7 +200,8 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
 
 /**
  * True when two items share some height, so they can collide. An item hung above another
- * (a lamp over a table, a shelf over a desk) does not clash with it or take its clearance.
+ * (a lamp over a table, a shelf over a desk) does not clash with it or take its clearance, and
+ * nothing clashes with a floor covering (a rug under a sofa).
  * Doors, columns and blocked zones are still checked at any height: the core does not know
  * how tall a door opening is, so it stays on the safe side.
  */
@@ -209,6 +210,7 @@ function hasAnyClearance(p: Placed): boolean {
 }
 
 function stacked(a: Placed, b: Placed): boolean {
+  if (a.definition.surface === true || b.definition.surface === true) return false; // things stand on a rug
   return a.bottom < b.top && b.bottom < a.top;
 }
 

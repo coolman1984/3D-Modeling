@@ -23,5 +23,6 @@ rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 cpSync(join(server, 'server.mjs'), join(stage, 'server.mjs'));
 cpSync(join(server, 'mcp.mjs'), join(stage, 'mcp.mjs'));
+if (existsSync(join(server, 'packs'))) cpSync(join(server, 'packs'), join(stage, 'packs'), { recursive: true });
 cpSync(web, join(stage, 'web'), { recursive: true });
 console.log(`✔ Staged the server and the interface in ${stage}`);

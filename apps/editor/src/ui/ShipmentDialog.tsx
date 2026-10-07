@@ -76,7 +76,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
       <div className="dialog-head">
         <div className="kicker">New shipment</div>
         <h3>How many containers?</h3>
-        <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
+        <p className="muted" style={{ marginTop: 6, fontSize: 'calc(13px * var(--ts, 1))' }}>
           List the parts with their sizes and quantities. Each container is loaded wall by wall, from the front wall to the doors; pieces are laid flat and stacked up to the container roof unless you give a limit (Layers): set one for anything fragile or heavy.
         </p>
       </div>
@@ -105,7 +105,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
           </summary>
           <textarea className="input" name="shipment-paste" rows={4} placeholder={'Name    L    W    H    Quantity\nTV55B Cushion Top    1335    110    400    1750'} value={paste} onChange={(e) => setPaste(e.target.value)} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="spacer faint" style={{ fontSize: 12 }}>
+            <span className="spacer faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
               The words before the first number are the name; then L, W, H in mm and the quantity.
             </span>
             <button type="button" className="btn small" disabled={!paste.trim()} onClick={readPaste} data-testid="read-paste">
@@ -194,7 +194,7 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
 
         <div className="shipment-answer" data-testid="shipment-answer" aria-live="polite">
           {preview && preview.containers.length === 0 && (preview.tooBig.length > 0 || (preview.unplanned?.length ?? 0) > 0) ? (
-            <p className="error-text" role="alert" style={{ fontSize: 13 }} data-testid="shipment-refusal">
+            <p className="error-text" role="alert" style={{ fontSize: 'calc(13px * var(--ts, 1))' }} data-testid="shipment-refusal">
               <XCircle size={13} /> {preview.tooBig.length > 0 ? `Unplanned (container, payload or planning limit): ${preview.tooBig.map((id) => used[Number(id.slice(1))]?.name || id).join(', ')}. ` : ''}
               {preview.explanation}
             </p>
@@ -204,35 +204,35 @@ export function ShipmentDialog({ onClose, opened }: { onClose: () => void; opene
                 <span className="big">{preview.containers.length}</span>
                 <span>
                   × {type.label}
-                  <span className="faint" style={{ display: 'block', fontSize: 12 }}>
+                  <span className="faint" style={{ display: 'block', fontSize: 'calc(12px * var(--ts, 1))' }}>
                     {formatCount(preview.containers.reduce((s, c) => s + Object.values(c.pieces).reduce((a, b) => a + b, 0), 0))} pieces · last container {Math.round((preview.containers.at(-1)!.usedLength / type.length) * 100)}% full along its length
                   </span>
                 </span>
               </div>
               {preview.tooBig.length > 0 && (
-                <p className="error-text" style={{ fontSize: 12 }}>
+                <p className="error-text" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
                   <XCircle size={13} /> Unplanned (container, payload or planning limit): {preview.tooBig.map((id) => used[Number(id.slice(1))]?.name || id).join(', ')}
                 </p>
               )}
               {(preview.unplanned?.length ?? 0) > 0 && (
-                <p className="error-text" style={{ fontSize: 12 }}>
+                <p className="error-text" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
                   <XCircle size={13} /> Left out of the plan: {preview.unplanned!.join(', ')}: a complete set does not fit or exceeds supported planning limits. The plan is incomplete.
                 </p>
               )}
-              <p className="faint" style={{ fontSize: 12 }} data-testid="shipment-explanation">{preview.explanation}</p>
+              <p className="faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }} data-testid="shipment-explanation">{preview.explanation}</p>
             </>
           ) : (
             <span className="faint">Enter sizes and at least one quantity to see how many containers are needed.</span>
           )}
         </div>
         {error && (
-          <p className="error-text" role="alert" style={{ fontSize: 12 }}>
+          <p className="error-text" role="alert" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
             {error}
           </p>
         )}
       </div>
       <div className="dialog-foot">
-        <span className="spacer faint" style={{ fontSize: 12 }}>
+        <span className="spacer faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
           Creates one loaded container project per container
         </span>
         <button type="button" className="btn" onClick={onClose}>

@@ -8,9 +8,10 @@ import { checkProduction, isProduction, PRODUCTION_CATALOG, PRODUCTION_STYLES } 
 import { checkVehicleDepot, DEPOT_CATALOG, DEPOT_STYLES, isVehicleDepot } from './depot.js';
 import { checkRestaurant, isRestaurant, RESTAURANT_CATALOG, RESTAURANT_STYLES, type RestaurantStyle } from './restaurant.js';
 import { checkSite, isSite, SITE_CATALOG, SITE_STYLES } from './site.js';
+import { checkHome, HOME_CATALOG, HOME_STYLES, isHome } from './home.js';
 import { RULE_SOURCES, type RuleResult } from './rules.js';
 
-export type PackId = 'hall' | 'office' | 'container' | 'warehouse' | 'production' | 'depot' | 'restaurant' | 'site';
+export type PackId = 'home' | 'hall' | 'office' | 'container' | 'warehouse' | 'production' | 'depot' | 'restaurant' | 'site';
 
 /**
  * An activity pack: what a kind of space is furnished with and which rules it is checked
@@ -25,6 +26,7 @@ export interface Pack {
 }
 
 export const PACKS: readonly Pack[] = [
+  { id: 'home', label: 'Apartment', catalog: HOME_CATALOG, styles: HOME_STYLES, check: (p) => checkHome(p) },
   { id: 'hall', label: 'Event hall', catalog: STARTER_CATALOG, styles: HALL_STYLES, check: (p, s) => checkHall(p, s as HallStyle) },
   { id: 'office', label: 'Office', catalog: OFFICE_CATALOG, styles: OFFICE_STYLES, check: (p, s) => checkOffice(p, s as OfficeStyle) },
   { id: 'container', label: 'Container loading', catalog: CONTAINER_CATALOG, styles: CONTAINER_STYLES, check: (p) => checkContainer(p) },
@@ -35,13 +37,16 @@ export const PACKS: readonly Pack[] = [
   { id: 'site', label: 'Site plan', catalog: SITE_CATALOG, styles: SITE_STYLES, check: (p) => checkSite(p) },
 ];
 
+/** Projects without a pack of their own (older saves) are halls, as before the home pack existed. */
+const HALL = PACKS.find((p) => p.id === 'hall')!;
+
 export function packOf(id: string | null | undefined): Pack {
-  return PACKS.find((p) => p.id === id) ?? PACKS[0]!;
+  return PACKS.find((p) => p.id === id) ?? HALL;
 }
 
 /**
  * Which pack a project belongs to, read from its catalog: the pack with the most of its item
- * types in the project. Ties go to the first pack (the hall).
+ * types in the project. Ties go to the hall.
  */
 export function detectPack(project: Project): PackId {
   if (isContainer(project)) return 'container';
@@ -50,8 +55,9 @@ export function detectPack(project: Project): PackId {
   if (isVehicleDepot(project)) return 'depot';
   if (isRestaurant(project)) return 'restaurant';
   if (isSite(project)) return 'site';
+  if (isHome(project)) return 'home';
   const present = (pack: Pack) => pack.catalog.filter((d) => project.catalog[d.id] !== undefined).length;
-  let best = PACKS[0]!;
+  let best = HALL;
   for (const pack of PACKS) if (present(pack) > present(best)) best = pack;
   return best.id;
 }

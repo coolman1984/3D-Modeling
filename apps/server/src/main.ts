@@ -39,7 +39,8 @@ async function main(): Promise<void> {
   mkdirSync(dataDir, { recursive: true });
   const store = new Store(join(dataDir, 'planner.db'));
   const staticDir = resolve(argument('--static') ?? join(repoRoot, 'apps', 'editor', 'dist'));
-  const app = createApp({ store, dataDir, staticDir, mcpScript: join(here, 'mcp.mjs') });
+  const packsDir = resolve(argument('--packs') ?? join(here, 'packs'));
+  const app = createApp({ store, dataDir, staticDir, mcpScript: join(here, 'mcp.mjs'), packsDir });
 
   let port = Number(argument('--port') ?? process.env.PLANNER_PORT ?? process.env.PORT ?? 4600);
   const fixedPort = argument('--port') !== undefined || process.env.PLANNER_PORT !== undefined || process.env.PORT !== undefined;

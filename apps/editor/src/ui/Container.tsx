@@ -161,7 +161,7 @@ export function LoadPanel({ project, dispatch }: { project: Project; dispatch: (
         <div className="section-title">
           <span className="kicker">Cargo plan</span>
         </div>
-        <p className="muted" style={{ margin: '-4px 0 8px', fontSize: 12 }}>
+        <p className="muted" style={{ margin: '-4px 0 8px', fontSize: 'calc(12px * var(--ts, 1))' }}>
           Set how many of each type to load, then find a plan.
         </p>
         {Object.values(project.catalog).map((d) => {
@@ -193,7 +193,7 @@ export function LoadPanel({ project, dispatch }: { project: Project; dispatch: (
           <Sparkle size={15} />
           {m.unpacked === 0 ? 'Nothing left to place' : `Find plans for ${formatCount(m.unpacked)} pieces`}
         </button>
-        <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+        <p className="muted" style={{ marginTop: 8, fontSize: 'calc(12px * var(--ts, 1))' }}>
           Deterministic heuristics propose candidates; you choose. Pieces already placed stay where they are.
         </p>
         {candidates?.map((c, i) => (
@@ -218,7 +218,7 @@ export function LoadPanel({ project, dispatch }: { project: Project; dispatch: (
                 </span>
               )}
             </div>
-            <p className="muted" style={{ fontSize: 12 }}>
+            <p className="muted" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
               {c.explanation}
             </p>
             <button
@@ -236,7 +236,7 @@ export function LoadPanel({ project, dispatch }: { project: Project; dispatch: (
         ))}
       </div>
       <div className="panel-foot nowrap">
-        <span className="spacer faint" style={{ fontSize: 12 }}>
+        <span className="spacer faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
           {formatCount(Object.keys(project.items).length)} pieces loaded
         </span>
         <button

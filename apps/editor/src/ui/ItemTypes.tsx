@@ -7,11 +7,12 @@ import { nextId } from '../logic/ids.js';
 import { takenIds } from '../logic/transform.js';
 import type { Action } from '../logic/session.js';
 import { Dialog, LineTabs, NumberField, SwitchRow } from './Fields.js';
+import { useThumbnail } from './thumbnails.js';
 
 const cm = (v: number) => fromUnit(v, 'cm');
 
 /** Library categories, from the item's shape. Item types not from any pack are "Custom". */
-export type Category = 'All' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Walls' | 'Racks' | 'Production' | 'Vehicles' | 'Site' | 'Other' | 'Custom';
+export type Category = 'All' | 'Living' | 'Dining' | 'Bedroom' | 'Kitchen' | 'Bath' | 'Decor' | 'Tables' | 'Seating' | 'Stages' | 'Service' | 'Office' | 'Walls' | 'Racks' | 'Production' | 'Vehicles' | 'Site' | 'Other' | 'Custom';
 const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Custom'>>> = {
   table: 'Tables',
   'round-table': 'Tables',
@@ -42,12 +43,45 @@ const CATEGORY_OF_SHAPE: Readonly<Record<ShapeKey, Exclude<Category, 'All' | 'Cu
   machine: 'Production',
   conveyor: 'Production',
   workbench: 'Production',
+  sectional: 'Living',
+  armchair: 'Living',
+  'coffee-table': 'Living',
+  'side-table': 'Living',
+  'tv-unit': 'Living',
+  bookcase: 'Living',
+  'dining-set': 'Dining',
+  sideboard: 'Dining',
+  pendant: 'Dining',
+  bed: 'Bedroom',
+  nightstand: 'Bedroom',
+  wardrobe: 'Bedroom',
+  dresser: 'Bedroom',
+  kitchen: 'Kitchen',
+  island: 'Kitchen',
+  fridge: 'Kitchen',
+  bathtub: 'Bath',
+  shower: 'Bath',
+  toilet: 'Bath',
+  basin: 'Bath',
+  washer: 'Bath',
+  rug: 'Decor',
+  'floor-lamp': 'Decor',
+  'house-plant': 'Decor',
+  curtains: 'Decor',
+  'wall-art': 'Decor',
+  mirror: 'Decor',
+  'wall-tv': 'Living',
+  'wall-shelf': 'Decor',
 };
-const CATEGORIES: readonly Category[] = ['All', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Walls', 'Racks', 'Production', 'Vehicles', 'Site', 'Other', 'Custom'];
+/** Home pieces of shared shapes sit with the room they furnish. */
+const HOME_CATEGORY: Partial<Record<ShapeKey, Exclude<Category, 'All' | 'Custom'>>> = { sofa: 'Living', chair: 'Bedroom', desk: 'Bedroom', wall: 'Walls' };
+const CATEGORIES: readonly Category[] = ['All', 'Living', 'Dining', 'Bedroom', 'Kitchen', 'Bath', 'Decor', 'Tables', 'Seating', 'Stages', 'Service', 'Office', 'Walls', 'Racks', 'Production', 'Vehicles', 'Site', 'Other', 'Custom'];
 const PACK_IDS = new Set(PACKS.flatMap((p) => p.catalog.map((d) => d.id)));
 
 export function categoryOf(definition: ItemDefinition): Exclude<Category, 'All'> {
-  return PACK_IDS.has(definition.id) ? CATEGORY_OF_SHAPE[shapeOf(definition.category)] : 'Custom';
+  const shape = shapeOf(definition.category);
+  if (definition.id.startsWith('home-')) return HOME_CATEGORY[shape] ?? CATEGORY_OF_SHAPE[shape];
+  return PACK_IDS.has(definition.id) ? CATEGORY_OF_SHAPE[shape] : 'Custom';
 }
 
 /** "180 × 80 cm · 10 seats", or "Ø 180 cm" for round items. */
@@ -87,6 +121,12 @@ export function TypeArt({ definition, box = 64 }: { definition: ItemDefinition; 
       )}
     </svg>
   );
+}
+
+/** A rendered picture of the item type once ready; its line drawing meanwhile, or without WebGL. */
+function TileArt({ definition }: { definition: ItemDefinition }) {
+  const picture = useThumbnail(definition);
+  return picture ? <img src={picture} alt="" draggable={false} /> : <TypeArt definition={definition} />;
 }
 
 /** The object library: search, categories and a tile per item type; a click or a drag places one. */
@@ -129,7 +169,7 @@ export function LibraryPanel({
         {shown.length === 0 ? (
           <div className="empty-note">
             <div className="serif">{searching ? 'No matching item types' : 'No item types here yet'}</div>
-            <p style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.5 }}>
+            <p style={{ marginTop: 6, fontSize: 'calc(12.5px * var(--ts, 1))', lineHeight: 1.5 }}>
               {searching ? `Nothing matches “${filter.trim()}”. Try a shorter name.` : 'Create an item type with its real dimensions and clearance.'}
             </p>
           </div>
@@ -151,7 +191,7 @@ export function LibraryPanel({
                   }}
                 >
                   <span className="tile-art">
-                    <TypeArt definition={d} />
+                    <TileArt definition={d} />
                   </span>
                   <span className="tile-name">{d.name}</span>
                   <span className="tile-dims">{sizeLine(d)}</span>
@@ -169,7 +209,7 @@ export function LibraryPanel({
           <Plus size={15} />
           New item type
         </button>
-        <span className="faint" style={{ fontSize: 12 }}>
+        <span className="faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
           Click a tile to place
         </span>
         {missing.length > 0 && (

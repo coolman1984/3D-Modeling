@@ -54,7 +54,7 @@ import {
   WifiSlash,
   XCircle,
 } from '@phosphor-icons/react';
-import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { actorName, api, subscribe } from '../api.js';
 import { loadActivity, saveActivity, type Activity } from '../logic/activity.js';
 import { acceleratedStep, arrowSteps, copyOffset, keyIntent, loadControls, ownsKeys, saveControls, turnNudge, type ControlSettings } from '../logic/controls.js';
@@ -62,7 +62,7 @@ import { formatCount, formatMetres } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import { REJECTION_MESSAGES, RESTORE_CONFLICT } from '../logic/messages.js';
 import { retryDelay } from '../logic/retry.js';
-import { findFreeSpot } from '../logic/placement.js';
+import { findFreeSpot, wallPlacement } from '../logic/placement.js';
 import { reduce, startSession, visibleProject, type Action } from '../logic/session.js';
 import {
   duplicateCommands,
@@ -84,7 +84,11 @@ import { ItemTypeDialog, LibraryPanel } from '../ui/ItemTypes.js';
 import { ControlsPanel, GRID_OPTIONS, ObjectsPanel } from '../ui/Panels.js';
 import { PlanCanvas } from '../ui/PlanCanvas.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
-import { View3D, type SceneLook } from '../ui/View3D.js';
+import type { SceneLook } from '../ui/View3D.js';
+
+// The 3D engine is large: the editor opens on the plan at once and the 3D view arrives on its own.
+const loadView3D = () => import('../ui/View3D.js');
+const View3D = lazy(() => loadView3D().then((m) => ({ default: m.View3D })));
 import type { StockView } from '../ui/Stock.js';
 import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 import { WarehousePanel } from '../ui/Warehouse.js';
@@ -120,6 +124,13 @@ function download(name: string, text: string): void {
 
 /** Loads a project from the server, then hands it to the editor. */
 export function EditorPage({ projectId }: { projectId: string }) {
+  // Once the plan is up and the computer is free, prepare the 3D view and the client report, so
+  // switching to either is immediate.
+  useEffect(() => {
+    const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
+    const timer = setTimeout(() => idle(() => void Promise.all([loadView3D(), import('./ReportPage.js')]).catch(() => undefined)), 300);
+    return () => clearTimeout(timer);
+  }, []);
   const [project, setProject] = useState<Project | null>(null);
   const [missing, setMissing] = useState(false);
   useEffect(() => {
@@ -317,6 +328,13 @@ function Editor({ initial }: { initial: Project }) {
       const width = pane?.clientWidth ?? box.clientWidth;
       const centre = toWorld(viewport, { x: width / 2, y: box.clientHeight / 2 });
       if (centre.x > room.minX && centre.x < room.maxX && centre.y > room.minY && centre.y < room.maxY) spot = centre;
+    }
+    // Art, mirrors and wall TVs go on the nearest wall, facing the room, at their own height.
+    const onWall = wallPlacement(project, definition, spot);
+    if (onWall) {
+      const { position, rotation, elevation } = onWall;
+      dispatch({ type: 'command', command: { type: 'item.add', item: { id, definitionId: definition.id, position, rotation, locked: false, ...(elevation > 0 ? { elevation } : {}) } }, select: [id] });
+      return;
     }
     const item = { id, definitionId: definition.id, rotation: 0, locked: false };
     const position = findFreeSpot(project, item, definition, spot, Math.max(controls.grid, fromUnit(25, 'cm')));
@@ -709,6 +727,7 @@ function Editor({ initial }: { initial: Project }) {
           )}
           {view !== 'plan' && (
             <section className="pane" aria-label="3D pane" onPointerDownCapture={() => (lastPane.current = '3d')}>
+              <Suspense fallback={<div className="view3d view3d-loading" role="status">Loading 3D…</div>}>
               <View3D
                 project={shownProject}
                 saved={preview ? preview.project : project}
@@ -723,6 +742,7 @@ function Editor({ initial }: { initial: Project }) {
                 fullWallsAtStart={isCargo}
                 keyboardActive={() => view === '3d' || lastPane.current === '3d'}
               />
+              </Suspense>
               {isCargo && colors && (
                 <ContainerViewTools project={shownProject} colorBy={colorBy} onColorBy={setColorBy} cutaway={cutaway} onCutaway={setCutaway} step={playStep} onStep={setPlayStep} legend={colors.legend} />
               )}

@@ -1,5 +1,32 @@
 # TASKS
 
+## Now: Home studio release (7 Oct 2026, decision 0027)
+
+Owner: sellable to interior designers. Focus on apartments with beautiful, detailed furniture (sofas,
+beds, wardrobes, dining with place settings, floor lamps, wall art); a luxurious, easy, fast interface;
+a proper appearance settings page (font, text size); sample content as installable/removable files.
+Research: Planner 5D, Homestyler, Coohom, Foyr Neo, Rayon — visual catalog, drag onto plan, ready
+room layouts, materials, presentation for clients.
+
+**Finish line (done means):**
+1. "Apartment" is the first activity; three furnished layouts (studio, one-bedroom, two-bedroom) open in one click.
+2. 40+ home items, each a detailed 3D model (cushions, bedding, books, place settings, lamp light, framed art), in fabric and wood variants; home rules (walkway, bed access) with named sources.
+3. The library shows a rendered picture of every item; click or drag places it; wall items go on the wall height.
+4. Settings → Appearance: text size, interface font, theme (light / dark), applied at once and kept.
+5. Content packs as files (`.atrium`): export projects as a pack, install a pack, see installed packs, remove one; sample companies ship as pack files.
+6. Faster start: the projects page loads without the 3D engine; measured before and after.
+7. Projects page and create dialog look and read like a design studio product.
+8. `pnpm check` green; the journey driven in the real app with screenshots; pushed.
+
+- [x] Home pack: catalog, styles, rules, three layouts (`packages/starter/src/home.ts`) + tests
+- [x] Detailed home 3D models + interior floor and light
+- [x] Rendered library thumbnails; wall-mounted placement
+- [x] Appearance settings (text size, font, theme)
+- [x] Pack files: export, install, list, remove; samples as files
+- [x] Code splitting and measured start-up (first screen 1,621 KB -> 493 KB of JavaScript)
+- [x] Projects page and create dialog redesign around homes
+- [x] Verify in the running app, docs, decision 0027, README, push (also fixed: quick plant tags lost to a false conflict)
+
 ## Now: desktop program with installer (6 Oct 2026, decision 0026)
 
 **Finish line (done means):** the program opens in its own window without a browser; a Windows

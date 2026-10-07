@@ -6,9 +6,15 @@ export interface ZoneStyle {
   readonly dash: string | undefined;
   /** Whether the kind's name is worth printing inside it (not on every parking bay). */
   readonly label: boolean;
+  /** A room of an apartment: walls already draw it, so only its name and area are shown. */
+  readonly room?: boolean;
 }
 
+/** Room kinds of the home pack (`HOME_ROOM_KINDS` in the starter). */
+const ROOMS = new Set(['living', 'dining', 'kitchen', 'bedroom', 'bathroom', 'hall', 'study']);
+
 export function zoneStyle(kind: string): ZoneStyle {
+  if (ROOMS.has(kind)) return { fill: 'none', opacity: 0, stroke: 'none', dash: undefined, label: true, room: true };
   switch (kind) {
     case 'road':
     case 'lane-one-way':

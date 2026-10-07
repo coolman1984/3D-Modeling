@@ -46,6 +46,7 @@ import {
   type IssueGroup,
 } from '../logic/messages.js';
 import type { Action } from '../logic/session.js';
+import { zoneStyle } from '../logic/zoneStyle.js';
 import {
   alignCommands,
   distributeCommands,
@@ -66,24 +67,8 @@ import { CargoGroup, containerFacts } from './Container.js';
 import { RackLocations, type StockView } from './Stock.js';
 import { toTicks } from './units.js';
 
-/** Everything the review counts, shared by the inspector tab, the status bar and the summary box. */
-export interface ReviewSummary {
-  readonly errors: number;
-  readonly warnings: number;
-  readonly passed: number;
-  readonly unknown: number;
-  /** errors + warnings: what the Review tab badge shows. */
-  readonly findings: number;
-}
-
-export function summarize(issues: readonly Issue[], rules: readonly RuleResult[]): ReviewSummary {
-  const errors = issues.filter((i) => i.severity === 'error').length;
-  const warnings = issues.filter((i) => i.severity === 'warning').length + rules.filter((r) => r.status === 'fail').length;
-  const unknown = issues.filter((i) => i.severity === 'info').length + rules.filter((r) => r.status === 'unknown').length;
-  const cleanGroups = ISSUE_GROUPS.filter((g) => !issues.some((i) => ISSUE_GROUP[i.code] === g)).length;
-  const passed = cleanGroups + rules.filter((r) => r.status === 'pass').length;
-  return { errors, warnings, passed, unknown, findings: errors + warnings };
-}
+export { summarize, type ReviewSummary } from '../logic/review.js';
+import { summarize, type ReviewSummary } from '../logic/review.js';
 
 export function statusLine(s: ReviewSummary): { tone: 'error' | 'warning' | 'ok'; text: string } {
   if (s.errors > 0) return { tone: 'error', text: `${plural(s.errors, 'error')} · ${plural(s.warnings, 'warning')}` };
@@ -168,8 +153,13 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
     ['Room', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
     ['Ceiling', project.space.ceilingHeight === undefined ? 'Not set' : `${formatMetres(project.space.ceilingHeight)} m`],
     ['Floor area', formatArea(metrics.floorArea)],
-    ['Seats', <span data-testid="seats">{formatCount(metrics.seats)}</span>],
-    ['Area per seat', areaPerSeat === undefined ? '—' : formatSquareMetres(Math.round(areaPerSeat * 100) / 100)],
+    // Seats and floor per seat matter for halls and offices; an apartment counts rooms instead.
+    ...(activity.pack === 'home'
+      ? ([['Rooms', formatCount((project.space.zones ?? []).filter((z) => zoneStyle(z.kind).room).length)]] as Array<[string, ReactNode]>)
+      : ([
+          ['Seats', <span data-testid="seats">{formatCount(metrics.seats)}</span>],
+          ['Area per seat', areaPerSeat === undefined ? '—' : formatSquareMetres(Math.round(areaPerSeat * 100) / 100)],
+        ] as Array<[string, ReactNode]>)),
     ['Occupied', `${formatArea(metrics.occupiedArea)} · ${formatPercent(metrics.occupancy)}`],
     ['Items placed', `${formatCount(metrics.itemCount)} · ${plural(types, 'type')}`],
     ['Doors · columns', `${formatCount(project.space.doors.length)} · ${formatCount(columns)}`],
@@ -183,9 +173,7 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
   return (
     <div aria-label="Project">
       <div className="insp-head" style={{ paddingTop: 28 }}>
-        <div className="kicker">
-          {pack.label} · {style}
-        </div>
+        <div className="kicker">{style && style !== pack.label ? `${pack.label} · ${style}` : pack.label}</div>
         <h3 className="xl">{project.name}</h3>
         <p className="sub">Nothing selected. Click an item to edit it.</p>
       </div>
@@ -357,7 +345,7 @@ function OneItem({
         </div>
       </Group>
       <div className="insp-foot">
-        <button type="button" className="link-btn" style={{ fontSize: 13 }} onClick={() => onEditType(definition.id)}>
+        <button type="button" className="link-btn" style={{ fontSize: 'calc(13px * var(--ts, 1))' }} onClick={() => onEditType(definition.id)}>
           <PencilSimpleLine size={14} />
           Edit item type · applies to {same} placed
         </button>
@@ -617,7 +605,7 @@ export function ReviewPanel({
         <div className="rules-block" aria-label="Planning rules">
           <h4>Planning rules</h4>
           <div className="grid-2" style={{ margin: '12px 0 6px' }}>
-            <label className="stack" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+            <label className="stack" style={{ fontSize: 'calc(11.5px * var(--ts, 1))', color: 'var(--ink-3)' }}>
               Activity
               <select className="input" name="activity" value={activity.pack} onChange={(e) => onActivity(activityOf(e.target.value, null))}>
                 {PACKS.map((p) => (
@@ -627,7 +615,7 @@ export function ReviewPanel({
                 ))}
               </select>
             </label>
-            <label className="stack" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+            <label className="stack" style={{ fontSize: 'calc(11.5px * var(--ts, 1))', color: 'var(--ink-3)' }}>
               Planning style
               <select className="input" name="activity-style" value={activity.style} onChange={(e) => onActivity(activityOf(activity.pack, e.target.value))}>
                 {pack.styles.map((s) => (
@@ -676,7 +664,7 @@ export function ReviewPanel({
               </Tag>
             );
           })}
-          <p className="muted" style={{ marginTop: 14, fontSize: 12 }}>
+          <p className="muted" style={{ marginTop: 14, fontSize: 'calc(12px * var(--ts, 1))' }}>
             Each rule names where its numbers come from. None is a verified local regulation yet. Missing data is reported as unknown, never as a pass.
           </p>
         </div>

@@ -20,7 +20,7 @@ import {
   type RoomSpec,
   type Wall,
 } from '@space-planner/core';
-import { BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { HOME_TEMPLATES, newHome, BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
 import type { Store } from './store.js';
 
@@ -180,7 +180,7 @@ export function describeProject(project: Project): string {
   return lines.join('\n');
 }
 
-const PACK_NAMES: Record<PackId, string> = { hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant', site: 'Site plan' };
+const PACK_NAMES: Record<PackId, string> = { home: 'Apartment', hall: 'Hall', office: 'Office', container: 'Container loading', warehouse: 'Warehouse', production: 'Production line', depot: 'Vehicle depot', restaurant: 'Restaurant', site: 'Site plan' };
 
 const kgOf = (grams: number | undefined) => (grams === undefined ? 'unknown' : `${Math.round(grams / 100) / 10} kg`);
 
@@ -289,7 +289,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create a hall, office, container, warehouse, production-line, vehicle-depot or restaurant project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Depot reference layout: activity depot, reference true (30 × 18 m, a two-way lane and six parking bays, two occupied). Restaurant reference layout: activity restaurant, reference true (20 × 14 m, a kitchen pass and 9 tables of mixed families seating 44). Returns the project id.',
+    description: 'Create an apartment (home), hall, office, container, warehouse, production-line, vehicle-depot or restaurant project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Depot reference layout: activity depot, reference true (30 × 18 m, a two-way lane and six parking bays, two occupied). Restaurant reference layout: activity restaurant, reference true (20 × 14 m, a kitchen pass and 9 tables of mixed families seating 44). Furnished apartments: activity home with template home-studio (49 m²), home-one-bedroom (70 m²) or home-two-bedroom (108 m²). Returns the project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -299,6 +299,7 @@ export const TOOLS: readonly ToolDef[] = [
         ceiling_m: { type: 'number', description: 'Ceiling height in metres, if known.' },
         activity: { type: 'string', enum: PACKS.map((p) => p.id) },
         container_type: { type: 'string', enum: CONTAINER_TYPES.map((t) => t.id), description: 'For activity "container".' },
+        template: { type: 'string', enum: HOME_TEMPLATES.map((t) => t.id), description: 'For activity "home": a ready, furnished apartment instead of an empty one.' },
         reference: { type: 'boolean', description: 'For activity warehouse: the reference 30 × 20 m layout. For activity production: the reference 30 × 8 m line. For activity depot: the reference 30 × 18 m depot. For activity restaurant: the reference 20 × 14 m dining room.' },
       },
       required: ['name'],
@@ -329,6 +330,12 @@ export const TOOLS: readonly ToolDef[] = [
           : newVehicleDepot(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 4);
         const created = ctx.store.createProject(project, ctx.actor);
         return `Created ${created.id}.\n\n${describeProject(created)}\nDepot: ${depotMetrics(created).bays} bays, ${depotMetrics(created).vehicles} vehicles.`;
+      }
+      if (str(input, 'activity', true) === 'home') {
+        const template = HOME_TEMPLATES.find((t) => t.id === str(input, 'template', true));
+        const project = template ? template.build(str(input, 'name')) : newHome(str(input, 'name'), num(input, 'width_m'), num(input, 'depth_m'), num(input, 'ceiling_m', true) || 2.8);
+        const created = ctx.store.createProject(project, ctx.actor);
+        return `Created ${created.id}.\n\n${describeProject(created)}`;
       }
       if (str(input, 'activity', true) === 'restaurant') {
         const project = input.reference === true

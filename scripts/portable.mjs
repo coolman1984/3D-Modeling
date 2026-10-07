@@ -33,6 +33,7 @@ rmSync(zip, { force: true });
 mkdirSync(join(out, 'app'), { recursive: true });
 cpSync(join(server, 'server.mjs'), join(out, 'app', 'server.mjs'));
 cpSync(join(server, 'mcp.mjs'), join(out, 'app', 'mcp.mjs'));
+if (existsSync(join(server, 'packs'))) cpSync(join(server, 'packs'), join(out, 'app', 'packs'), { recursive: true });
 cpSync(web, join(out, 'app', 'web'), { recursive: true });
 if (withNode) cpSync(process.execPath, join(out, 'node', 'node.exe'));
 mkdirSync(join(out, 'data'), { recursive: true });

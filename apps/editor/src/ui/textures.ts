@@ -154,7 +154,7 @@ const shade = (c: readonly [number, number, number], k: number): [number, number
 
 /** Power-floated warehouse concrete: cloudy trowel marks, fine aggregate, saw-cut joints every 4 m. */
 export function concreteFloor(): Surface | null {
-  return surface('concrete', 1024, 4, (u, v, px, py) => {
+  return surface('concrete', 512, 4, (u, v, px, py) => {
     const cloud = fbm(u, v, 3, 5, 11);
     const speck = hash(px, py, 7);
     const joint = px < 2 || py < 2 ? 1 : 0;
@@ -176,7 +176,7 @@ export function epoxyFloor(): Surface | null {
 
 /** Road asphalt: dark binder with light and dark aggregate, a little patchy. */
 export function asphalt(): Surface | null {
-  return surface('asphalt', 1024, 4, (u, v, px, py) => {
+  return surface('asphalt', 512, 4, (u, v, px, py) => {
     const patch = fbm(u, v, 4, 4, 41);
     const stone = hash(px, py, 43);
     const grain = hash(px >> 1, py >> 1, 47);
@@ -189,7 +189,7 @@ export function asphalt(): Surface | null {
 
 /** Irrigated lawn: two greens in patches, fine blade noise, a few dry spots. */
 export function grass(): Surface | null {
-  return surface('grass', 1024, 5, (u, v, px, py) => {
+  return surface('grass', 512, 5, (u, v, px, py) => {
     const patch = fbm(u, v, 3, 5, 61);
     const blade = hash(px, py, 67);
     const dry = fbm(u, v, 6, 3, 71);
@@ -264,7 +264,7 @@ export function ceramic(): Surface | null {
 
 /** Polished marble slabs, 1.2 m, with soft veins: event halls and lobbies. */
 export function marble(): Surface | null {
-  const size = 1024;
+  const size = 512; // four 1.2 m slabs: about a pixel a centimetre, plenty at room scale
   return surface('marble', size, 4.8, (u, v, px, py) => {
     const tile = size / 4;
     const tx = Math.floor(px / tile);
@@ -674,5 +674,167 @@ export function checker(): THREE.Texture | null {
       g.fillStyle = 'rgba(255,255,255,0.05)';
       g.fillRect(c * 128, r * 128, 128, 4);
     }
+  }, true);
+}
+
+// ─── Home ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Oiled oak chevron parquet: four columns of planks at 45°, alternating direction, 30 cm wide
+ * columns and 15 cm planks per 1.2 m tile, every plank its own tone. The floor of the apartments.
+ */
+export function chevronOak(): Surface | null {
+  const size = 512; // 1.2 m tile: about 4 pixels a centimetre, sharp at room scale
+  return surface('chevron-oak', size, 1.2, (u, v) => {
+    const col = Math.floor(u * 4);
+    const lx = u * 4 - col; // 0–1 across the column
+    const dir = col % 2 === 0 ? 1 : -1;
+    const t = v * 8 + dir * lx * 2; // planks: 8 per tile, rising one plank-width per half column
+    const plank = Math.floor(t);
+    const across = t - plank;
+    const id = (((plank % 8) + 8) % 8) * 7 + col * 131; // the 8 planks of a column repeat with the tile
+    const tint = hash(id, col, 211) * 0.16 - 0.08;
+    const grain = fbm(lx * 0.4 + hash(id, 1, 213), across * 2, 6, 3, 223 + (id & 7)) * 0.14;
+    const seam = across < 0.035 || lx < 0.012 || lx > 0.988;
+    const base: [number, number, number] = [198, 160, 118];
+    const c = seam ? shade(base, 0.58) : shade(base, 0.9 + tint + grain - 0.07);
+    return { rgb: c, height: seam ? 0 : 0.6 + grain, rough: seam ? 0.9 : 0.4 + grain * 0.5 };
+  }, 0.8);
+}
+
+/** A seeded abstract painting for wall art: soft fields, an arc, a line, in a designer palette. */
+export function artwork(seed: number): THREE.Texture | null {
+  return canvasTexture(`art:${seed}`, 512, 512, (g) => {
+    const r = (k: number) => hash(seed, k, 401);
+    const palettes = [
+      ['#efe7da', '#c86f4b', '#2f3c55', '#d9b77c', '#8a9a7b'],
+      ['#f2efe9', '#1f2329', '#b8694a', '#c9b79c', '#e2d4bf'],
+      ['#ebe4d8', '#7d8f7a', '#d9a066', '#3e4a5c', '#f4ede2'],
+      ['#f6f1ea', '#a5543c', '#e9c9a1', '#2b2b2b', '#9fb2b8'],
+    ];
+    const p = palettes[seed % palettes.length]!;
+    g.fillStyle = p[0]!;
+    g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 3; i++) {
+      g.fillStyle = p[1 + ((i + seed) % 4)]!;
+      g.globalAlpha = 0.85;
+      const x = r(i) * 360;
+      const y = r(i + 10) * 360;
+      if (i === 1) {
+        g.beginPath();
+        g.arc(x + 80, y + 80, 60 + r(i + 20) * 90, 0, Math.PI * 2);
+        g.fill();
+      } else {
+        g.fillRect(x, y, 120 + r(i + 30) * 200, 90 + r(i + 40) * 220);
+      }
+    }
+    g.globalAlpha = 1;
+    g.strokeStyle = p[(seed + 2) % 4 + 1]!;
+    g.lineWidth = 6;
+    g.beginPath();
+    g.arc(256, 512, 150 + r(50) * 140, Math.PI, Math.PI * 2);
+    g.stroke();
+    // Paper grain.
+    for (let i = 0; i < 2600; i++) {
+      g.fillStyle = `rgba(0,0,0,${hash(i, seed, 409) * 0.05})`;
+      g.fillRect(hash(i, 1, 411) * 512, hash(i, 2, 413) * 512, 2, 2);
+    }
+  });
+}
+
+/** A woven rug: a border and a soft geometric field in tones of the given colour. */
+export function rugPattern(seed: number, colour: number): THREE.Texture | null {
+  return canvasTexture(`rug:${seed}:${colour}`, 512, 512, (g) => {
+    const rgb = [(colour >> 16) & 255, (colour >> 8) & 255, colour & 255] as const;
+    const css = (k: number, a = 1) => `rgba(${Math.min(255, rgb[0] * k)},${Math.min(255, rgb[1] * k)},${Math.min(255, rgb[2] * k)},${a})`;
+    g.fillStyle = css(1);
+    g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = css(0.72);
+    g.lineWidth = 14;
+    g.strokeRect(26, 26, 460, 460);
+    g.lineWidth = 3;
+    g.strokeRect(50, 50, 412, 412);
+    g.strokeStyle = css(1.14, 0.9);
+    g.lineWidth = 5;
+    const kind = seed % 3;
+    for (let i = 0; i < 8; i++) {
+      const t = 80 + i * 44;
+      g.beginPath();
+      if (kind === 0) g.moveTo(80, t), g.lineTo(432, t);
+      else if (kind === 1) g.moveTo(256, t - 20), g.lineTo(256 + (t - 80) * 0.8, 256), g.lineTo(256, 512 - t + 20), g.lineTo(256 - (t - 80) * 0.8, 256), g.closePath();
+      else g.arc(256, 256, 30 + i * 26, 0, Math.PI * 2);
+      g.stroke();
+    }
+    // Wool: a fine, irregular pile.
+    for (let i = 0; i < 9000; i++) {
+      g.fillStyle = hash(i, seed, 421) > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+      g.fillRect(hash(i, 3, 423) * 512, hash(i, 4, 425) * 512, 2, 3);
+    }
+  });
+}
+
+/** A row of book spines: varied widths, heights and covers. */
+export function bookSpines(seed: number): THREE.Texture | null {
+  return canvasTexture(`books:${seed}`, 512, 128, (g) => {
+    const covers = ['#2f3c55', '#b8694a', '#e9e2d4', '#7d8f7a', '#1f2329', '#c9a46a', '#8f3b34', '#d8cdb8'];
+    g.clearRect(0, 0, 512, 128);
+    let x = 0;
+    let i = 0;
+    while (x < 512) {
+      const w = 12 + hash(i, seed, 431) * 22;
+      const h = 80 + hash(i, seed, 433) * 48;
+      g.fillStyle = covers[Math.floor(hash(i, seed, 435) * covers.length)]!;
+      g.fillRect(x, 128 - h, w - 1, h);
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+      g.fillRect(x + 2, 128 - h + 10, w - 5, 2);
+      g.fillRect(x + 2, 128 - 18, w - 5, 2);
+      x += w;
+      i++;
+    }
+  });
+}
+
+/** Fine furniture grain, along the length of a board, without plank joints: oak and walnut veneer. */
+export function woodGrain(): THREE.Texture | null {
+  const n = 256; // a furniture panel needs no more
+  const t = canvasTexture('wood-grain', n, n, (g) => {
+    const data = g.createImageData(n, n);
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const u = x / n;
+        const v = y / n;
+        const warp = fbm(u, v, 2, 3, 461) * 0.08;
+        const rings = Math.sin((u + warp) * Math.PI * 2 * 26 + fbm(u, v, 4, 2, 463) * 3);
+        const fleck = hash(x, Math.floor(y / 4), 467) > 0.985 ? -0.08 : 0;
+        const k = 0.86 + rings * 0.06 + fbm(u, v * 0.2, 8, 3, 469) * 0.1 + fleck;
+        const i = (y * n + x) * 4;
+        data.data[i] = data.data[i + 1] = data.data[i + 2] = Math.max(0, Math.min(255, Math.round(255 * k)));
+        data.data[i + 3] = 255;
+      }
+    }
+    g.putImageData(data, 0, 0);
+  }, true);
+  return t;
+}
+
+/** A small marble slab for worktops, basins and coffee tables: veins without the floor's joints. */
+export function marbleSlab(): THREE.Texture | null {
+  return canvasTexture('marble-slab', 256, 256, (g) => {
+    const data = g.createImageData(256, 256);
+    for (let y = 0; y < 256; y++) {
+      for (let x = 0; x < 256; x++) {
+        const u = x / 256;
+        const v = y / 256;
+        const warp = fbm(u, v, 3, 4, 131);
+        const vein = Math.pow(1 - Math.abs(Math.sin((u * 2 + v * 1.5 + warp * 2.2) * Math.PI)), 14);
+        const c = mix(mix([238, 234, 226], [226, 219, 206], warp), [150, 140, 128], vein * 0.55);
+        const i = (y * 256 + x) * 4;
+        data.data[i] = c[0];
+        data.data[i + 1] = c[1];
+        data.data[i + 2] = c[2];
+        data.data[i + 3] = 255;
+      }
+    }
+    g.putImageData(data, 0, 0);
   }, true);
 }
