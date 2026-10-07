@@ -6,6 +6,187 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-10
 
+### H1: agent wall tools, room names, review fixes; H1 done
+
+`18c8233` · 2026-10-07
+
+- server: draw_walls, add_openings, remove_walls tools (one revision each); get_project lists
+  walls, doors, windows and the rooms they close off; set_room refuses walled spaces
+- rooms named in the Space panel (a small room zone at the room's label point)
+- typed lengths accept the Arabic decimal sign; door swing is clickable; tools are put down in 3D
+  and their ghost preview is cleared when the pointer leaves
+- README status, agents doc, TASKS (measured: two-bedroom drawn in about 10 s by the test driver)
+
+### H1 editor: draw walls, doors and windows; rooms and areas on the plan and in 3D
+
+`6fcc9c6` · 2026-10-07
+
+- plan: solid walls with joined corners, door swings, windows; each room's area from the walls,
+  named from room zones; thumbnails and the printed plan show walls too
+- tools on the plan (Select, Wall W, Door D, Window): walls click to click with snapping to
+  wall ends, wall lines and square angles; typed lengths (4.75 m or 475 cm) with Enter; Esc ends
+- select a wall: drag it (joined walls stretch) or its ends; length, thickness, height typed in
+  its properties; add a door or window; Delete removes it with its openings
+- doors and windows: slide along the wall, width, height, sill, hinge and swing side
+- 3D: drawn walls with door and window openings, glass, open door leaves; selected wall tinted
+- Space panel for walled plans: rooms with areas and names, walls and openings, ceiling
+- core: floor area of a walled space is its rooms; room lookup by point
+- e2e: draw a two-bedroom from measurements; home spec reads room areas from walls
+
+### H1 core: walls and openings in the space, rooms from walls; apartments on real walls
+
+`0dcff59` · 2026-10-07
+
+- core: optional space.walls (centre line, thickness) and space.openings (doors/windows in a wall,
+  offset along it, hinge/side, sill); validation (wall exists, opening fits, only doors swing);
+  derived wall solids with joined ends and door gaps, door swings, rooms by 1 cm raster
+- checks: wall solids are obstacles, door swings are doors; grid and all-pairs agree
+- starter: walkway passes doorways and starts at the entrance; studio, one- and two-bedroom
+  rebuilt with 20 cm outer walls, 10 cm partitions and swinging doors; wall items removed
+- editor: wall pieces hang on drawn walls and never on an outside face
+- decision 0028; TASKS H1 finish line
+
+### No heavy work in the way of the page: software graphics detected first, textures sized
+
+`291e07a` · 2026-10-07
+
+- Library pictures: whether the computer draws with software only is asked of a bare
+  canvas before the 3D engine loads; on such computers nothing heavy runs at all
+  (before, the check came after preparing a lighting environment, freezing the page
+  for seconds right when the person clicked on).
+- Client report: its 3D picture is drawn when the browser is idle.
+- Generated textures sized to their use: hall marble, concrete, asphalt and grass
+  1024 -> 512 px. Report on a 4x slower CPU: 3.7 s -> 2.2 s.
+
+### Client report shows at once; its 3D picture loads the engine on its own
+
+`359a4fe` · 2026-10-07
+
+The report imported the 3D engine just to draw its picture, so on a slow computer
+nothing showed until the engine had loaded (CI timed out). The picture already had a
+pending state; the engine now loads only for it.
+
+### 3D and library ready sooner on any computer; never freeze on software graphics
+
+`3b82d7c` · 2026-10-07
+
+Online CI (software graphics, one slow worker) still timed out opening 3D, the report
+and history. Profiled:
+- The editor prepares the 3D view and the client report while idle after opening.
+- The 3D pane shows at once; the first scene build waits one frame.
+- Glass no longer uses transmission (an extra full render pass every frame) and
+  fabrics use the standard shader: 3D opens 2.4 s -> 1.6 s on software graphics.
+- Textures right-sized: floor 1024 -> 512 px, wood grain 512 -> 256 px, a small
+  marble slab for furniture instead of the 1024 px floor marble.
+- Library pictures are skipped on software-only graphics and stop for the visit if one
+  takes over 250 ms, so the page never stutters; line drawings stay.
+
+### Plan 04: home studio — win apartment layout and furnishing first (owner direction)
+
+`3384713` · 2026-10-07
+
+### Open projects fast on slow computers: 3D engine and library pictures off the critical path
+
+`be13a55` · 2026-10-07
+
+Online CI (a slow runner) failed every test that opens a new project: the editor took
+more than 5 s to appear. Profiled on a 6x slower CPU: 70% was library pictures drawn
+while the editor opened, the rest the 3D engine loaded before the plan.
+- Editor: the 3D view is lazy; the plan opens without the 3D engine (now its own
+  737 KB piece); the editor code is fetched right after the projects page.
+- Library pictures: drawn only when the browser is idle, after the page has opened,
+  and kept on the device, so each is drawn once ever; the engine loads with the first.
+- Measured on a 6x slower CPU: new project to editor 4.8 s -> 1.1 s; all 52 pictures
+  still drawn, and shown at once on the next visit.
+
+### CLAUDE.md: send the owner screenshots after each important part
+
+`680f0c3` · 2026-10-07
+
+### Apartment panel: rooms instead of seats, no repeated activity label
+
+`ca3c804` · 2026-10-07
+
+### Home studio docs; plant tags no longer lost when made quickly; wall art hidden above cut
+
+`8c7b80c` · 2026-10-07
+
+- Plant page: the person's own changes are sent one after another, each on the newest
+  saved plan; a second quick tag was refused as "changed elsewhere" and lost under load.
+  The browser test now slows saves by 300 ms: fails on the old page, passes now.
+- 3D: wall-hung pieces above the wall cut are left out of the cut view unless selected.
+- Decision 0027; DESIGN.md (appearance, dark tokens, plan symbols, one accent at a time);
+  CLAUDE.md layout and UI notes; README features and status; TASKS ticked.
+
+### Faster start: pages load on demand, editor preloaded in the background
+
+`eb2dd08` · 2026-10-07
+
+- App: editor, report, plant, shipment and settings pages are lazy; a quiet top line
+  shows while a page's code arrives; the editor is fetched when the browser is idle.
+- The review summary moves to logic/review.ts so the projects list no longer pulls in
+  the inspector, the library and the 3D engine.
+- Measured: JavaScript before the projects page shows 1,621 KB (one file) -> 493 KB;
+  page shown in ~0.2 s locally; the 3D engine (842 KB) arrives in the background.
+
+### Packs: sample companies as installable .atrium files; install, replace, remove, share
+
+`16ad402` · 2026-10-07
+
+- Pack file: gzip JSON holding projects in the save format (same validation and
+  migrations as any save); deterministic bytes; plain-word refusals (not a pack, newer
+  version, damaged project).
+- Store: packs register; install all-or-nothing as one group; reinstall replaces only
+  that pack's projects; remove deletes only its projects; sample companies added by
+  older versions appear as installed packs.
+- Server: GET/POST/DELETE /api/packs, download an installed pack, save chosen projects
+  as a new pack. Sample companies no longer built into the server: dist/make-packs.mjs
+  writes them to dist/packs at build time; portable copy and installer carry them.
+- Editor: Packs window (included packs, install from file or drop, confirm replace and
+  remove, save my projects as a pack); projects grouped by pack.
+- Tests: pack format and store (planted destructive bug caught), server routes, browser
+  tests moved to packs and the activity-first create dialog, new apartment journey test.
+
+### Appearance settings, dark theme, wall placement, apartment-first projects and create dialog
+
+`3a6d249` · 2026-10-07
+
+- Settings → Appearance (first section): theme light/dark/match computer, accent colour
+  (electric blue, bronze, forest, graphite), text size, interface font (Geist, system,
+  editorial serif), heading font; live preview; applied before first paint and kept.
+- Every font size follows the text-size setting; accent tints derive from the accent;
+  dark theme re-values the tokens; hard-wired colours in chrome replaced by tokens;
+  buttons on the dark band keep their colours in both themes.
+- Placing a wall piece (art, mirror, wall TV) hangs it on the nearest wall or partition,
+  facing the room, at its height, clear of doors (hand-computed tests).
+- Client report plan and project thumbnails draw home symbols, colours and room names.
+- Projects: Apartments filter first, empty categories hidden, apartments described by
+  floor area and pieces. Create dialog: Apartment first and default, templates of the
+  chosen activity only, furnished apartments with a live plan preview, name optional.
+
+### Home pack: apartments, 54 pieces of detailed furniture, plan symbols, rendered library
+
+`3fd54b8` · 2026-10-07
+
+- Core: optional `surface` on item types (rugs, mats): other items stand on it, so
+  no overlap or clearance against it; stored only when true (saves unchanged).
+- Starter home pack (first activity): catalog with fabric/wood variants, wall-mounted
+  pieces with heights, clearances from residential guidance; bed-access rule; walkway
+  80 cm; three furnished apartments (49, 70, 108 m2) with exact interior walls that pass
+  every check. Walkways no longer treat rugs as obstacles.
+- 3D: detailed home models (cushions, made beds, laid dining table with plates and
+  candles, kitchen with hob and sink, books, lamps that glow, framed generated art);
+  chevron oak floor; furniture wood grain; room zones not painted in 3D.
+- Plan: architectural symbols and soft colour fills for home pieces, rugs drawn under
+  furniture, room name and area labels.
+- Library: home categories (Living, Dining, Bedroom, Kitchen, Bath, Decor) and pictures
+  rendered from each item's 3D model.
+- Server and agent tools create apartments from templates.
+
+### Docs: refresh generated status and changelog for the desktop program
+
+`70756dc` · 2026-10-06
+
 ### Desktop: instant window, bring projects over, plain problems, stable port
 
 `3001579` · 2026-10-06

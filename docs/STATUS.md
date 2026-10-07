@@ -5,14 +5,14 @@
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
 - **Branch:** `ccr-0fdf298a-s28hzp`
-- **Last commit:** `3001579` Desktop: instant window, bring projects over, plain problems, stable port
+- **Last commit:** `18c8233` H1: agent wall tools, room names, review fixes; H1 done
 - **Uncommitted files:** 0
 
-## Current stage: desktop program with installer (6 Oct 2026, decision 0026)
+## Current stage: H1 — draw the real space (7 Oct 2026, decision 0028, `docs/04-home-studio-plan.md`)
 
-**Finish line (done means):** the program opens in its own window without a browser; a Windows installer is built, installed silently and answers on a Windows runner; closing the window closes the database cleanly; `pnpm check` green; pushed.
+**Finish line (done means):** a designer draws a client's 2-bedroom apartment from its measurements in under 10 minutes in the running program: walls drawn point to point that join at corners, lengths and thickness typed, doors and windows that sit in a wall and move with it, each room's area shown from the walls, dimensions edited directly; the 3D view shows the same walls with openings; old saves still open; `pnpm check` green; screenshots sent; measured time written down.
 
-8 done, 0 open.
+11 done, 0 open.
 
 ## Uncommitted work
 
