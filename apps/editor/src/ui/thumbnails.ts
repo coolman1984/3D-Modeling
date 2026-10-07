@@ -36,6 +36,16 @@ function setUp({ THREE, RoomEnvironment }: Engine): typeof studio {
   try {
     const canvas = document.createElement('canvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    // Software-only graphics (no graphics card) draws each picture in seconds and freezes the page:
+    // there the library keeps its line drawings.
+    const gl = renderer.getContext();
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    if (/swiftshader|llvmpipe|software|softpipe/i.test(name)) {
+      renderer.dispose();
+      studio = null;
+      return studio;
+    }
     renderer.setPixelRatio(1);
     renderer.setSize(SIZE, SIZE * 0.8, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -58,16 +68,6 @@ function setUp({ THREE, RoomEnvironment }: Engine): typeof studio {
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
-    // Software-only graphics (no graphics card) draws each picture in seconds and freezes the page:
-    // there the library keeps its line drawings.
-    const gl = renderer.getContext();
-    const info = gl.getExtension('WEBGL_debug_renderer_info');
-    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
-    if (/swiftshader|llvmpipe|software|softpipe/i.test(name)) {
-      renderer.dispose();
-      studio = null;
-      return studio;
-    }
     studio = { renderer, scene, camera: new THREE.PerspectiveCamera(28, 1.25, 0.01, 100) };
   } catch {
     studio = null;
@@ -109,7 +109,32 @@ function render(e: Engine, d: ItemDefinition): string | null {
   return url;
 }
 
+/** True when this browser draws with software only (no graphics card): asked of a bare canvas, without loading the 3D engine. */
+let software: boolean | undefined;
+function softwareGraphics(): boolean {
+  if (software !== undefined) return software;
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2') ?? document.createElement('canvas').getContext('webgl');
+    if (!gl) return (software = true);
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    software = /swiftshader|llvmpipe|software|softpipe/i.test(name);
+  } catch {
+    software = true;
+  }
+  return software;
+}
+
 async function work(): Promise<void> {
+  if (softwareGraphics()) {
+    // Each picture would take seconds and freeze the page: the library keeps its line drawings.
+    for (const d of waiting.splice(0)) pictures.set(keyOf(d), null);
+    version++;
+    for (const listener of listeners) listener();
+    scheduled = false;
+    return;
+  }
   let e: Engine;
   try {
     e = await loadEngine();

@@ -154,7 +154,7 @@ const shade = (c: readonly [number, number, number], k: number): [number, number
 
 /** Power-floated warehouse concrete: cloudy trowel marks, fine aggregate, saw-cut joints every 4 m. */
 export function concreteFloor(): Surface | null {
-  return surface('concrete', 1024, 4, (u, v, px, py) => {
+  return surface('concrete', 512, 4, (u, v, px, py) => {
     const cloud = fbm(u, v, 3, 5, 11);
     const speck = hash(px, py, 7);
     const joint = px < 2 || py < 2 ? 1 : 0;
@@ -176,7 +176,7 @@ export function epoxyFloor(): Surface | null {
 
 /** Road asphalt: dark binder with light and dark aggregate, a little patchy. */
 export function asphalt(): Surface | null {
-  return surface('asphalt', 1024, 4, (u, v, px, py) => {
+  return surface('asphalt', 512, 4, (u, v, px, py) => {
     const patch = fbm(u, v, 4, 4, 41);
     const stone = hash(px, py, 43);
     const grain = hash(px >> 1, py >> 1, 47);
@@ -189,7 +189,7 @@ export function asphalt(): Surface | null {
 
 /** Irrigated lawn: two greens in patches, fine blade noise, a few dry spots. */
 export function grass(): Surface | null {
-  return surface('grass', 1024, 5, (u, v, px, py) => {
+  return surface('grass', 512, 5, (u, v, px, py) => {
     const patch = fbm(u, v, 3, 5, 61);
     const blade = hash(px, py, 67);
     const dry = fbm(u, v, 6, 3, 71);
@@ -264,7 +264,7 @@ export function ceramic(): Surface | null {
 
 /** Polished marble slabs, 1.2 m, with soft veins: event halls and lobbies. */
 export function marble(): Surface | null {
-  const size = 1024;
+  const size = 512; // four 1.2 m slabs: about a pixel a centimetre, plenty at room scale
   return surface('marble', size, 4.8, (u, v, px, py) => {
     const tile = size / 4;
     const tx = Math.floor(px / tile);

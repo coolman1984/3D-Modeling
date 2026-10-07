@@ -58,11 +58,14 @@ export function ReportPage({ projectId }: { projectId: string }) {
     const look = cargo ? { itemColors: colorsOf(project, 'stop').colors, cutaway: true } : sample?.reachable ? { routePoints: sample.points } : undefined;
     // The 3D engine loads only for the picture, so the report's text shows at once.
     let alive = true;
-    const timer = setTimeout(() => {
+    // Drawn when the browser is idle, so the report can be read and scrolled at once.
+    const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 50));
+    const timer = setTimeout(() => idle(() => {
+      if (!alive) return;
       void import('../ui/View3D.js')
         .then((m) => alive && setPicture(m.renderSnapshot(project, issues, 1200, 640, look, cargo)))
         .catch(() => alive && setPicture(null));
-    }, 30);
+    }), 30);
     return () => {
       alive = false;
       clearTimeout(timer);
