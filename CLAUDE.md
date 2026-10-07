@@ -131,6 +131,8 @@ didn't create, force-pushing, rewriting history, or changing anything outside th
 The owner is not a developer. Report in short, warm Egyptian Arabic, with fitting emoji,
 no English words, and no jargon: what now works, what it means for the product,
 what is next. Put technical detail in commits and docs, not in the chat.
+After each important part is finished, send the owner screenshots of the real running program
+(the owner asked for this on 2026-10-07).
 
 End every run with three short parts, in this order:
 1. **Needed from you**: decisions or approvals you are waiting on (say "nothing" if none).
