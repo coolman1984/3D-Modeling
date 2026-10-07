@@ -18,14 +18,14 @@ room layouts, materials, presentation for clients.
 7. Projects page and create dialog look and read like a design studio product.
 8. `pnpm check` green; the journey driven in the real app with screenshots; pushed.
 
-- [ ] Home pack: catalog, styles, rules, three layouts (`packages/starter/src/home.ts`) + tests
-- [ ] Detailed home 3D models + interior floor and light
-- [ ] Rendered library thumbnails; wall-mounted placement
-- [ ] Appearance settings (text size, font, theme)
-- [ ] Pack files: export, install, list, remove; samples as files
-- [ ] Code splitting and measured start-up
-- [ ] Projects page and create dialog redesign around homes
-- [ ] Verify in the running app, docs, decision 0027, README, push
+- [x] Home pack: catalog, styles, rules, three layouts (`packages/starter/src/home.ts`) + tests
+- [x] Detailed home 3D models + interior floor and light
+- [x] Rendered library thumbnails; wall-mounted placement
+- [x] Appearance settings (text size, font, theme)
+- [x] Pack files: export, install, list, remove; samples as files
+- [x] Code splitting and measured start-up (first screen 1,621 KB -> 493 KB of JavaScript)
+- [x] Projects page and create dialog redesign around homes
+- [x] Verify in the running app, docs, decision 0027, README, push (also fixed: quick plant tags lost to a false conflict)
 
 ## Now: desktop program with installer (6 Oct 2026, decision 0026)
 

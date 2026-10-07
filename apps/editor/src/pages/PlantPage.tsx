@@ -90,28 +90,43 @@ export function PlantPage({ projectId }: { projectId: string }) {
     }
   };
 
-  const send = async (commands: Command[], inverse?: Command) => {
-    if (!project) return;
-    setTagNote(null);
-    const result = await api.sendCommands(project.id, commands, project.revision);
-    if (result.ok) {
-      setProject(result.project);
-      if (inverse) setUndo((u) => [...u, inverse]);
-    } else if ('conflict' in result) {
-      setProject(result.project);
-      setTagNote({ tone: 'error', text: 'The plan was changed elsewhere, so nothing was tagged. The latest version is loaded: try again.' });
-    } else {
-      setTagNote({ tone: 'error', text: 'rejection' in result ? result.rejection.message : result.error });
-    }
+  // The person's own changes go one after another, each built on the newest saved plan: a second
+  // quick tag must not be refused as if someone else had changed the plan in between.
+  const latest = useRef<Project | null>(null);
+  latest.current = project;
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const send = (build: (current: Project) => { commands: Command[]; inverse?: Command | undefined } | null): Promise<void> => {
+    const run = queue.current.then(async () => {
+      const current = latest.current;
+      if (!current) return;
+      const change = build(current);
+      if (!change) return;
+      setTagNote(null);
+      const result = await api.sendCommands(current.id, change.commands, current.revision);
+      if (result.ok) {
+        latest.current = result.project;
+        setProject(result.project);
+        const inverse = change.inverse;
+        if (inverse) setUndo((u) => [...u, inverse]);
+      } else if ('conflict' in result) {
+        latest.current = result.project;
+        setProject(result.project);
+        setTagNote({ tone: 'error', text: 'The plan was changed elsewhere, so nothing was tagged. The latest version is loaded: try again.' });
+      } else {
+        setTagNote({ tone: 'error', text: 'rejection' in result ? result.rejection.message : result.error });
+      }
+    });
+    queue.current = run.catch(() => undefined);
+    return run;
   };
-  const tag = async (kind: 'item' | 'zone', id: string, nodeId: string) => {
-    if (!project) return;
-    const node = tree.find((n) => n.id === nodeId) ?? null;
-    const command = kind === 'item' ? tagItemCommand(project, id, node) : tagZoneCommand(project, id, node);
-    if (!command) return;
-    const local = apply(project, command);
-    await send([command], local.ok ? local.inverse : undefined);
-  };
+  const tag = (kind: 'item' | 'zone', id: string, nodeId: string) =>
+    send((current) => {
+      const node = tree.find((n) => n.id === nodeId) ?? null;
+      const command = kind === 'item' ? tagItemCommand(current, id, node) : tagZoneCommand(current, id, node);
+      if (!command) return null;
+      const local = apply(current, command);
+      return { commands: [command], inverse: local.ok ? local.inverse : undefined };
+    });
   /** Tag everything that carries a GMES code (the Nile Vision sample does) with the node of that code, as one revision. */
   const linkByCode = async () => {
     if (!project) return;
@@ -126,15 +141,17 @@ export function PlantPage({ projectId }: { projectId: string }) {
       return;
     }
     const batch = { type: 'batch' as const, commands: link.commands };
-    const local = apply(project, batch);
-    await send([batch], local.ok ? local.inverse : undefined);
+    await send((current) => {
+      const local = apply(current, batch);
+      return { commands: [batch], inverse: local.ok ? local.inverse : undefined };
+    });
     setTagNote({ tone: 'ok', text: `Link by code: ${parts}.` });
   };
   const undoTag = async () => {
     const last = undo.at(-1);
     if (!last) return;
     setUndo((u) => u.slice(0, -1));
-    await send([last]);
+    await send(() => ({ commands: [last] }));
   };
 
   const download = async () => {

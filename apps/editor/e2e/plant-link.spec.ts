@@ -98,12 +98,19 @@ test('link to plant: settings, plant tree, tags, checks, layout snapshot and liv
     // nothing is tagged yet: the checks say "unknown", never "pass"
     await expect(page.locator('[data-check="station-placed"]')).toHaveAttribute('data-status', 'unknown');
 
-    // tag the zone with the line and two stations; each tag is one revision
+    // tag the zone with the line and two stations; each tag is one revision. Saves are slowed as on a
+    // busy computer: quick tags one after another must all be kept, none refused as a conflict.
+    await page.route('**/api/projects/*/commands', async (route) => {
+      await new Promise((r) => setTimeout(r, 300));
+      await route.continue();
+    });
     await page.getByLabel('Plant node of zone Z-FA-1').selectOption({ label: 'FA-1 · Line 1' });
     await expect(page.getByLabel('Plant node of zone Z-FA-1')).toHaveValue(uuid(3));
     await page.getByLabel('Plant node of item S01').selectOption({ label: 'FA-1-10 · Panel loader' });
     await page.getByLabel('Plant node of item S02').selectOption({ label: 'FA-1-20 · Assembly bench' });
     await expect(page.getByLabel('Plant node of item S02')).toHaveValue(uuid(11));
+    await expect(page.getByText('The plan was changed elsewhere')).toHaveCount(0);
+    await page.unroute('**/api/projects/*/commands');
     const project = await (await page.request.get(`/api/projects/${id}`)).json();
     expect(project.items.S01.meta).toMatchObject({ step: 1, 'eco.ref': `plant_node:${uuid(10)}`, 'eco.code': 'FA-1-10', 'eco.type': 'station' });
     expect(project.revision).toBe(4); // revision 0 as created, then the zone and three tags: one revision each
@@ -118,6 +125,8 @@ test('link to plant: settings, plant tree, tags, checks, layout snapshot and liv
     await expect(page.getByLabel('Plant node of item S02')).toHaveValue('');
     await page.getByLabel('Plant node of item S02').selectOption({ label: 'FA-1-20 · Assembly bench' });
     await expect(page.getByLabel('Plant node of item S02')).toHaveValue(uuid(11));
+    await expect(page.getByText('The plan was changed elsewhere')).toHaveCount(0);
+    await page.unroute('**/api/projects/*/commands');
 
     // send the layout snapshot: the fake GMES receives a valid envelope with the tags
     await page.getByRole('button', { name: 'Send to GMES' }).click();

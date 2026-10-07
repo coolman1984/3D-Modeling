@@ -14,9 +14,9 @@ Layout:
 | Path | What |
 |---|---|
 | `packages/core` | Pure TypeScript: units, geometry, model, commands, checks, metrics, save format |
-| `packages/starter` | Activity packs (hall, office, container, warehouse), rules, item families and templates (activity knowledge lives here, not in core) |
+| `packages/starter` | Activity packs (home first, hall, office, container, warehouse…), rules, item families and templates (activity knowledge lives here, not in core) |
 | `packages/industry` | Derived floor raster and deterministic mover-width-aware routing; no saved grids |
-| `apps/server` | Local server: SQLite store (projects, revisions, settings, agent runs), HTTP API, live events, agent tools, MCP bridge, agent runner |
+| `apps/server` | Local server: SQLite store (projects, revisions, settings, agent runs, installed packs), HTTP API, live events, agent tools, MCP bridge, agent runner; `.atrium` pack files (sample companies are built into `dist/packs`, not into the server) |
 | `apps/editor` | React editor: projects page, 2D plan, 3D view, room and item-type editors, history, agent panel, settings |
 | `scripts/start.mjs` + `start.*` | One-click launcher |
 
@@ -114,8 +114,10 @@ didn't create, force-pushing, rewriting history, or changing anything outside th
   any UI change. The older Atrium export in `design-reference/` is history, not the target.
 - UI text is English, left-to-right; the plan canvas keeps its own math orientation (X east, Y north).
 - Visual system: tokens on `:root` in `apps/editor/src/styles.css` (cool white-grey page, dark top
-  bars, Newsreader serif headings, Geist controls, hairline borders, square buttons, one electric-blue
-  accent; red, amber and green only for error, warning and pass, as pastel chips). Icons are Phosphor
+  bars, Newsreader serif headings, Geist controls, hairline borders, square buttons, one accent at a
+  time — electric blue by default, chosen in Settings → Appearance; red, amber and green only for error,
+  warning and pass, as pastel chips). Every colour is a token with a light and a dark value; font sizes
+  go through `--ts` (decision 0027). Icons are Phosphor
   "light" from `@phosphor-icons/react`; fonts are bundled.
 - It is a working tool: the plan is the hero. No gradients or glass except `--wash` on feature
   panels and the 3D backdrop, no pill buttons, no emoji inside the app, only functional shadows

@@ -103,10 +103,22 @@ Status colours are pastel chips with dark text of the same hue, never loud fills
 - The 3D backdrop follows `--page` (cool), with the blue wash allowed behind outdoor sites.
 - The report is a white A4 page with the same serif titles, eyebrows, chips and tables.
 
+## 6b. Appearance, dark theme and the home pack (decision 0027)
+
+- **Settings → Appearance** lets a person pick the theme (light, dark, match computer), the accent
+  (electric blue `#1f3bf5`, bronze `#9a6634`, forest `#2f6b4f`, graphite `#2b2f36`; lighter tones on
+  dark), the text size (×0.92, ×1, ×1.1, ×1.22 through `--ts`) and the fonts. Still one accent at a
+  time; `--accent-soft` and `--accent-line` are mixed from it.
+- **Dark theme**: `:root[data-theme='dark']` re-values the same tokens (page `#0e1014`, surface
+  `#13161b`, cards `#1a1e25`, ink `#eef0f3`). New colours go in both blocks.
+- **Plan symbols** for home pieces: thin non-scaling lines in `--ink-2` / `--ink-3` over a fill mixed
+  from the piece's fabric or wood into `--paper`. Room names: 9.5 px caps, `--ink-2`, on a paper halo.
+- **Library tiles** show a picture rendered from the item's 3D model on the tile background.
+
 ## 7. Rules for new work
 
-1. Only tokens. A new colour needs a token and a line in this file.
-2. One blue. Red, amber and green only for error, warning and pass.
+1. Only tokens. A new colour needs a token (in the light and the dark block) and a line in this file.
+2. One accent at a time (the chosen one). Red, amber and green only for error, warning and pass.
 3. Square buttons; round corners only by the scale in section 4.
 4. Serif for headings only; never for controls, numbers in tables or labels.
 5. No emoji in the app, no glass, no decorative shadows, no gradients except `--wash`.

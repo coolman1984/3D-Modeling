@@ -630,6 +630,9 @@ function buildItems(project: Project, severity: ReadonlyMap<Id, 'error' | 'warni
   for (const item of ordered) {
     const definition = project.catalog[item.definitionId];
     if (!definition || look.hidden?.has(item.id)) continue;
+    // With the walls cut, art and mirrors hung above the cut would float in the air: leave them
+    // out unless selected (they show with full-height walls).
+    if (wallCut !== null && definition.meta?.mount === 'wall' && mt(item.elevation ?? 0) >= wallCut && !selected.has(item.id)) continue;
     const state: ItemState = selected.has(item.id) ? 'selected' : (severity.get(item.id) ?? 'normal');
     const color = look.itemColors?.get(item.id);
     // Raised shades draw posts down to the ground, so their height above it is part of the model.
