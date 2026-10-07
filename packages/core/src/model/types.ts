@@ -25,6 +25,14 @@ export interface Space {
   readonly doors: readonly Door[];
   /** Optional named geometry. Activity packs interpret `kind`; the core only validates the polygon. */
   readonly zones?: readonly Zone[];
+  /**
+   * Walls drawn point to point (a home's partitions and outer walls). They stand inside the
+   * boundary; their solid parts act as obstacles and they split the floor into rooms.
+   * Stored only when there are some, so spaces without walls keep their old form.
+   */
+  readonly walls?: readonly WallSegment[];
+  /** Doors and windows that sit in a wall and move with it; stored only when there are some. */
+  readonly openings?: readonly Opening[];
   /** Missing means height checks report "unknown", never "pass". */
   readonly ceilingHeight?: Tick;
   /** Pack-owned data about the space (a container's type and payload limit…); stored only when not empty. */
@@ -37,6 +45,45 @@ export interface Zone {
   readonly kind: string;
   /** Simple counter-clockwise polygon of integer tick positions. */
   readonly polygon: readonly Vec2[];
+  readonly meta?: Meta;
+}
+
+/**
+ * A straight wall from `a` to `b` (its centre line) with a thickness. Walls that meet at an end
+ * join: each end reaches into the walls it touches, so corners and T-junctions close.
+ */
+export interface WallSegment {
+  readonly id: Id;
+  readonly a: Vec2;
+  readonly b: Vec2;
+  readonly thickness: Tick;
+  /** Missing means the ceiling height (or unknown). */
+  readonly height?: Tick;
+  readonly meta?: Meta;
+}
+
+export type OpeningKind = 'door' | 'window';
+
+/**
+ * A door or window in a wall, placed by its distance along the wall, so it moves when the wall
+ * moves. A door may swing: `hinge` says which jamb (toward the wall's start or end) and `side`
+ * which side of the wall the leaf opens to, looking from `a` toward `b`. A door without them is
+ * a plain opening or a sliding door.
+ */
+export interface Opening {
+  readonly id: Id;
+  /** The wall it sits in. */
+  readonly wall: Id;
+  readonly kind: OpeningKind;
+  /** From the wall's start `a`, along its centre line, to the near edge of the opening. */
+  readonly offset: Tick;
+  readonly width: Tick;
+  /** Height of the opening itself; missing means a usual size the views choose. */
+  readonly height?: Tick;
+  /** Windows: height of the sill above the floor. */
+  readonly sill?: Tick;
+  readonly hinge?: 'start' | 'end';
+  readonly side?: 'left' | 'right';
   readonly meta?: Meta;
 }
 

@@ -1,5 +1,27 @@
 # TASKS
 
+## Now: H1 — draw the real space (7 Oct 2026, decision 0028, `docs/04-home-studio-plan.md`)
+
+**Finish line (done means):** a designer draws a client's 2-bedroom apartment from its measurements
+in under 10 minutes in the running program: walls drawn point to point that join at corners, lengths
+and thickness typed, doors and windows that sit in a wall and move with it, each room's area shown
+from the walls, dimensions edited directly; the 3D view shows the same walls with openings; old saves
+still open; `pnpm check` green; screenshots sent; measured time written down.
+
+- [x] Core: optional `walls` and `openings` on the space; validation; derived wall solids (joined
+      corners, door gaps), door swings, rooms from walls by raster; checks treat walls as obstacles
+      and door swings as doors (`packages/core/src/model/walls.ts`, `test/walls.test.ts`)
+- [x] Starter: walkway passes doorways and starts at the entrance; apartments rebuilt on real walls
+      (20 cm outer, 10 cm inner, swinging doors); wall items removed from the catalogue
+- [x] Editor: wall pieces hang on drawn walls, never on an outside face
+- [ ] Editor plan: walls, joins, door swings, windows, room areas
+- [ ] Editor 3D: walls with door and window openings, glass, door leaves
+- [ ] Wall tool: click to click, typed length, snaps (ends, right angles), Esc/double-click to finish
+- [ ] Select a wall: length, thickness, height; drag ends (joined walls follow); delete
+- [ ] Doors and windows: add on a wall, drag along it, width, hinge/side, sill
+- [ ] Agent tools for walls and openings
+- [ ] e2e: draw a 2-bedroom from measurements; time it; screenshots; docs, README, push
+
 ## Now: Home studio release (7 Oct 2026, decision 0027)
 
 Owner: sellable to interior designers. Focus on apartments with beautiful, detailed furniture (sofas,

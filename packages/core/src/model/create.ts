@@ -21,6 +21,8 @@ export function createSpace(boundary: readonly Vec2[], extra: Partial<Omit<Space
     obstacles: (extra.obstacles ?? []).map((o) => ({ ...o, polygon: toCounterClockwise(o.polygon) })),
     doors: extra.doors ?? [],
     ...(extra.zones === undefined ? {} : { zones: extra.zones.map((z) => ({ ...z, polygon: toCounterClockwise(z.polygon) })) }),
+    ...(extra.walls === undefined || extra.walls.length === 0 ? {} : { walls: extra.walls }),
+    ...(extra.openings === undefined || extra.openings.length === 0 ? {} : { openings: extra.openings }),
     ...(extra.ceilingHeight === undefined ? {} : { ceilingHeight: extra.ceilingHeight }),
     ...(extra.meta === undefined ? {} : { meta: extra.meta }),
   };

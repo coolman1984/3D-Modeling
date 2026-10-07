@@ -5,6 +5,7 @@ import { gridIndex, type SpatialIndex } from '../geometry/grid.js';
 import { convexOverlap } from '../geometry/sat.js';
 import type { Vec2 } from '../geometry/vec2.js';
 import { doorPolygon, itemClearancePolygon, itemPolygon, placedSize } from '../model/derive.js';
+import { openingSwingPolygon, wallSolids } from '../model/walls.js';
 import type { Id, ItemDefinition, ItemInstance, Project } from '../model/types.js';
 import type { Tick } from '../units/length.js';
 
@@ -125,13 +126,21 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
       const top = bottom + placedSize(item, definition).h;
       return { item, definition, body, bodyBox: boundsOf(body), zone, zoneBox: boundsOf(zone), bottom, top };
     });
-  const obstacles: Shape[] = space.obstacles.map((o) => ({ id: o.id, polygon: o.polygon, box: boundsOf(o.polygon) }));
+  // Walls stand like obstacles: their solid parts, with gaps where doors are.
+  const obstacles: Shape[] = [
+    ...space.obstacles.map((o) => ({ id: o.id, polygon: o.polygon, box: boundsOf(o.polygon) })),
+    ...wallSolids(space).map((w) => ({ id: w.wallId, polygon: w.polygon, box: boundsOf(w.polygon) })),
+  ];
   const bodyBoxes = placed.map((p) => p.bodyBox);
   const near = options.spatialIndex === false ? allPairs(placed.length) : gridIndex(bodyBoxes);
   const doors: Shape[] = space.doors.map((d) => {
     const polygon = doorPolygon(d);
     return { id: d.id, polygon, box: boundsOf(polygon) };
   });
+  for (const o of space.openings ?? []) {
+    const polygon = openingSwingPolygon(space, o);
+    if (polygon) doors.push({ id: o.id, polygon, box: boundsOf(polygon) });
+  }
 
   for (const p of placed) {
     const id = p.item.id;
@@ -139,8 +148,10 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
 
     if (!containsPolygon(space.boundary, p.body)) issues.push(issue('out-of-bounds', [id], undefined, p.body));
 
+    const onObstacle = new Set<Id>();
     for (const o of obstacles) {
-      if (!aabbsWithin(p.bodyBox, o.box) || !polygonsOverlap(p.body, o.polygon)) continue;
+      if (onObstacle.has(o.id) || !aabbsWithin(p.bodyBox, o.box) || !polygonsOverlap(p.body, o.polygon)) continue;
+      onObstacle.add(o.id); // a wall with a door in it is several pieces: name it once
       const conflict = convexConflict(p.body, o.polygon);
       issues.push(issue('on-obstacle', [id, o.id], conflict?.depth, conflict?.region ?? p.body));
     }
@@ -169,9 +180,11 @@ export function checkProject(project: Project, options: CheckOptions = {}): Issu
         const conflict = convexConflict(p.zone, other.body);
         if (conflict) issues.push(issue('clearance', [id, other.item.id], conflict.depth, conflict.region));
       }
+      const tight = new Set<Id>();
       for (const o of obstacles) {
-        if (!aabbsWithin(p.zoneBox, o.box) || polygonsOverlap(p.body, o.polygon)) continue;
+        if (tight.has(o.id) || onObstacle.has(o.id) || !aabbsWithin(p.zoneBox, o.box) || polygonsOverlap(p.body, o.polygon)) continue;
         if (!polygonsOverlap(p.zone, o.polygon)) continue;
+        tight.add(o.id);
         const conflict = convexConflict(p.zone, o.polygon);
         issues.push(issue('clearance', [id, o.id], conflict?.depth, conflict?.region ?? p.zone));
       }

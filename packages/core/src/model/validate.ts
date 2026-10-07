@@ -2,7 +2,7 @@ import { CoreError } from '../errors.js';
 import { isCounterClockwise, isSimple, locatePoint } from '../geometry/polygon.js';
 import type { Vec2 } from '../geometry/vec2.js';
 import { FULL_TURN } from '../units/angle.js';
-import { MAX_COORDINATE } from '../units/length.js';
+import { MAX_COORDINATE, TOLERANCE } from '../units/length.js';
 import { SCHEMA_VERSION, type Project } from './types.js';
 
 export type ProblemCode =
@@ -16,6 +16,8 @@ export type ProblemCode =
   | 'id-mismatch'
   | 'broken-reference'
   | 'door-off-boundary'
+  | 'invalid-wall'
+  | 'opening-off-wall'
   | 'unknown-field'
   | 'invalid-meta';
 
@@ -131,7 +133,9 @@ class Collector {
 }
 
 const PROJECT_FIELDS = ['schemaVersion', 'id', 'name', 'revision', 'space', 'catalog', 'items'] as const;
-const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'zones', 'ceilingHeight', 'meta'] as const;
+const SPACE_FIELDS = ['boundary', 'obstacles', 'doors', 'zones', 'walls', 'openings', 'ceilingHeight', 'meta'] as const;
+const WALL_FIELDS = ['id', 'a', 'b', 'thickness', 'height', 'meta'] as const;
+const OPENING_FIELDS = ['id', 'wall', 'kind', 'offset', 'width', 'height', 'sill', 'hinge', 'side', 'meta'] as const;
 const OBSTACLE_FIELDS = ['id', 'kind', 'polygon'] as const;
 const DOOR_FIELDS = ['id', 'hinge', 'width', 'angle', 'swing', 'meta'] as const;
 const DEFINITION_FIELDS = ['id', 'name', 'category', 'size', 'clearance', 'seats', 'footprint', 'surface', 'mass', 'meta'] as const;
@@ -206,6 +210,48 @@ function checkSpace(c: Collector, value: unknown, path: string): void {
     c.string(zone.kind, `${at}.kind`, { nonEmpty: true });
     c.polygon(zone.polygon, `${at}.polygon`);
     if (zone.meta !== undefined) checkMeta(c, zone.meta, `${at}.meta`);
+  });
+
+  const wallLengths = new Map<string, number>();
+  if (space.walls !== undefined) c.array(space.walls, `${path}.walls`)?.forEach((value, i) => {
+    const at = `${path}.walls.${i}`;
+    const wall = c.object(value, at, WALL_FIELDS);
+    if (!wall) return;
+    const id = c.id(wall.id, `${at}.id`);
+    const a = c.point(wall.a, `${at}.a`);
+    const b = c.point(wall.b, `${at}.b`);
+    c.length(wall.thickness, `${at}.thickness`, { positive: true });
+    if (wall.height !== undefined) c.length(wall.height, `${at}.height`, { positive: true });
+    if (wall.meta !== undefined) checkMeta(c, wall.meta, `${at}.meta`);
+    if (a && b && a.x === b.x && a.y === b.y) c.add('invalid-wall', at, 'a wall needs two different ends');
+    else if (id !== undefined && a && b) wallLengths.set(id, Math.hypot(b.x - a.x, b.y - a.y));
+  });
+  if (space.openings !== undefined) c.array(space.openings, `${path}.openings`)?.forEach((value, i) => {
+    const at = `${path}.openings.${i}`;
+    const opening = c.object(value, at, OPENING_FIELDS);
+    if (!opening) return;
+    c.id(opening.id, `${at}.id`);
+    const wall = c.string(opening.wall, `${at}.wall`, { nonEmpty: true });
+    if (opening.kind !== 'door' && opening.kind !== 'window') c.add('wrong-type', `${at}.kind`, 'expected "door" or "window"');
+    const offset = c.length(opening.offset, `${at}.offset`);
+    const width = c.length(opening.width, `${at}.width`, { positive: true });
+    if (opening.height !== undefined) c.length(opening.height, `${at}.height`, { positive: true });
+    if (opening.sill !== undefined) {
+      if (opening.kind !== 'window') c.add('wrong-type', `${at}.sill`, 'only windows have a sill');
+      else c.length(opening.sill, `${at}.sill`);
+    }
+    if (opening.hinge !== undefined || opening.side !== undefined) {
+      if (opening.kind !== 'door') c.add('wrong-type', `${at}.hinge`, 'only doors swing');
+      if (opening.hinge !== 'start' && opening.hinge !== 'end') c.add(opening.hinge === undefined ? 'missing' : 'wrong-type', `${at}.hinge`, 'expected "start" or "end" together with side');
+      if (opening.side !== 'left' && opening.side !== 'right') c.add(opening.side === undefined ? 'missing' : 'wrong-type', `${at}.side`, 'expected "left" or "right" together with hinge');
+    }
+    if (opening.meta !== undefined) checkMeta(c, opening.meta, `${at}.meta`);
+    if (wall === undefined) return;
+    const length = wallLengths.get(wall);
+    if (length === undefined) c.add('broken-reference', `${at}.wall`, `no wall "${wall}"`);
+    else if (offset !== undefined && width !== undefined && offset + width > length + TOLERANCE) {
+      c.add('opening-off-wall', at, `the opening runs past the end of its wall (${offset + width} > ${Math.floor(length)})`);
+    }
   });
 
   c.array(space.obstacles, `${path}.obstacles`)?.forEach((value, i) => {
