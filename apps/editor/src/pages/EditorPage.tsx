@@ -87,7 +87,8 @@ import { RoomPanel } from '../ui/RoomPanel.js';
 import type { SceneLook } from '../ui/View3D.js';
 
 // The 3D engine is large: the editor opens on the plan at once and the 3D view arrives on its own.
-const View3D = lazy(() => import('../ui/View3D.js').then((m) => ({ default: m.View3D })));
+const loadView3D = () => import('../ui/View3D.js');
+const View3D = lazy(() => loadView3D().then((m) => ({ default: m.View3D })));
 import type { StockView } from '../ui/Stock.js';
 import { colorsOf, ContainerViewTools, hex, hiddenAfter, LoadPanel, type ColorBy } from '../ui/Container.js';
 import { WarehousePanel } from '../ui/Warehouse.js';
@@ -123,6 +124,13 @@ function download(name: string, text: string): void {
 
 /** Loads a project from the server, then hands it to the editor. */
 export function EditorPage({ projectId }: { projectId: string }) {
+  // Once the plan is up and the computer is free, prepare the 3D view and the client report, so
+  // switching to either is immediate.
+  useEffect(() => {
+    const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 300));
+    const timer = setTimeout(() => idle(() => void Promise.all([loadView3D(), import('./ReportPage.js')]).catch(() => undefined)), 300);
+    return () => clearTimeout(timer);
+  }, []);
   const [project, setProject] = useState<Project | null>(null);
   const [missing, setMissing] = useState(false);
   useEffect(() => {

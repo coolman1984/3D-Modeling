@@ -1080,6 +1080,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   // Rebuild the model whenever the project, issues, selection or look change. Load playback only
   // changes which items are hidden, so that part of the look is applied separately below.
   const hidden = look?.hidden;
+  const [painted, setPainted] = useState(false);
   const buildLook = useMemo(() => {
     if (!look) return undefined;
     const { hidden: _hidden, ...rest } = look;
@@ -1089,6 +1090,12 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
   useEffect(() => {
     const t = three.current;
     if (!t) return;
+    // The first build waits one frame, so the 3D pane (its backdrop and tools) shows at once and the
+    // room fills in right after; later rebuilds are immediate, so edits never lag.
+    if (!painted) {
+      const timer = setTimeout(() => setPainted(true), 0);
+      return () => clearTimeout(timer);
+    }
     if (t.content) {
       t.scene.remove(t.content);
       disposeTree(t.content);
@@ -1103,7 +1110,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     t.renderer.shadowMap.needsUpdate = true;
     t.invalidate();
     hostRef.current?.setAttribute('data-selected', selectedIds.join(' '));
-  }, [project, issues, selectedIds, fullWalls, buildLook, quality]);
+  }, [project, issues, selectedIds, fullWalls, buildLook, quality, painted]);
 
   // Hidden items (load playback) get an empty matrix; shown ones their own again. Thousands of
   // items change in a millisecond or two, where a rebuild took most of a second.
@@ -1122,7 +1129,7 @@ export function View3D({ project, saved, issues, selectedIds, controls: settings
     t.renderer.shadowMap.needsUpdate = true;
     t.invalidate();
     hostRef.current?.setAttribute('data-items', String(Object.keys(project.items).length - (hidden?.size ?? 0)));
-  }, [hidden, project, issues, selectedIds, fullWalls, buildLook, quality]);
+  }, [hidden, project, issues, selectedIds, fullWalls, buildLook, quality, painted]);
 
   // Frame the room when asked, and when the room itself changes size.
   const room = boundsOf(project.space.boundary);

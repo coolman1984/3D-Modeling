@@ -1,7 +1,7 @@
 import type { ItemDefinition } from '@space-planner/core';
 import * as THREE from 'three';
 import { bx, cyl, mat, mesh, M, rbx } from './models3d.js';
-import { artwork, bookSpines, marble, rugPattern, woodGrain } from './textures.js';
+import { artwork, bookSpines, marbleSlab, rugPattern, woodGrain } from './textures.js';
 
 /**
  * 3D models of the home pack (decision 0027): the pieces an interior designer shows a client, so
@@ -24,7 +24,9 @@ const std = (key: string, color: number, roughness: number, metalness = 0, extra
 
 const H = {
   /** Upholstery: soft, fully rough, a touch of sheen so folds read. */
-  fabric: (color: number) => mat(`home-fabric:${color}`, () => new THREE.MeshPhysicalMaterial({ color, roughness: 0.94, sheen: 0.25, sheenRoughness: 0.9, sheenColor: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.4) })),
+  // Standard materials only: a physical sheen or transmission costs an extra shader or a whole
+  // extra render pass on every frame, for a difference people do not see at room scale.
+  fabric: (color: number) => std(`home-fabric:${color}`, color, 0.95),
   oak: () => mat('home-oak', () => new THREE.MeshStandardMaterial({ color: 0xc8a172, roughness: 0.55, map: woodGrain() })),
   walnut: () => mat('home-walnut', () => new THREE.MeshStandardMaterial({ color: 0x6e4a31, roughness: 0.5, map: woodGrain() })),
   linen: () => std('home-linen', 0xf6f3ee, 0.95),
@@ -34,14 +36,14 @@ const H = {
   chrome: () => M.chrome(),
   black: () => std('home-black', 0x1d1e20, 0.5, 0.2),
   lacquer: () => std('home-lacquer', 0xf3f1ec, 0.35),
-  glass: () => mat('home-glass', () => new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transmission: 0.9, thickness: 0.01, transparent: true, opacity: 0.35, depthWrite: false })),
+  glass: () => mat('home-glass', () => new THREE.MeshStandardMaterial({ color: 0xdfeaf0, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.28, depthWrite: false })),
   mirror: () => std('home-mirror', 0xdfe6ea, 0.03, 1),
   /** A lamp shade lit from inside: warm and slightly translucent. */
   shade: () => mat('home-shade', () => new THREE.MeshStandardMaterial({ color: 0xfff4e2, emissive: 0xffd9a0, emissiveIntensity: 0.9, roughness: 0.9, side: THREE.DoubleSide })),
   bulb: () => M.emissive(0xffe2b0, 2.2),
   leaf: (color: number) => std(`home-leaf:${color}`, color, 0.6, 0, { side: THREE.DoubleSide }),
   soil: () => M.soil(),
-  marble: () => mat('home-marble', () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, map: marble()?.map ?? null })),
+  marble: () => mat('home-marble', () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, map: marbleSlab() })),
   steel: () => std('home-steel', 0xd5d8dc, 0.28, 0.85),
 };
 

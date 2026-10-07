@@ -684,7 +684,7 @@ export function checker(): THREE.Texture | null {
  * columns and 15 cm planks per 1.2 m tile, every plank its own tone. The floor of the apartments.
  */
 export function chevronOak(): Surface | null {
-  const size = 1024;
+  const size = 512; // 1.2 m tile: about 4 pixels a centimetre, sharp at room scale
   return surface('chevron-oak', size, 1.2, (u, v) => {
     const col = Math.floor(u * 4);
     const lx = u * 4 - col; // 0–1 across the column
@@ -796,17 +796,18 @@ export function bookSpines(seed: number): THREE.Texture | null {
 
 /** Fine furniture grain, along the length of a board, without plank joints: oak and walnut veneer. */
 export function woodGrain(): THREE.Texture | null {
-  const t = canvasTexture('wood-grain', 512, 512, (g) => {
-    const data = g.createImageData(512, 512);
-    for (let y = 0; y < 512; y++) {
-      for (let x = 0; x < 512; x++) {
-        const u = x / 512;
-        const v = y / 512;
+  const n = 256; // a furniture panel needs no more
+  const t = canvasTexture('wood-grain', n, n, (g) => {
+    const data = g.createImageData(n, n);
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const u = x / n;
+        const v = y / n;
         const warp = fbm(u, v, 2, 3, 461) * 0.08;
         const rings = Math.sin((u + warp) * Math.PI * 2 * 26 + fbm(u, v, 4, 2, 463) * 3);
-        const fleck = hash(Math.floor(x / 2), Math.floor(y / 9), 467) > 0.985 ? -0.08 : 0;
+        const fleck = hash(x, Math.floor(y / 4), 467) > 0.985 ? -0.08 : 0;
         const k = 0.86 + rings * 0.06 + fbm(u, v * 0.2, 8, 3, 469) * 0.1 + fleck;
-        const i = (y * 512 + x) * 4;
+        const i = (y * n + x) * 4;
         data.data[i] = data.data[i + 1] = data.data[i + 2] = Math.max(0, Math.min(255, Math.round(255 * k)));
         data.data[i + 3] = 255;
       }
@@ -814,4 +815,26 @@ export function woodGrain(): THREE.Texture | null {
     g.putImageData(data, 0, 0);
   }, true);
   return t;
+}
+
+/** A small marble slab for worktops, basins and coffee tables: veins without the floor's joints. */
+export function marbleSlab(): THREE.Texture | null {
+  return canvasTexture('marble-slab', 256, 256, (g) => {
+    const data = g.createImageData(256, 256);
+    for (let y = 0; y < 256; y++) {
+      for (let x = 0; x < 256; x++) {
+        const u = x / 256;
+        const v = y / 256;
+        const warp = fbm(u, v, 3, 4, 131);
+        const vein = Math.pow(1 - Math.abs(Math.sin((u * 2 + v * 1.5 + warp * 2.2) * Math.PI)), 14);
+        const c = mix(mix([238, 234, 226], [226, 219, 206], warp), [150, 140, 128], vein * 0.55);
+        const i = (y * 256 + x) * 4;
+        data.data[i] = c[0];
+        data.data[i + 1] = c[1];
+        data.data[i + 2] = c[2];
+        data.data[i + 3] = 255;
+      }
+    }
+    g.putImageData(data, 0, 0);
+  }, true);
 }

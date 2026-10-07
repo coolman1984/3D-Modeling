@@ -23,6 +23,7 @@ const waiting: ItemDefinition[] = [];
 const listeners = new Set<() => void>();
 let version = 0;
 let scheduled = false;
+let slow = false;
 let studio: { renderer: THREE_NS.WebGLRenderer; scene: THREE_NS.Scene; camera: THREE_NS.PerspectiveCamera } | null | undefined;
 
 /** Same type, same picture: the key holds everything the model is drawn from. */
@@ -57,6 +58,16 @@ function setUp({ THREE, RoomEnvironment }: Engine): typeof studio {
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
+    // Software-only graphics (no graphics card) draws each picture in seconds and freezes the page:
+    // there the library keeps its line drawings.
+    const gl = renderer.getContext();
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    if (/swiftshader|llvmpipe|software|softpipe/i.test(name)) {
+      renderer.dispose();
+      studio = null;
+      return studio;
+    }
     studio = { renderer, scene, camera: new THREE.PerspectiveCamera(28, 1.25, 0.01, 100) };
   } catch {
     studio = null;
@@ -111,24 +122,34 @@ async function work(): Promise<void> {
     return;
   }
   scheduled = false;
+  if (slow) {
+    for (const d of waiting.splice(0)) pictures.set(keyOf(d), null);
+    version++;
+    for (const listener of listeners) listener();
+    return;
+  }
   const started = performance.now();
   // A few pictures per slice, then give the frame back.
-  while (waiting.length > 0 && performance.now() - started < 24) {
+  while (waiting.length > 0 && !slow && performance.now() - started < 24) {
     const d = waiting.shift()!;
     const key = keyOf(d);
     if (pictures.has(key)) continue;
     let url: string | null = null;
+    const t0 = performance.now();
     try {
       url = render(e, d);
     } catch {
       url = null;
     }
+    // A slow device: one picture took over a quarter of a second (after the first, which also
+    // prepares the shaders). Stop drawing for this visit rather than make the page stutter.
+    if (performance.now() - t0 > 250 && pictures.size > 0) slow = true;
     pictures.set(key, url);
     if (url) remember(key, url);
     version++;
   }
   for (const listener of listeners) listener();
-  if (waiting.length > 0) schedule();
+  if (waiting.length > 0) schedule(slow ? 0 : 200);
 }
 
 /** Pictures already drawn on this device, by key; drawn once, kept across visits. */
