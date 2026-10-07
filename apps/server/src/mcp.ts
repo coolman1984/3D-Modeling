@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { DESIGN_PROMPTS, DESIGN_SKILLS } from '@space-planner/starter';
 
 const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
@@ -38,14 +39,32 @@ export async function handleMessage(message: JsonRpcRequest, options: BridgeOpti
       const asked = String(message.params?.protocolVersion ?? '');
       return reply({
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
-        capabilities: { tools: {} },
-        serverInfo: { name: 'space-planner', version: '1.0.0' },
+        capabilities: { tools: {}, prompts: {}, resources: {} },
+        serverInfo: { name: 'space-planner', version: '1.1.0' },
         instructions:
-          'Space Planner tools. Start with list_projects / get_project. Lengths are metres or cm as named; x east, y north; rotation degrees counter-clockwise (0 = front faces north).',
+          'Atrium space planner with an interior designer\'s skills. To design a flat from a client\'s measurements: read design_guide("workflow"), then build_apartment, furnish_options, apply_furnishing or furnish_apartment_options, check_project. Otherwise start with list_projects / get_project. Lengths are metres or cm as named; x east, y north; rotation degrees counter-clockwise (0 = front faces north). The design guides are also resources (atrium://skills/…) and prompts.',
       });
     }
     case 'ping':
       return reply({});
+    case 'prompts/list':
+      return reply({ prompts: DESIGN_PROMPTS.map(({ name, title, description, arguments: args }) => ({ name, title, description, arguments: args })) });
+    case 'prompts/get': {
+      const prompt = DESIGN_PROMPTS.find((p) => p.name === message.params?.name);
+      if (!prompt) return fail(-32602, `Unknown prompt: ${String(message.params?.name)}`);
+      const args = (message.params?.arguments ?? {}) as Record<string, string>;
+      const missing = prompt.arguments.filter((a) => a.required && !args[a.name]).map((a) => a.name);
+      if (missing.length) return fail(-32602, `Missing argument: ${missing.join(', ')}`);
+      return reply({ description: prompt.description, messages: [{ role: 'user', content: { type: 'text', text: prompt.build(args) } }] });
+    }
+    case 'resources/list':
+      return reply({ resources: DESIGN_SKILLS.map((s) => ({ uri: `atrium://skills/${s.id}`, name: s.id, title: s.title, description: s.description, mimeType: 'text/markdown' })) });
+    case 'resources/read': {
+      const uri = String(message.params?.uri ?? '');
+      const skill = DESIGN_SKILLS.find((s) => `atrium://skills/${s.id}` === uri);
+      if (!skill) return fail(-32002, `Resource not found: ${uri}`);
+      return reply({ contents: [{ uri, mimeType: 'text/markdown', text: skill.text }] });
+    }
     case 'tools/list': {
       try {
         const response = await doFetch(`${options.url}/api/tools`);

@@ -12,8 +12,12 @@ const applied = (project: Project, command: Parameters<typeof apply>[1]) => {
 describe('furnishing options', () => {
   const flat = buildFlat(SPEC);
 
-  it('reads the areas to furnish from the walls and the room names', () => {
-    expect(furnishAreas(flat).map((a) => `${a.name}/${a.kind}`)).toEqual(['Living/living', 'Main bedroom/bedroom', 'Hall/hall', 'Bedroom 2/bedroom', 'Bath/bathroom']);
+  it('reads the areas to furnish from the walls and the room names; a large living room without a dining room gets a dining end', () => {
+    expect(furnishAreas(flat).map((a) => `${a.name}/${a.kind}`)).toEqual(['Living/living', 'Living · dining/dining', 'Main bedroom/bedroom', 'Hall/hall', 'Bedroom 2/bedroom', 'Bath/bathroom']);
+    // The 11.8 m living room (inside from x = 0.2 m on the plan) splits at 58 % of its length.
+    const [living, diningEnd] = furnishAreas(flat);
+    expect(living!.x1).toBe(diningEnd!.x0);
+    expect(diningEnd!.x0).toBe(Math.round(2_000 + 118_000 * 0.58));
   });
 
   it('a bedroom: every arrangement keeps the bed off the door wall or says so, and passes the checks', () => {
@@ -68,9 +72,16 @@ describe('furnishing options', () => {
     }
   });
 
-  it('an empty shell with unnamed rooms: the largest is furnished as the living room', () => {
-    const shell = newHome('Shell', 6, 4);
-    const [option] = furnishOptions(shell, { count: 1 });
-    expect(option!.rooms.map((r) => r.kind)).toEqual(['living']);
+  it('an empty shell with unnamed rooms: the largest is the living room, with a dining end when it is 24 m² and 6 m long', () => {
+    expect(furnishOptions(newHome('Shell', 6, 4), { count: 1 })[0]!.rooms.map((r) => r.kind)).toEqual(['living', 'dining']);
+    expect(furnishOptions(newHome('Small', 5, 4), { count: 1 })[0]!.rooms.map((r) => r.kind)).toEqual(['living']);
+  });
+
+  it('a WC gets a basin and a toilet, no bath', () => {
+    const wc = buildFlat({ name: 'WC', rooms: [{ name: 'Living', x: 0, y: 0, width: 5, depth: 4 }, { name: 'WC', x: 5, y: 0, width: 1.6, depth: 2 }], doors: [{ between: ['Living', 'WC'], at: 0.5, width: 0.7 }] });
+    const [option] = furnishOptions(wc, { count: 1, areas: ['WC'] });
+    const placed = Object.values(applied(wc, option!.command).items).map((i) => i.definitionId);
+    expect(placed.some((d) => d.startsWith('home-toilet'))).toBe(true);
+    expect(placed.some((d) => /bathtub|shower/.test(d))).toBe(false);
   });
 });

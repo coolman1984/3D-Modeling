@@ -1,6 +1,6 @@
 import type { Project } from '@space-planner/core';
 import type { PackId } from '@space-planner/starter';
-import { ArrowBendDownRight, CaretDown, CaretRight, CheckCircle, Circle, Play, Plus, Sparkle, Square, X, XCircle } from '@phosphor-icons/react';
+import { ArrowBendDownRight, CaretDown, CaretRight, CheckCircle, Circle, Paperclip, Play, Plus, Sparkle, Square, X, XCircle } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { api, subscribe, type AgentAvailability, type AgentRun } from '../api.js';
 
@@ -22,6 +22,7 @@ const TOOL_WORDS: Readonly<Record<string, string>> = {
 
 const SUGGESTIONS: Readonly<Record<PackId, readonly string[]>> = {
   home: [
+    'Build this flat from the measurements below, then furnish it: show me three options and apply the best.',
     'Furnish the living room for four: a sofa, two armchairs, a rug and a coffee table 45 cm from the sofa.',
     'Fit a queen bed with nightstands in the bedroom and keep 60 cm free along one side.',
     'Lay a dining table for six near the kitchen with 75 cm behind every chair.',
@@ -172,7 +173,23 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
               The planner edits this project with the same tools you use. Every change is saved as a revision you can undo.
             </p>
           </div>
-          <textarea className="input" name="agent-prompt" rows={5} aria-label="Planning goal" placeholder="What should the plan achieve?" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+          <textarea className="input" name="agent-prompt" rows={5} aria-label="Planning goal" placeholder="What should the plan achieve? Paste the client's room sizes here, or attach their file." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+          <label className="link-btn attach-file">
+            <Paperclip size={14} />
+            Attach the client's measurements (text, CSV, Markdown, JSON)
+            <input
+              type="file"
+              hidden
+              accept=".txt,.csv,.tsv,.md,.json,text/plain,text/csv"
+              data-testid="agent-file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                void file.text().then((text) => setPrompt((p) => `${p.trim() ? `${p.trim()}\n\n` : ''}Client file "${file.name}":\n${text.slice(0, 20_000)}`));
+              }}
+            />
+          </label>
           <div>
             <div className="kicker" style={{ marginBottom: 6 }}>
               Try

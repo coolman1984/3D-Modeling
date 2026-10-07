@@ -1624,3 +1624,19 @@ button.rule-row:hover { background: var(--page); }
 .room-name { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; padding: 5px 6px; font: inherit; color: var(--ink); border-radius: var(--r-1); }
 .room-name:hover { border-color: var(--line); }
 .room-name:focus { outline: none; border-color: var(--accent); background: var(--white); }
+.attach-file { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: calc(12px * var(--ts, 1)); }
+
+/* Furnishing options (decision 0029) */
+.furnish .muted { font-size: calc(12px * var(--ts, 1)); }
+.furnish-go { width: 100%; justify-content: center; margin: 10px 0 4px; }
+.furnish-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.furnish-card { border: 1px solid var(--line); border-radius: var(--r-2); background: var(--white); padding: 10px 10px 8px; }
+.furnish-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.furnish-head { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink); text-align: left; font: inherit; }
+.furnish-title { flex: 1; font-weight: 500; font-size: calc(13px * var(--ts, 1)); }
+.swatches { display: inline-flex; }
+.swatches span { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line-mid, var(--line)); margin-right: -3px; }
+.furnish-facts { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; font-size: calc(12px * var(--ts, 1)); color: var(--ink-2); }
+.furnish-rooms { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; font-size: calc(12px * var(--ts, 1)); }
+.furnish-rooms li { display: grid; gap: 2px; }
+.furnish-actions { display: flex; justify-content: flex-end; gap: 6px; }

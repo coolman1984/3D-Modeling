@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { fromUnit, readRoom, type Project } from '@space-planner/core';
-import { demoHall, nileGateRamadanDC } from '@space-planner/starter';
+import { demoHall, newHome, nileGateRamadanDC } from '@space-planner/starter';
+
+const newHomeProject = () => newHome('Empty', 6, 5);
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readableAgentLine } from '../src/agents.js';
 import { createApp, type App } from '../src/http.js';
@@ -126,6 +128,58 @@ describe('store', () => {
 });
 
 describe('agent tools', () => {
+  it('an AI designer: a flat from measurements, three furnished options with reasons, each kept as its own project', () => {
+    const ctx = { store, actor: 'agent:designer' };
+    const rooms = [
+      { name: 'Reception', x_m: 0, y_m: 0, width_m: 8, depth_m: 4.5 },
+      { name: 'غرفة نوم رئيسية', x_m: 0, y_m: 4.5, width_m: 4, depth_m: 4 },
+      { name: 'Bath', x_m: 4, y_m: 4.5, width_m: 2.2, depth_m: 2.5 },
+      { name: 'Kitchen', x_m: 6.2, y_m: 4.5, width_m: 1.8, depth_m: 4 },
+    ];
+    const built = runTool(ctx, 'build_apartment', {
+      name: 'Client flat',
+      rooms,
+      doors: [{ between: ['Reception', 'غرفة نوم رئيسية'], at_m: 2.8 }, { between: ['Reception', 'Bath'], at_m: 0.5 }, { between: ['Reception', 'Kitchen'], at_m: 0.5 }],
+      entrance: { room: 'Reception', side: 'south' },
+      windows: [{ room: 'Reception', side: 'west', width_cm: 150 }, { room: 'غرفة نوم رئيسية', side: 'north' }],
+    });
+    expect(built.isError).toBe(false);
+    const id = /Created (p-[\w]+)/.exec(built.text)![1]!;
+    expect(built.text).toContain('Rooms from the walls (4)');
+    expect(store.getProject(id)!.space.zones!.map((z) => z.kind)).toEqual(['living', 'bedroom', 'bathroom', 'kitchen']);
+    const bad = runTool(ctx, 'build_apartment', { name: 'x', rooms: [rooms[0], { ...rooms[1], y_m: 4 }] });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain('overlap');
+
+    const options = runTool(ctx, 'furnish_options', { project_id: id });
+    expect(options.isError).toBe(false);
+    expect(options.text).toContain('Option A · Warm oak and linen');
+    expect(options.text).toContain('Option C · Charcoal and white');
+    expect(options.text).toMatch(/غرفة نوم رئيسية: Bed against the \w+ wall/);
+    expect(options.text).not.toContain('error(s)');
+
+    const applied = runTool(ctx, 'apply_furnishing', { project_id: id, option: 'B' });
+    expect(applied.isError).toBe(false);
+    expect(store.getProject(id)!.revision).toBe(1);
+    expect(Object.keys(store.getProject(id)!.items).length).toBeGreaterThan(10);
+
+    const before = store.listProjects().length;
+    const kept = runTool(ctx, 'furnish_apartment_options', { project_id: id });
+    expect(kept.isError).toBe(false);
+    expect(store.listProjects().length).toBe(before + 3);
+    expect(kept.text).toContain('Client flat · Option A · Warm oak and linen');
+
+    // The same flat, built into an existing project in one revision.
+    const target = store.createProject(newHomeProject(), 'human');
+    const into = runTool(ctx, 'build_apartment', { project_id: target.id, rooms });
+    expect(into.isError).toBe(false);
+    expect(store.getProject(target.id)!.revision).toBe(1);
+    expect(store.getProject(target.id)!.space.walls!.length).toBeGreaterThan(6);
+
+    expect(runTool(ctx, 'design_guide', {}).text).toContain('workflow: Working in Atrium as an interior designer');
+    expect(runTool(ctx, 'design_guide', { topic: 'bedroom' }).text).toContain('command position');
+  });
+
   it('draws walls, puts a door in one and removes it again, each as one revision; rooms come from the walls', () => {
     const ctx = { store, actor: 'agent:test' };
     const created = runTool(ctx, 'create_project', { name: 'Flat', activity: 'home', width_m: 4, depth_m: 3 });
@@ -555,6 +609,29 @@ describe('HTTP app', () => {
     expect(await handleMessage({ jsonrpc: '2.0', method: 'notifications/initialized' }, options)).toBeNull();
     const down = (await handleMessage({ jsonrpc: '2.0', id: 4, method: 'tools/list' }, { ...options, url: 'http://127.0.0.1:1' })) as any;
     expect(down.error.message).toContain('not running');
+  });
+
+  it('gives any MCP client the interior design skills as prompts and resources, even before the app answers', async () => {
+    const options = { url: 'http://127.0.0.1:1', actor: 'agent:any' };
+    const init = (await handleMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } }, options)) as any;
+    expect(init.result.capabilities).toEqual({ tools: {}, prompts: {}, resources: {} });
+    expect(init.result.instructions).toContain('build_apartment');
+    const prompts = (await handleMessage({ jsonrpc: '2.0', id: 2, method: 'prompts/list' }, options)) as any;
+    expect(prompts.result.prompts.map((p: { name: string }) => p.name)).toEqual(['design_flat_from_measurements', 'furnish_like_a_designer', 'review_layout']);
+    const brief = 'Reception 6 x 4.5, bedroom 4 x 3.5, bath 2 x 2.5';
+    const got = (await handleMessage({ jsonrpc: '2.0', id: 3, method: 'prompts/get', params: { name: 'design_flat_from_measurements', arguments: { brief } } }, options)) as any;
+    const text = got.result.messages[0].content.text as string;
+    expect(text).toContain(brief);
+    expect(text).toContain('build_apartment');
+    expect(text).toContain('Main walkways');
+    const missing = (await handleMessage({ jsonrpc: '2.0', id: 4, method: 'prompts/get', params: { name: 'design_flat_from_measurements', arguments: {} } }, options)) as any;
+    expect(missing.error.message).toContain('brief');
+    const resources = (await handleMessage({ jsonrpc: '2.0', id: 5, method: 'resources/list' }, options)) as any;
+    expect(resources.result.resources.map((r: { uri: string }) => r.uri)).toContain('atrium://skills/bedroom');
+    const read = (await handleMessage({ jsonrpc: '2.0', id: 6, method: 'resources/read', params: { uri: 'atrium://skills/living-room' } }, options)) as any;
+    expect(read.result.contents[0].text).toContain('Screen distance');
+    const nope = (await handleMessage({ jsonrpc: '2.0', id: 7, method: 'resources/read', params: { uri: 'atrium://skills/nope' } }, options)) as any;
+    expect(nope.error.code).toBe(-32002);
   });
 
   it('runs a local coding agent that designs through the tools', async () => {

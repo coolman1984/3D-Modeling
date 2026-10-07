@@ -20,10 +20,11 @@ journey run in the real app with screenshots, docs, pushed.
 - [x] Core: rooms of a walled flat exclude the space outside its outer walls (L-shapes)
 - [x] Starter: `buildFlat(spec)` from room rectangles + tests
 - [x] Starter: furnishing engine (bedroom, living, dining, kitchen, bath, study, hall), three options with reasons and palettes + tests
-- [ ] Starter: design skills text (space planning, clearances, orientation, styles)
-- [ ] Server: tools build_apartment, furnish_options, apply_furnishing, furnish_apartment (option projects), design_guide; MCP prompts and resources; agent instructions
-- [ ] Editor: "Furnish" options in the program (no AI needed); agent panel takes a file
-- [ ] e2e, screenshots, docs, push
+- [x] Starter: design skills text (workflow, space planning, living, bedroom, dining and kitchen, bathroom, style)
+- [x] Server: tools build_apartment, furnish_options, apply_furnishing, furnish_apartment_options, design_guide; MCP prompts and resources; agent instructions
+- [x] Editor: "Propose three options" in the Space panel (no AI needed), preview and apply; agent panel takes a file
+- [x] e2e (`designer.spec.ts`), screenshots, docs, push. Measured: three options for a 7-room flat in about 1 s in the browser
+- Later: a cost and shopping list per option (H5); more pieces and styles in the catalogue (H4); the web subscription (H7)
 
 ## Now: H1 — draw the real space (7 Oct 2026, decision 0028, `docs/04-home-studio-plan.md`)
 

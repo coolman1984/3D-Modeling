@@ -87,6 +87,8 @@ const def = (id: string) => CATALOG.get(id)!;
 /** Metres to ticks. */
 const m = (v: number) => Math.round(v * 10_000);
 const STEP = 500; // 5 cm
+/** Areas whose pieces people sit at: furnished after the rest, so their walkways stay open. */
+const SEATING = new Set(['living', 'dining', 'study']);
 
 /** The areas to furnish: each detected room, split into its named zones when it holds several. */
 export function furnishAreas(project: Project): FurnishArea[] {
@@ -121,6 +123,18 @@ export function furnishAreas(project: Project): FurnishArea[] {
       });
     }
   });
+  // A large reception with no dining room of its own: the designer gives it a dining end.
+  if (!areas.some((a) => a.kind === 'dining')) {
+    const i = areas.findIndex((a) => a.kind === 'living' && (a.x1 - a.x0) * (a.y1 - a.y0) >= 240_000_000 && Math.max(a.x1 - a.x0, a.y1 - a.y0) >= 60_000);
+    if (i >= 0) {
+      const a = areas[i]!;
+      const alongX = a.x1 - a.x0 >= a.y1 - a.y0;
+      const cut = alongX ? Math.round(a.x0 + (a.x1 - a.x0) * 0.58) : Math.round(a.y0 + (a.y1 - a.y0) * 0.58);
+      const living = alongX ? { ...a, x1: cut } : { ...a, y1: cut };
+      const dining = alongX ? { ...a, name: `${a.name} · dining`, kind: 'dining', x0: cut } : { ...a, name: `${a.name} · dining`, kind: 'dining', y0: cut };
+      areas.splice(i, 1, living, dining);
+    }
+  }
   return areas;
 }
 
@@ -366,7 +380,8 @@ function living(r: Area, palette: Palette): Draft[] {
       const kind = sofaId === 'home-sectional' ? 'corner' : sofaId === 'home-loveseat' ? 'loveseat' : 'sofa';
       if (depth < sofa.size.d + m(0.4) + coffee.size.d + m(0.8) + tv.size.d) continue;
       // A sofa 2.4–3.2 m from the screen: against its wall in a small room, floating in a large one.
-      const viewing = Math.min(depth - tv.size.d - sofa.size.d, m(3.0));
+      // Eye to screen about 2.5–3.2 m for a 65″ screen: the sofa's front edge at most 2.75 m away.
+      const viewing = Math.min(depth - tv.size.d - sofa.size.d, m(3.2) - sofa.size.d / 2);
       const floats = depth - tv.size.d - sofa.size.d > m(3.4);
       const sofaOff = floats ? depth - tv.size.d - viewing - sofa.size.d : 0;
       // In an open plan the sofa's back may face the next area instead of a wall.
@@ -387,7 +402,7 @@ function living(r: Area, palette: Palette): Draft[] {
       const sideAt = r.point(sofaSide, sofaAlong + sofa.size.w / 2 + m(0.3), sofaOff + m(0.3));
       items.push(extra({ def: side, position: { x: Math.round(sideAt.x), y: Math.round(sideAt.y) }, rotation: 0 }, 'A side table for a cup at the other end.'));
       const reasons = [
-        `The sofa faces the ${tvSide} wall, ${(Math.round((viewing + sofa.size.d / 2) / 1000) / 10).toFixed(1)} m from the screen: a comfortable viewing distance for a 65″ TV.`,
+        `The ${kind === 'corner' ? 'corner sofa' : kind} faces the ${tvSide} wall, ${(Math.round((viewing + sofa.size.d / 2) / 1000) / 10).toFixed(1)} m from the screen: a comfortable viewing distance for a 65″ TV.`,
         'The coffee table stands 42 cm from the sofa: close enough to reach, wide enough to pass.',
       ];
       let bonus = 0;
@@ -429,7 +444,10 @@ function living(r: Area, palette: Palette): Draft[] {
 
 function dining(r: Area, palette: Palette): Draft[] {
   const drafts: Draft[] = [];
-  const c = r.centre();
+  const centre = r.centre();
+  // Centred when the doorways allow, otherwise moved off them in 15 cm steps.
+  const shifts: Vec2[] = [{ x: 0, y: 0 }];
+  for (const d of [1_500, 3_000, 4_500, 6_000]) shifts.push({ x: -d, y: 0 }, { x: d, y: 0 }, { x: 0, y: -d }, { x: 0, y: d });
   const pendant = def('home-pendant');
   const ceiling = r.project.space.ceilingHeight ?? m(2.8);
   const hang = ceiling - pendant.size.h - m(0.4);
@@ -437,14 +455,15 @@ function dining(r: Area, palette: Palette): Draft[] {
   for (const setId of sets) {
     const set = def(setId);
     for (const rotation of setId === 'home-dining-round' ? [0] : [0, 90_000]) {
-      const items: Placement[] = [{ def: set, position: c, rotation }, { def: pendant, position: c, rotation: 0, elevation: hang }];
-      const reasons = [`The table is centred under its pendant, with room all round to pull the chairs out.`, `${set.seats} seats.`];
-      const board = def('home-sideboard');
-      const boardSide = SIDES.find((s) => r.slot(s, board.size.w) !== undefined && !r.windowOn(s, 0, Number.MAX_SAFE_INTEGER));
-      if (boardSide) {
-        items.push(extra(r.against(board, boardSide, r.slot(boardSide, board.size.w)!), `A sideboard on the ${boardSide} wall keeps plates and glasses at hand.`));
+      for (const [n, shift] of shifts.entries()) {
+        const c = { x: centre.x + shift.x, y: centre.y + shift.y };
+        const items: Placement[] = [{ def: set, position: c, rotation }, { def: pendant, position: c, rotation: 0, elevation: hang }];
+        const reasons = [n === 0 ? 'The table is centred in its area under its pendant, with room all round to pull the chairs out.' : 'The table stands under its pendant, moved just enough to keep the doorway clear, with room all round for the chairs.', `${set.seats} seats.`];
+        const board = def('home-sideboard');
+        const boardSide = SIDES.find((s) => r.slot(s, board.size.w) !== undefined && !r.windowOn(s, 0, Number.MAX_SAFE_INTEGER));
+        if (boardSide) items.push(extra(r.against(board, boardSide, r.slot(boardSide, board.size.w)!), `A sideboard on the ${boardSide} wall keeps plates and glasses at hand.`));
+        drafts.push({ key: `${setId}-${rotation}-${n}`, title: `${setId === 'home-dining-round' ? 'Round table' : `Table for ${set.seats}`}${rotation ? ', set across the room' : ''}`, reasons, bonus: (set.seats ?? 0) * 2 - n, items });
       }
-      drafts.push({ key: `${setId}-${rotation}`, title: `${setId === 'home-dining-round' ? 'Round table' : `Table for ${set.seats}`}${rotation ? ', set across the room' : ''}`, reasons, bonus: (set.seats ?? 0) * 2, items });
     }
   }
   return drafts;
@@ -492,6 +511,8 @@ function kitchen(r: Area): Draft[] {
 
 function bathroom(r: Area): Draft[] {
   const drafts: Draft[] = [];
+  // A guest WC: basin and toilet only.
+  const wcOnly = /\b(wc|toilet|powder)\b|تواليت/i.test(r.a.name) || (r.a.x1 - r.a.x0) * (r.a.y1 - r.a.y0) < 40_000_000;
   const basin = def('home-basin');
   const mirror = def('home-mirror');
   const toilet = def('home-toilet');
@@ -501,6 +522,10 @@ function bathroom(r: Area): Draft[] {
     const start = basinAt - (basin.size.w + toilet.size.w + m(0.4)) / 2;
     const items: Placement[] = [r.against(basin, side, start + basin.size.w / 2), extra(r.against(mirror, side, start + basin.size.w / 2, 0, wallElevation(mirror)), 'A mirror over the basin.'), r.against(toilet, side, start + basin.size.w + m(0.4) + toilet.size.w / 2)];
     const reasons = ['Basin and toilet on one wall share the plumbing; 60–70 cm free in front of each.'];
+    if (wcOnly) {
+      drafts.push({ key: `basin-${side}`, title: `Basin and toilet on the ${side} wall`, reasons, bonus: 0, items });
+      continue;
+    }
     for (const wet of SIDES.filter((s) => s !== side)) {
       const tub = def('home-bathtub');
       const tubAt = r.slot(wet, tub.size.w);
@@ -689,24 +714,63 @@ export function furnishOptions(project: Project, { count = 3, areas: only }: { c
     const unfurnished: string[] = [];
     const placed: Array<{ p: Placement; d: ItemDefinition }> = [];
     const newIds: Id[] = [];
-    for (const area of areas) {
+    // Fixed rooms first (kitchen, baths, bedrooms), the seating areas last: they then find the
+    // places that keep a walkway to every seat. The list keeps the flat's order.
+    const order = [...areas].sort((a, b) => (SEATING.has(a.kind) ? 1 : 0) - (SEATING.has(b.kind) ? 1 : 0));
+    const passes = (trial: { project: Project }) => checkHome(trial.project).every((rule) => rule.status !== 'fail');
+    type Step = { area: FurnishArea; before: Project; ranked: Arrangement[]; pick: Arrangement; added: { project: Project; ids: Id[] }; ok: boolean };
+    const steps: Step[] = [];
+    /** The preferred arrangement if it keeps the flat's rules, else the best-ranked one that does. */
+    const choose = (before: Project, area: FurnishArea, ranked: Arrangement[], skip: ReadonlySet<Arrangement> = new Set()): Omit<Step, 'area' | 'before' | 'ranked'> => {
+      const seen = offered.get(area.name) ?? new Set<string>();
+      const preferred = ranked.find((a) => !seen.has(layoutOf(a.key))) ?? ranked.find((a) => !seen.has(a.key)) ?? ranked[0]!;
+      for (const candidate of [preferred, ...ranked.filter((a) => a !== preferred)]) {
+        if (skip.has(candidate)) continue;
+        const trial = addPlacements(before, candidate.items, palette);
+        if (passes(trial)) return { pick: candidate, added: trial, ok: true };
+      }
+      return { pick: preferred, added: addPlacements(before, preferred.items, palette), ok: false };
+    };
+    for (const area of order) {
       // Each area is chosen against the flat as furnished so far in this option.
       const ranked = arrangementsFor(working, area, palette);
       if (!ranked.length) {
         if (draftsFor(new Area(working, area), palette).length || ['bedroom', 'living', 'dining', 'kitchen', 'bathroom', 'study'].includes(area.kind)) unfurnished.push(area.name);
         continue;
       }
-      const seen = offered.get(area.name) ?? new Set<string>();
-      offered.set(area.name, seen);
-      const pick = ranked.find((a) => !seen.has(layoutOf(a.key))) ?? ranked.find((a) => !seen.has(a.key)) ?? ranked[0]!;
-      seen.add(layoutOf(pick.key));
-      seen.add(pick.key);
-      rooms.push({ area: area.name, kind: area.kind, arrangement: pick.title, reasons: pick.reasons });
-      const added = addPlacements(working, pick.items, palette);
-      working = added.project;
-      newIds.push(...added.ids);
-      for (const p of pick.items) placed.push({ p, d: finished(p.def, palette) });
+      let step: Step = { area, before: working, ranked, ...choose(working, area, ranked) };
+      // No way to keep the rules here: the seating area placed just before may make room. Try
+      // its other arrangements (a few) until both keep the walkways.
+      const prev = steps.at(-1);
+      if (!step.ok && prev && prev.ok && SEATING.has(prev.area.kind)) {
+        const tried = new Set<Arrangement>([prev.pick]);
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const alt = choose(prev.before, prev.area, prev.ranked, tried);
+          if (!alt.ok) break;
+          tried.add(alt.pick);
+          const again = arrangementsFor(alt.added.project, area, palette);
+          if (!again.length) continue;
+          const next = choose(alt.added.project, area, again);
+          if (next.ok) {
+            steps[steps.length - 1] = { ...prev, ...alt };
+            step = { area, before: alt.added.project, ranked: again, ...next };
+            break;
+          }
+        }
+      }
+      steps.push(step);
+      working = step.added.project;
     }
+    for (const step of steps) {
+      const seen = offered.get(step.area.name) ?? new Set<string>();
+      offered.set(step.area.name, seen);
+      seen.add(layoutOf(step.pick.key));
+      seen.add(step.pick.key);
+      rooms.push({ area: step.area.name, kind: step.area.kind, arrangement: step.pick.title, reasons: step.pick.reasons });
+      newIds.push(...step.added.ids);
+      for (const p of step.pick.items) placed.push({ p, d: finished(p.def, palette) });
+    }
+    rooms.sort((a, b) => areas.findIndex((x) => x.name === a.area) - areas.findIndex((x) => x.name === b.area));
     const issues = checkProject(working);
     const rules = checkHome(working).filter((r) => r.status === 'fail').map((r) => r.code);
     // Old furniture of these areas goes first, so new pieces may take its ids.

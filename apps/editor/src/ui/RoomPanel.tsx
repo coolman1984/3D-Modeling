@@ -7,6 +7,7 @@ import type { Action } from '../logic/session.js';
 import { CommitField, NumberField } from './Fields.js';
 import { namedRooms } from './PlanWalls.js';
 import { nameRoom } from '../logic/walls.js';
+import { FurnishOptions } from './FurnishOptions.js';
 
 export const WALL_NAMES: Readonly<Record<Wall, string>> = {
   south: 'South wall',
@@ -93,6 +94,8 @@ function WalledSpace({ project, dispatch }: { project: Project; dispatch: (a: Ac
         ))}
       </ul>
       <p className="muted" style={{ marginTop: 8 }}>Floor inside the walls, worked out from them. Doors do not join rooms.</p>
+      <div className="section-gap" />
+      <FurnishOptions project={project} dispatch={dispatch} />
       <div className="section-gap" />
       <div className="section-title">
         <span className="kicker">Walls · {walls.length}</span>

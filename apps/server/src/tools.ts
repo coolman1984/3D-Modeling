@@ -23,7 +23,7 @@ import {
   type Wall,
   type WallSegment,
 } from '@space-planner/core';
-import { HOME_TEMPLATES, newHome, BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
+import { buildFlat, DESIGN_SKILLS, designSkill, FlatError, furnishOptions, HOME_TEMPLATES, newHome, type FlatSpec, type FurnishOption, BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
 import type { Store } from './store.js';
 
@@ -284,6 +284,21 @@ function pieceMeta(s: Record<string, unknown>): { meta?: Record<string, number> 
   if (typeof s.stop === 'number') meta.stop = Math.round(s.stop);
   if (typeof s.step === 'number') meta.step = Math.round(s.step);
   return Object.keys(meta).length > 0 ? { meta } : {};
+}
+
+function roomFilter(input: Record<string, unknown>): { areas?: string[] } {
+  const rooms = input.rooms;
+  if (rooms === undefined) return {};
+  if (!Array.isArray(rooms) || !rooms.every((r) => typeof r === 'string')) throw new ToolError('"rooms" must be a list of room names');
+  return { areas: rooms as string[] };
+}
+
+function describeOption(o: FurnishOption): string {
+  const status = o.errors === 0 && o.failedRules.length === 0 ? 'passes every check' : `${o.errors} error(s)${o.failedRules.length ? `, rules not met: ${o.failedRules.join(', ')}` : ''}`;
+  const lines = [`${o.title} — ${o.pieces} pieces, ${o.seats} seats, ${status}${o.warnings ? `, ${o.warnings} warning(s)` : ''}`];
+  for (const room of o.rooms) lines.push(`  ${room.area}: ${room.arrangement}. ${room.reasons.join(' ')}`);
+  if (o.unfurnished.length) lines.push(`  Not furnished (no arrangement fits): ${o.unfurnished.join(', ')}`);
+  return lines.join('\n');
 }
 
 // ---------- tools ----------
@@ -919,6 +934,164 @@ export const TOOLS: readonly ToolDef[] = [
       if (commands.length === 0) throw new ToolError('nothing to change');
       const updated = commit(ctx, project, commands, str(input, 'summary', true) || 'Moved items');
       return afterChange(updated, `Applied ${commands.length} change(s).`);
+    },
+  },
+  {
+    name: 'build_apartment',
+    description:
+      'Create a flat from its measurements in one step: rooms as rectangles on their wall centre lines (metres, x east, y north, origin south-west), doors between named rooms, the entrance and the windows. Rooms that touch share a 10 cm wall; edges with a room on one side only become 20 cm outer walls. Room kinds (bedroom, bathroom, kitchen, living, dining, hall, study) are read from the names in English or Arabic, or given. Returns the new project id and the area of every room. Read design_guide("workflow") first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: { type: 'string', description: 'Optional: rebuild this project as the flat (its furniture is removed) instead of creating a new one.' },
+        name: { type: 'string' },
+        rooms: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { name: { type: 'string' }, kind: { type: 'string' }, x_m: { type: 'number' }, y_m: { type: 'number' }, width_m: { type: 'number' }, depth_m: { type: 'number' } },
+            required: ['name', 'x_m', 'y_m', 'width_m', 'depth_m'],
+          },
+        },
+        doors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { between: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 2 }, width_cm: { type: 'number' }, at_m: { type: 'number', description: 'From the west or south end of the shared wall to the door (default 0.15).' } },
+            required: ['between'],
+          },
+        },
+        entrance: {
+          type: 'object',
+          properties: { room: { type: 'string' }, side: { type: 'string', enum: ['south', 'north', 'west', 'east'] }, width_cm: { type: 'number' }, at_m: { type: 'number' } },
+          required: ['room', 'side'],
+        },
+        windows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { room: { type: 'string' }, side: { type: 'string', enum: ['south', 'north', 'west', 'east'] }, width_cm: { type: 'number' }, at_m: { type: 'number' }, sill_cm: { type: 'number' }, height_cm: { type: 'number' } },
+            required: ['room', 'side'],
+          },
+        },
+        ceiling_m: { type: 'number' },
+        summary,
+      },
+      required: ['rooms'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const target = typeof input.project_id === 'string' && input.project_id ? load(ctx, input) : undefined;
+      const cmM = (v: unknown) => (typeof v === 'number' ? v / 100 : undefined);
+      const opt = <T,>(v: T | undefined, key: string) => (v === undefined ? {} : { [key]: v });
+      const spec: FlatSpec = {
+        name: target?.name ?? str(input, 'name'),
+        rooms: list(input, 'rooms').map((r) => ({ name: str(r, 'name'), ...opt(typeof r.kind === 'string' ? r.kind : undefined, 'kind'), x: num(r, 'x_m'), y: num(r, 'y_m'), width: num(r, 'width_m'), depth: num(r, 'depth_m') })),
+        doors: list(input, 'doors', true).map((d) => {
+          const between = d.between;
+          if (!Array.isArray(between) || between.length !== 2 || !between.every((b) => typeof b === 'string')) throw new ToolError('a door needs "between": two room names');
+          return { between: [between[0] as string, between[1] as string] as const, ...opt(cmM(d.width_cm), 'width'), ...opt(num(d, 'at_m', true), 'at') };
+        }),
+        ...(input.entrance && typeof input.entrance === 'object'
+          ? (() => {
+              const e = input.entrance as Record<string, unknown>;
+              return { entrance: { room: str(e, 'room'), side: str(e, 'side') as 'south', ...opt(cmM(e.width_cm), 'width'), ...opt(num(e, 'at_m', true), 'at') } };
+            })()
+          : {}),
+        windows: list(input, 'windows', true).map((w) => ({ room: str(w, 'room'), side: str(w, 'side') as 'south', ...opt(cmM(w.width_cm), 'width'), ...opt(num(w, 'at_m', true), 'at'), ...opt(cmM(w.sill_cm), 'sill'), ...opt(cmM(w.height_cm), 'height') })),
+        ...opt(num(input, 'ceiling_m', true), 'ceiling'),
+      };
+      let flat: Project;
+      try {
+        flat = buildFlat(spec);
+      } catch (error) {
+        if (error instanceof FlatError) throw new ToolError(error.message);
+        throw error;
+      }
+      if (target) {
+        // The same project becomes the flat: the home types it lacks, its old furniture out, the new space in.
+        const commands: Command[] = [
+          ...Object.values(flat.catalog).filter((d) => !target.catalog[d.id]).map((definition): Command => ({ type: 'catalog.define', definition })),
+          ...Object.keys(target.items).map((id): Command => ({ type: 'item.remove', id })),
+          { type: 'space.set', space: flat.space },
+        ];
+        const updated = commit(ctx, target, commands, str(input, 'summary', true) || 'Built the flat from its measurements');
+        return afterChange(updated, `Rebuilt ${updated.id} as the flat.`) + `\n\n${describeProject(updated)}`;
+      }
+      const created = ctx.store.createProject(flat, ctx.actor, 'Built from measurements');
+      return `Created ${created.id}.\n\n${describeProject(created)}`;
+    },
+  },
+  {
+    name: 'furnish_options',
+    description:
+      'Three ways to furnish a flat (or only the named rooms), as an interior designer would propose them: different arrangements on different walls and different finishes (warm oak and linen; walnut and sage; charcoal and white). Each option lists, per room, the arrangement and the reasons, and whether it passes the checks. Nothing changes until apply_furnishing.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, rooms: { type: 'array', items: { type: 'string' }, description: 'Room names to furnish; all rooms when left out.' } },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const options = furnishOptions(project, { ...roomFilter(input) });
+      return options.map(describeOption).join('\n\n') + '\n\nApply one with apply_furnishing (option "A", "B" or "C"), or keep all three as projects with furnish_apartment_options.';
+    },
+  },
+  {
+    name: 'apply_furnishing',
+    description: 'Furnish the flat (or the named rooms) with option A, B or C of furnish_options, replacing the furniture already in those rooms, in one revision.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, option: { type: 'string', enum: ['A', 'B', 'C'] }, rooms: { type: 'array', items: { type: 'string' } }, summary },
+      required: ['project_id', 'option'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const index = 'ABC'.indexOf(str(input, 'option').toUpperCase());
+      if (index < 0) throw new ToolError('option is "A", "B" or "C"');
+      const option = furnishOptions(project, { count: index + 1, ...roomFilter(input) })[index]!;
+      if (option.pieces === 0) throw new ToolError('nothing could be placed: name the rooms (living, bedroom, kitchen, bath…) or make them larger');
+      const updated = commit(ctx, project, [option.command], str(input, 'summary', true) || `Furnished: ${option.title}`);
+      return afterChange(updated, `${option.title} applied: ${option.pieces} pieces.`);
+    },
+  },
+  {
+    name: 'furnish_apartment_options',
+    description: 'Keep every option side by side: creates one new project per furnishing option (named "<flat> · Option A · …"), so the client can open and compare them. The original stays as it is.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, count: { type: 'number', description: '1 to 3 (default 3).' } },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const count = Math.max(1, Math.min(3, Math.round(num(input, 'count', true) ?? 3)));
+      const lines: string[] = [];
+      for (const option of furnishOptions(project, { count })) {
+        const copy = ctx.store.createProject({ ...project, name: `${project.name} · ${option.title}`.slice(0, 200) }, ctx.actor, `Copied from ${project.name} for ${option.title}`);
+        const furnished = commit(ctx, copy, [option.command], `Furnished: ${option.title}`);
+        lines.push(`${furnished.id}: "${furnished.name}"\n${describeOption(option)}`);
+      }
+      return `Created ${lines.length} projects:\n\n${lines.join('\n\n')}`;
+    },
+  },
+  {
+    name: 'design_guide',
+    description: `Interior design guides to work like an expert designer: ${DESIGN_SKILLS.map((s) => `"${s.id}" (${s.description})`).join('; ')}. Without a topic, lists them.`,
+    inputSchema: {
+      type: 'object',
+      properties: { topic: { type: 'string', enum: [...DESIGN_SKILLS.map((s) => s.id), 'all'] } },
+      additionalProperties: false,
+    },
+    run: (_ctx, input) => {
+      const topic = typeof input.topic === 'string' ? input.topic : '';
+      if (topic === 'all') return DESIGN_SKILLS.map((s) => s.text).join('\n\n');
+      const skill = designSkill(topic);
+      if (skill) return skill.text;
+      return DESIGN_SKILLS.map((s) => `${s.id}: ${s.title} — ${s.description}`).join('\n');
     },
   },
   {
