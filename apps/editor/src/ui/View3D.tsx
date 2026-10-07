@@ -1,4 +1,4 @@
-import { boundsOf, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2, type Zone } from '@space-planner/core';
+import { boundsOf, openingSwing, wallFrame, wallPoint, wallReach, type Id, type Issue, type ItemDefinition, type ItemInstance, type Project, type Vec2, type Zone } from '@space-planner/core';
 import { detectPack, materialOf, materialsOf, rackSpecOf, rackStock, shapeOf, slotId, slotPlacement, type PackId } from '@space-planner/starter';
 import { ArrowClockwise, ArrowCounterClockwise, Camera, CornersOut, Cube, Gauge, Scissors, Square } from '@phosphor-icons/react';
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
@@ -447,6 +447,80 @@ function wallSkin(pack: PackId, height: number): (length: number) => THREE.Mater
   return textured(plaster(), 0xf7f5f0);
 }
 
+const WINDOW_SILL = 0.9;
+const WINDOW_HEIGHT = 1.2;
+
+/**
+ * Drawn walls (decision 0028): each wall as boxes along its centre line, reaching into the walls
+ * it meets so corners close; doors leave the opening up to the lintel with the leaf standing open;
+ * windows leave the wall below the sill and above the head, with glass between.
+ */
+function drawnWalls(project: Project, group: THREE.Group, height: number, skin: (length: number) => THREE.Material, cap: THREE.Material | undefined, cutaway: boolean, selected: ReadonlySet<Id>): void {
+  const { space } = project;
+  const south = boundsOf(space.boundary).minY;
+  for (const wall of space.walls ?? []) {
+    const frame = wallFrame(wall);
+    // The cutaway leaves the wall nearest the camera out (the outer south wall).
+    if (cutaway && Math.max(wall.a.y, wall.b.y) <= south + wall.thickness) continue;
+    const reach = wallReach(space, wall);
+    const top = Math.min(height, wall.height === undefined ? height : mt(wall.height));
+    const openings = (space.openings ?? []).filter((o) => o.wall === wall.id).sort((x, y) => x.offset - y.offset);
+    const pieces: Array<[number, number, number, number]> = []; // from, to (ticks along), bottom, top (metres)
+    let cursor = -reach.start;
+    for (const o of openings) {
+      const [s0, s1] = [o.offset, o.offset + o.width];
+      if (s0 > cursor) pieces.push([cursor, s0, 0, top]);
+      if (o.kind === 'door') {
+        const head = o.height === undefined ? DOOR_HEIGHT : mt(o.height);
+        if (top > head) pieces.push([s0, s1, head, top]);
+      } else {
+        const sill = o.sill === undefined ? WINDOW_SILL : mt(o.sill);
+        const head = sill + (o.height === undefined ? WINDOW_HEIGHT : mt(o.height));
+        pieces.push([s0, s1, 0, Math.min(sill, top)]);
+        if (top > head) pieces.push([s0, s1, head, top]);
+        if (top > sill) {
+          const pane = new THREE.Mesh(new THREE.BoxGeometry(mt(o.width), Math.min(head, top) - sill, 0.012), M.glass());
+          pane.position.copy(at(wallPoint(frame, (s0 + s1) / 2), (sill + Math.min(head, top)) / 2));
+          pane.rotation.y = Math.atan2(frame.along.y, frame.along.x);
+          group.add(pane);
+        }
+      }
+      cursor = Math.max(cursor, s1);
+    }
+    if (frame.length + reach.end > cursor) pieces.push([cursor, frame.length + reach.end, 0, top]);
+    const thickness = mt(wall.thickness);
+    for (const [s0, s1, bottom, upper] of pieces) {
+      const len = mt(s1 - s0);
+      if (len <= 0.001 || upper - bottom <= 0.001) continue;
+      // The chosen wall shows in the accent colour, as on the plan.
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(len, upper - bottom, thickness), selected.has(wall.id) ? new THREE.MeshStandardMaterial({ color: COLORS.selected, roughness: 0.7 }) : skin(len));
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.position.copy(at(wallPoint(frame, (s0 + s1) / 2), (upper + bottom) / 2));
+      mesh.rotation.y = Math.atan2(frame.along.y, frame.along.x);
+      mesh.userData.wallId = wall.id;
+      group.add(mesh);
+      if (cap && upper === top && upper < height + 0.001 && bottom < upper) {
+        const edge = new THREE.Mesh(new THREE.BoxGeometry(len + 0.002, 0.02, thickness + 0.01), cap);
+        edge.position.copy(at(wallPoint(frame, (s0 + s1) / 2), upper + 0.01));
+        edge.rotation.y = mesh.rotation.y;
+        group.add(edge);
+      }
+    }
+    for (const o of openings) {
+      const swing = openingSwing(space, o);
+      if (!swing) continue;
+      const doorHeight = Math.min(o.height === undefined ? DOOR_HEIGHT : mt(o.height), top);
+      const open = ((swing.angle + (swing.swing === 'left' ? 90_000 : -90_000)) / 1000) * (Math.PI / 180);
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(mt(swing.width), doorHeight, 0.04), M.walnut());
+      leaf.position.copy(at({ x: swing.hinge.x + (Math.cos(open) * swing.width) / 2, y: swing.hinge.y + (Math.sin(open) * swing.width) / 2 }, doorHeight / 2));
+      leaf.rotation.y = open;
+      leaf.castShadow = true;
+      group.add(leaf);
+    }
+  }
+}
+
 /** Doors by role: gates are open posts, docks get a leveller plate, other doors a leaf. */
 function doors(project: Project, group: THREE.Group, fullWalls: boolean): void {
   for (const door of project.space.doors) {
@@ -557,11 +631,15 @@ function buildScene(project: Project, issues: readonly Issue[], selectedIds: rea
   const south = box.minY;
   const skin = wallSkin(pack, wallHeight);
   const cap = !outdoor && !fullWalls && pack !== 'container' ? M.paint(0x3a3f48) : undefined;
-  for (let i = 0; i < b.length; i++) {
-    const a = b[i]!;
-    const c = b[(i + 1) % b.length]!;
-    if (look.cutaway && a.y === south && c.y === south) continue;
-    wallEdge(project, a, c, wallHeight, group, skin, cap);
+  if (project.space.walls?.length) {
+    drawnWalls(project, group, wallHeight, skin, cap, look.cutaway === true, new Set(selectedIds));
+  } else {
+    for (let i = 0; i < b.length; i++) {
+      const a = b[i]!;
+      const c = b[(i + 1) % b.length]!;
+      if (look.cutaway && a.y === south && c.y === south) continue;
+      wallEdge(project, a, c, wallHeight, group, skin, cap);
+    }
   }
   doors(project, group, fullWalls);
 

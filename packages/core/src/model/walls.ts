@@ -144,7 +144,18 @@ const MAX_CELLS = 4_000_000;
  * cell along each wall. Deterministic: rooms come in the order of their lowest, then
  * westernmost, cell.
  */
-export function detectRooms(space: Space): DetectedRoom[] {
+export function detectRooms(space: Space): readonly DetectedRoom[] {
+  return roomMap(space).rooms;
+}
+
+/** The rooms, and which room a point lies in (index into `rooms`, or -1 on a wall or outside). */
+export interface RoomMap {
+  readonly rooms: readonly DetectedRoom[];
+  roomAt(p: Vec2): number;
+}
+
+/** {@link detectRooms}, with a lookup from a point to its room (to name rooms from labelled zones). */
+export function roomMap(space: Space): RoomMap {
   const xs = space.boundary.map((p) => p.x);
   const ys = space.boundary.map((p) => p.y);
   let cell = 100;
@@ -157,7 +168,7 @@ export function detectRooms(space: Space): DetectedRoom[] {
   const y0 = Math.floor(minY / cell) * cell;
   const cols = Math.ceil((minX + spanX - x0) / cell);
   const rows = Math.ceil((minY + spanY - y0) / cell);
-  if (cols <= 0 || rows <= 0) return [];
+  if (cols <= 0 || rows <= 0) return { rooms: [], roomAt: () => -1 };
 
   // 1 = floor, 0 = outside or wall.
   const grid = new Uint8Array(cols * rows);
@@ -205,7 +216,23 @@ export function detectRooms(space: Space): DetectedRoom[] {
       max: { x: x0 + (c1 + 1) * cell, y: y0 + (r1 + 1) * cell },
     });
   }
-  return rooms.filter((r) => r.area >= MIN_ROOM_AREA);
+  const kept = new Int32Array(rooms.length).fill(-1);
+  const result: DetectedRoom[] = [];
+  rooms.forEach((r, i) => {
+    if (r.area < MIN_ROOM_AREA) return;
+    kept[i] = result.length;
+    result.push(r);
+  });
+  return {
+    rooms: result,
+    roomAt(p: Vec2): number {
+      const c = Math.floor((p.x - x0) / cell);
+      const r = Math.floor((p.y - y0) / cell);
+      if (c < 0 || r < 0 || c >= cols || r >= rows) return -1;
+      const l = label[r * cols + c]!;
+      return l < 0 ? -1 : kept[l]!;
+    },
+  };
 }
 
 /** Sets every cell whose centre lies inside the polygon (even-odd scanline at cell centres). */

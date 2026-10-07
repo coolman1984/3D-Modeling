@@ -1,6 +1,7 @@
 import { add, area, boundsOf, footprintOf, itemPolygon, rectangle, rotate, toSquareMetres, type Id, type Issue, type Project } from '@space-planner/core';
 import { formatCount, formatSquareMetres } from '../logic/format.js';
 import { homeFill, homeSymbol } from './PlanSymbols.js';
+import { PlanWalls, RoomAreas } from './PlanWalls.js';
 import { fitViewport, pathOf, toScreen } from '../logic/viewport.js';
 import { zoneStyle } from '../logic/zoneStyle.js';
 import type { CSSProperties } from 'react';
@@ -34,6 +35,7 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
     grid.push(`M${a.x.toFixed(1)},${a.y.toFixed(1)}H${b.x.toFixed(1)}`);
   }
   const wall = Math.min(10, Math.max(3, 2_000 * v.scale));
+  const walled = (project.space.walls?.length ?? 0) > 0;
   return (
     <svg className="plan-drawing" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Plan seen from above">
       <defs>
@@ -41,8 +43,8 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
           <line x1="0" y1="0" x2="0" y2="5" className="hatch-line" />
         </pattern>
       </defs>
-      <path d={pathOf(v, project.space.boundary)} className="wall" style={{ strokeWidth: wall * 2 }} />
-      <path d={pathOf(v, project.space.boundary)} className="floor" />
+      {!walled && <path d={pathOf(v, project.space.boundary)} className="wall" style={{ strokeWidth: wall * 2 }} />}
+      <path d={pathOf(v, project.space.boundary)} className={`floor${walled ? ' walled' : ''}`} />
       <path d={grid.join('')} className="grid" />
       {(project.space.zones ?? []).map((zone) => {
         const style = zoneStyle(zone.kind);
@@ -52,6 +54,7 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
       {project.space.obstacles.map((o) => (
         <path key={o.id} d={pathOf(v, o.polygon)} className={o.kind === 'column' ? 'column' : 'blocked-zone'} style={o.kind === 'column' ? undefined : { fill: 'url(#report-hatch)' }} />
       ))}
+      <PlanWalls v={v} project={project} />
       {project.space.doors.map((d) => {
         const h = toScreen(v, d.hinge);
         const c = toScreen(v, add(d.hinge, rotate({ x: d.width, y: 0 }, d.angle)));
@@ -92,8 +95,9 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
           </g>
         );
       })}
+      {walled && <RoomAreas v={v} project={project} testId={false} />}
       {(project.space.zones ?? []).map((zone) => {
-        if (!zoneStyle(zone.kind).room) return null;
+        if (walled || !zoneStyle(zone.kind).room) return null;
         const b = boundsOf(zone.polygon);
         const corner = toScreen(v, { x: b.minX, y: b.maxY });
         const name = typeof zone.meta?.label === 'string' ? zone.meta.label : zone.kind;

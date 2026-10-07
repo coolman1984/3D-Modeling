@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
-/** Accepts "1,5" and Arabic-Indic digits as well as "1.5". */
+/** Accepts "1,5", the Arabic decimal sign "١٫٥" and Arabic-Indic digits as well as "1.5". */
 export function parseNumber(text: string): number {
-  return Number(text.trim().replace(',', '.').replace(/[٠-٩]/g, (d) => String(ARABIC_DIGITS.indexOf(d))));
+  return Number(text.trim().replace(/[,٫]/, '.').replace(/[٠-٩]/g, (d) => String(ARABIC_DIGITS.indexOf(d))));
 }
 
 interface NumberFieldProps {

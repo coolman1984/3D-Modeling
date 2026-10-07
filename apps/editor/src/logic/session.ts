@@ -108,8 +108,10 @@ function pick(current: readonly Id[], ids: readonly Id[], mode: SelectMode): rea
   return [...current.filter((id) => !flip.has(id)), ...[...flip].filter((id) => !current.includes(id))];
 }
 
+/** Selected ids that still exist: placed items, drawn walls, doors and windows. */
 function keep(project: Project, ids: readonly Id[]): readonly Id[] {
-  return ids.filter((id) => project.items[id] !== undefined);
+  const { walls = [], openings = [] } = project.space;
+  return ids.filter((id) => project.items[id] !== undefined || walls.some((w) => w.id === id) || openings.some((o) => o.id === id));
 }
 
 /** True when a command would change anything besides the revision counter (a drag back to the start does not). */

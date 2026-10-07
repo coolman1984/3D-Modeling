@@ -82,7 +82,8 @@ import { HistoryPanel } from '../ui/HistoryPanel.js';
 import { PropertiesPanel, ReviewPanel, statusLine, summarize } from '../ui/Inspector.js';
 import { ItemTypeDialog, LibraryPanel } from '../ui/ItemTypes.js';
 import { ControlsPanel, GRID_OPTIONS, ObjectsPanel } from '../ui/Panels.js';
-import { PlanCanvas } from '../ui/PlanCanvas.js';
+import { PlanCanvas, type PlanTool } from '../ui/PlanCanvas.js';
+import { removeWallsAndOpenings } from '../logic/walls.js';
 import { RoomPanel } from '../ui/RoomPanel.js';
 import type { SceneLook } from '../ui/View3D.js';
 
@@ -348,7 +349,9 @@ function Editor({ initial }: { initial: Project }) {
   const lastPane = useRef<'plan' | '3d'>('plan');
   const nudge = useRef<{ dx: number; dy: number; dz: number; repeats: number } | null>(null);
   const clipboard = useRef<readonly ItemInstance[]>([]);
-  const blocked = preview !== null || editingType !== null;
+  const [tool, setTool] = useState<PlanTool>('select');
+  // A drawing tool owns the keyboard (typed lengths, Esc) until it is put down.
+  const blocked = preview !== null || editingType !== null || tool !== 'select';
   useEffect(() => {
     const typing = (event: Event) => ownsKeys(event.target);
     const ids = session.selectedIds;
@@ -409,9 +412,11 @@ function Editor({ initial }: { initial: Project }) {
         case 'select-all':
           dispatch({ type: 'select', ids: Object.keys(project.items) });
           break;
-        case 'delete':
-          run(removeCommands(project, ids), []);
+        case 'delete': {
+          // Items, walls, doors and windows go together, as one step.
+          run(toBatch([removeCommands(project, ids), removeWallsAndOpenings(project, ids) ?? null].filter((c): c is Command => c !== null)), []);
           break;
+        }
         case 'rotate':
           run(rotateCommands(project, ids, intent.by));
           break;
@@ -722,6 +727,8 @@ function Editor({ initial }: { initial: Project }) {
                 itemFills={planFills}
                 itemLabels={planLabels}
                 route={routePoints}
+                tool={tool}
+                onTool={setTool}
               />
             </section>
           )}

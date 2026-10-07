@@ -10,7 +10,9 @@ import {
   detectRooms,
   openingSwing,
   openingSwingPolygon,
+  measureProject,
   rectangleBoundary,
+  roomMap,
   serializeProject,
   validateProject,
   validateSpace,
@@ -143,9 +145,15 @@ describe('walls and openings: geometry', () => {
     expect(rooms[0]!.label.x).toBeGreaterThan(cm(100));
     expect(rooms[0]!.label.x).toBeLessThan(cm(220));
     expect(rooms[1]!.label.x).toBeGreaterThan(cm(380));
+    const map = roomMap(flat());
+    expect([map.roomAt(p(100, 100)), map.roomAt(p(500, 100)), map.roomAt(p(300, 100)), map.roomAt(p(-5, 100))]).toEqual([0, 1, -1, -1]);
     // Without the partition: one room of 5.60 × 3.60 m = 20.16 m².
     const open = detectRooms(flat({ walls: OUTER, openings: [WINDOW] }));
     expect(open.map((r) => m2(r.area))).toEqual([20.16]);
+  });
+
+  it('the floor area of a walled space is its rooms: 2 × 9.90 m²', () => {
+    expect(m2(measureProject(project(flat())).floorArea)).toBeCloseTo(19.8, 6);
   });
 
   it('room areas plus wall areas fill the boundary when walls run on whole centimetres', () => {

@@ -1,10 +1,12 @@
-import { fromUnit, readRoom, roomProblems, roomSpace, toUnit, type ColumnSpec, type DoorSpec, type Project, type RoomSpec, type Wall } from '@space-planner/core';
+import { fromUnit, readRoom, roomProblems, roomSpace, toSquareMetres, toUnit, type ColumnSpec, type DoorSpec, type Project, type RoomSpec, type Wall } from '@space-planner/core';
 import { CaretDown, CaretRight, DoorOpen, Plus, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { formatSquareMetres } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import type { Action } from '../logic/session.js';
-import { NumberField } from './Fields.js';
+import { CommitField, NumberField } from './Fields.js';
+import { namedRooms } from './PlanWalls.js';
+import { nameRoom } from '../logic/walls.js';
 
 export const WALL_NAMES: Readonly<Record<Wall, string>> = {
   south: 'South wall',
@@ -53,6 +55,72 @@ function draftOf(project: Project): RoomDraft | null {
 
 /** Edit the room the way people describe it: size, ceiling, doors on walls, columns. Applied as one step. */
 export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (a: Action) => void }) {
+  // Drawn walls are edited on the plan; this panel then lists the rooms and keeps the ceiling.
+  if (project.space.walls?.length) return <WalledSpace project={project} dispatch={dispatch} />;
+  return <RectangleRoom project={project} dispatch={dispatch} />;
+}
+
+function WalledSpace({ project, dispatch }: { project: Project; dispatch: (a: Action) => void }) {
+  const rooms = namedRooms(project.space);
+  const walls = project.space.walls ?? [];
+  const openings = project.space.openings ?? [];
+  const total = rooms.reduce((sum, r) => sum + r.area, 0);
+  const ceiling = project.space.ceilingHeight === undefined ? undefined : toUnit(project.space.ceilingHeight, 'm');
+  return (
+    <div className="panel-scroll panel-pad" aria-label="Walls and rooms">
+      <div className="section-title">
+        <span className="kicker">Rooms · {rooms.length}</span>
+        <span className="faint">{formatSquareMetres(Math.round(toSquareMetres(total) * 100) / 100)}</span>
+      </div>
+      <ul className="room-list">
+        {rooms.map((r, i) => (
+          <li key={`${i}-${r.name ?? ''}`}>
+            <input
+              className="room-name"
+              aria-label={`Name of room ${i + 1}`}
+              placeholder={`Room ${i + 1} · name it`}
+              defaultValue={r.name ?? ''}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+              onBlur={(e) => {
+                const value = e.target.value.trim();
+                if (value === (r.name ?? '')) return;
+                const command = nameRoom(project, r, value);
+                if (command) dispatch({ type: 'command', command });
+              }}
+            />
+            <span className="faint">{formatSquareMetres(Math.round(toSquareMetres(r.area) * 100) / 100)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="muted" style={{ marginTop: 8 }}>Floor inside the walls, worked out from them. Doors do not join rooms.</p>
+      <div className="section-gap" />
+      <div className="section-title">
+        <span className="kicker">Walls · {walls.length}</span>
+        <span className="faint">
+          {openings.filter((o) => o.kind === 'door').length} doors · {openings.filter((o) => o.kind === 'window').length} windows
+        </span>
+      </div>
+      <p className="muted">Draw with the wall tool on the plan (W): click corner to corner, or type a length and press Enter. Click a wall to change its length or thickness, or to add a door or window.</p>
+      <div className="section-gap" />
+      <div className="section-title">
+        <span className="kicker">Ceiling</span>
+      </div>
+      <CommitField
+        label="Ceiling"
+        wideKey
+        ariaLabel="Ceiling height"
+        unit="cm"
+        value={ceiling === undefined ? 0 : Math.round(ceiling * 100)}
+        onCommit={(v) => {
+          const { ceilingHeight: _c, ...rest } = project.space;
+          dispatch({ type: 'command', command: { type: 'space.set', space: v > 0 ? { ...rest, ceilingHeight: fromUnit(v, 'cm') } : rest } });
+        }}
+      />
+    </div>
+  );
+}
+
+function RectangleRoom({ project, dispatch }: { project: Project; dispatch: (a: Action) => void }) {
   const [draft, setDraft] = useState(() => draftOf(project));
   const [dirty, setDirty] = useState(false);
   const [openDoor, setOpenDoor] = useState<string | null>(null);

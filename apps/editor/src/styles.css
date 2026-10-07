@@ -593,6 +593,18 @@ select.input { padding: 0 6px; }
 .grid { stroke: rgba(11, 13, 18, 0.08); stroke-width: 1; fill: none; }
 .wall { fill: none; stroke: var(--ink); stroke-linejoin: miter; }
 .column { fill: var(--ink); }
+/* Drawn walls (decision 0028): solid, corners joined. */
+.wall-solid { fill: var(--ink); }
+.wall-solid.selected { fill: var(--accent); }
+.opening-gap { fill: var(--paper); }
+.plan-drawing .opening-gap { fill: var(--white); }
+.opening-frame { fill: var(--paper); stroke: var(--ink); stroke-width: 1; }
+.plan-drawing .opening-frame { fill: var(--white); }
+.window-glass { stroke: var(--ink-2); stroke-width: 1; }
+.opening.selected .opening-frame, .opening.selected .opening-gap { fill: var(--accent-soft); }
+.room-area { font-size: calc(12px * var(--ts, 1)); font-weight: 500; fill: var(--ink-2); paint-order: stroke; stroke: var(--paper); stroke-opacity: 0.85; stroke-width: 3px; stroke-linejoin: round; font-variant-numeric: tabular-nums; }
+.room-area-name { font-size: calc(9.5px * var(--ts, 1)); letter-spacing: 0.12em; fill: var(--ink-3); }
+.plan-drawing .room-area { stroke: var(--white); }
 .blocked-zone { fill: url(#hatch); stroke: var(--ink-2); stroke-width: 1; }
 .hatch-line { stroke: rgba(11, 13, 18, 0.35); stroke-width: 1; }
 .door-gap { stroke: var(--paper); stroke-linecap: butt; }
@@ -1586,3 +1598,27 @@ button.rule-row:hover { background: var(--page); }
 @media (prefers-reduced-motion: reduce) { .opening-bar { animation: none; background: var(--accent-line); } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .view3d-loading { display: flex; align-items: center; justify-content: center; color: var(--ink-3); font-size: calc(13px * var(--ts, 1)); }
+.opening-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+
+/* Drawing walls (decision 0028) */
+.plan.tool-wall, .plan.tool-door, .plan.tool-window { cursor: crosshair; }
+.wall-solid { cursor: pointer; }
+.plan.tool-wall .wall-solid, .plan.tool-door .wall-solid, .plan.tool-window .wall-solid { cursor: crosshair; }
+.opening { cursor: ew-resize; }
+.wall-end { fill: var(--white); stroke: var(--accent); stroke-width: 2; cursor: move; }
+.wall-length { font-size: calc(11px * var(--ts, 1)); font-weight: 500; fill: var(--accent); paint-order: stroke; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; font-variant-numeric: tabular-nums; }
+.draw-line { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; }
+.draw-snap { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.draw-snap.end { fill: var(--accent-soft); stroke-width: 2; }
+.draw-snap.wall { stroke-dasharray: 2 2; }
+.draw-tools { position: absolute; top: 16px; right: 16px; z-index: 3; display: flex; align-items: center; gap: 2px; padding: 3px; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--line); border-radius: var(--r-2); box-shadow: 0 1px 2px rgba(11, 13, 18, 0.05), 0 6px 20px rgba(11, 13, 18, 0.05); }
+.draw-tools button { width: 32px; height: 30px; display: grid; place-items: center; background: transparent; border: 0; border-radius: var(--r-1, 4px); color: var(--ink-2); cursor: pointer; }
+.draw-tools button:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
+.draw-tools button[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); }
+.draw-tools button:disabled { opacity: 0.35; cursor: default; }
+.draw-hint { order: -1; padding: 0 10px 0 8px; border-right: 1px solid var(--line); margin-right: 4px; font-size: calc(12px * var(--ts, 1)); color: var(--ink-2); white-space: nowrap; }
+.room-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 0; }
+.room-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: calc(13px * var(--ts, 1)); }
+.room-name { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; padding: 5px 6px; font: inherit; color: var(--ink); border-radius: var(--r-1); }
+.room-name:hover { border-color: var(--line); }
+.room-name:focus { outline: none; border-color: var(--accent); background: var(--white); }

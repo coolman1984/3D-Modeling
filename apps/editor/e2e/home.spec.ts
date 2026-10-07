@@ -13,9 +13,12 @@ test('apartment: a furnished one-bedroom in one click, hung art on a wall, 3D, a
   await saved(page);
   const id = /#\/p\/([\w-]+)/.exec(page.url())![1]!;
 
-  // The plan reads like an interior plan: symbols, room names with areas, and no issues.
+  // The plan reads like an interior plan: real walls with doors, symbols, each room's area from
+  // its walls (the bedroom: 4.5 × 2.95 m), and no issues.
   await expect(page.locator('.item-symbol').first()).toBeVisible();
-  await expect(page.locator('.room-label').filter({ hasText: 'BEDROOM' })).toBeVisible();
+  await expect(page.locator('[data-wall]')).toHaveCount(8);
+  await expect(page.locator('[data-opening]')).toHaveCount(3);
+  await expect(page.locator('[data-room]').filter({ hasText: 'BEDROOM' })).toHaveText(/BEDROOM\s*13\.28 m²/);
   await expect(page.getByText('No issues found')).toBeVisible();
 
   // A print from the Decor shelf goes on a wall, at its own height, facing the room.
