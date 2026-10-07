@@ -11,15 +11,15 @@ import type { ReactNode } from 'react';
 
 const CM = 100; // ticks per centimetre
 
-/** Soft fill of a piece in the plan: its fabric or wood, lightened toward the paper. */
+/** Soft fill of a piece in the plan: its fabric or wood, mixed into the paper colour. */
 export function homeFill(def: ItemDefinition): string | undefined {
   const fabric = typeof def.meta?.fabric === 'number' ? (def.meta.fabric as number) : undefined;
   const woods: Record<string, number> = { oak: 0xc49a6c, walnut: 0x7a5236, white: 0xf3f1ec, black: 0x2a2b2e, marble: 0xe9e5de };
   const base = fabric ?? (typeof def.meta?.wood === 'string' ? woods[def.meta.wood as string] : undefined);
   if (base === undefined) return undefined;
-  const k = def.category === 'rug' ? 0.45 : 0.32;
-  const mix = (c: number) => Math.round(c * k + 255 * (1 - k));
-  return `rgb(${mix((base >> 16) & 255)},${mix((base >> 8) & 255)},${mix(base & 255)})`;
+  // Mixed with the paper, so the plan keeps its tone on a light or a dark page.
+  const share = def.category === 'rug' ? 45 : 32;
+  return `color-mix(in srgb, #${base.toString(16).padStart(6, '0')} ${share}%, var(--paper))`;
 }
 
 const line = { fill: 'none', stroke: 'var(--ink-2)', strokeWidth: 0.8, vectorEffect: 'non-scaling-stroke' as const };

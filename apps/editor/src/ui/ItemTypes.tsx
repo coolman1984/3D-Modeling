@@ -169,7 +169,7 @@ export function LibraryPanel({
         {shown.length === 0 ? (
           <div className="empty-note">
             <div className="serif">{searching ? 'No matching item types' : 'No item types here yet'}</div>
-            <p style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.5 }}>
+            <p style={{ marginTop: 6, fontSize: 'calc(12.5px * var(--ts, 1))', lineHeight: 1.5 }}>
               {searching ? `Nothing matches “${filter.trim()}”. Try a shorter name.` : 'Create an item type with its real dimensions and clearance.'}
             </p>
           </div>
@@ -209,7 +209,7 @@ export function LibraryPanel({
           <Plus size={15} />
           New item type
         </button>
-        <span className="faint" style={{ fontSize: 12 }}>
+        <span className="faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
           Click a tile to place
         </span>
         {missing.length > 0 && (

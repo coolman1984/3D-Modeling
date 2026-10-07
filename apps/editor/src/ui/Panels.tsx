@@ -152,7 +152,7 @@ export function ObjectsPanel({ project, issues, selectedIds, dispatch }: { proje
               <span className="kicker">
                 {project.catalog[definitionId]?.name ?? definitionId} · {ids.length}
               </span>
-              <button type="button" className="link-btn" style={{ fontSize: 11.5 }} onClick={() => dispatch({ type: 'select', ids })}>
+              <button type="button" className="link-btn" style={{ fontSize: 'calc(11.5px * var(--ts, 1))' }} onClick={() => dispatch({ type: 'select', ids })}>
                 Select all
               </button>
             </div>

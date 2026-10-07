@@ -398,7 +398,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
           if (style.room) return null; // rooms are named after the furniture, on top (below)
           return <g key={zone.id} data-zone={zone.id} pointerEvents="none" className="warehouse-zone">
             <path d={pathOf(v, zone.polygon)} fill={style.fill} fillOpacity={style.opacity} stroke={style.stroke} strokeWidth={1} strokeDasharray={style.dash} />
-            {style.label && Math.min(b.maxX - b.minX, b.maxY - b.minY) * v.scale > 14 && <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="var(--ink-2)" fontSize={10}>{zone.kind.replace(/-/g, ' ')}</text>}
+            {style.label && Math.min(b.maxX - b.minX, b.maxY - b.minY) * v.scale > 14 && <text x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="var(--ink-2)" fontSize={`calc(10px * var(--ts, 1))`}>{zone.kind.replace(/-/g, ' ')}</text>}
           </g>;
         })}
         {rulerX.map((m) => {

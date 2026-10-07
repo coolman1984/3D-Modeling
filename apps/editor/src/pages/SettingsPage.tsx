@@ -1,4 +1,5 @@
-import { CircleDashed, CheckCircle, Check, Key, Ruler, Sparkle, TerminalWindow, Wrench, XCircle, SpinnerGap } from '@phosphor-icons/react';
+import { CircleDashed, CheckCircle, Check, Key, PaintBrush, Ruler, Sparkle, TerminalWindow, Wrench, XCircle, SpinnerGap } from '@phosphor-icons/react';
+import { AppearancePanel } from '../ui/AppearancePanel.js';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, type AgentAvailability, type Settings } from '../api.js';
 import { DEFAULT_CONTROLS, loadControls, saveControls, type ControlSettings } from '../logic/controls.js';
@@ -6,7 +7,7 @@ import { Segmented, SwitchRow } from '../ui/Fields.js';
 import { GRID_OPTIONS } from '../ui/Panels.js';
 import { SiteHeader } from '../ui/Site.js';
 
-type Tab = 'providers' | 'tools' | 'prefs';
+type Tab = 'appearance' | 'providers' | 'tools' | 'prefs';
 interface ToolInfo {
   name: string;
   description: string;
@@ -19,7 +20,7 @@ const MCP_COMMANDS = [
 
 /** AI providers, the planner's tools, and movement preferences. API keys stay on this computer and are never shown again. */
 export function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('providers');
+  const [tab, setTab] = useState<Tab>('appearance');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [agents, setAgents] = useState<AgentAvailability[]>([]);
   const [commands, setCommands] = useState<Record<string, string>>({});
@@ -83,6 +84,7 @@ export function SettingsPage() {
   );
 
   const tabs: Array<{ id: Tab; label: string; icon: ReactNode }> = [
+    { id: 'appearance', label: 'Appearance', icon: <PaintBrush size={15} /> },
     { id: 'providers', label: 'AI Providers', icon: <Sparkle size={15} /> },
     { id: 'tools', label: 'Agent Tools', icon: <Wrench size={15} /> },
     { id: 'prefs', label: 'Preferences', icon: <Ruler size={15} /> },
@@ -104,6 +106,8 @@ export function SettingsPage() {
           </nav>
         </aside>
         <main className="settings-main">
+          {tab === 'appearance' && <AppearancePanel />}
+
           {tab === 'providers' && (
             <section aria-label="AI Providers">
               <h2>AI Providers</h2>
@@ -274,7 +278,7 @@ export function SettingsPage() {
               {tools.map((t) => (
                 <div key={t.name} className="tool-row">
                   <code>{t.name}</code>
-                  <span className="muted" style={{ fontSize: 12.5 }}>
+                  <span className="muted" style={{ fontSize: 'calc(12.5px * var(--ts, 1))' }}>
                     {t.description.split('. ')[0]!.replace(/\.$/, '')}.
                   </span>
                 </div>

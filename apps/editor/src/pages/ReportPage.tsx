@@ -120,7 +120,7 @@ export function ReportPage({ projectId }: { projectId: string }) {
         </a>
         <span style={{ color: '#c6cbd3' }}>/</span>
         <span style={{ fontWeight: 500 }}>Client report</span>
-        <span className="muted" style={{ fontSize: 13 }}>
+        <span className="muted" style={{ fontSize: 'calc(13px * var(--ts, 1))' }}>
           · Revision {report.revision} · {PAGES} pages · A4
         </span>
         <span className="spacer" />

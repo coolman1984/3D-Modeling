@@ -168,7 +168,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
         <div className="ai-body" aria-label="AI Planner">
           <div>
             <h3>Describe the plan you need.</h3>
-            <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+            <p className="muted" style={{ marginTop: 8, fontSize: 'calc(13px * var(--ts, 1))' }}>
               The planner edits this project with the same tools you use. Every change is saved as a revision you can undo.
             </p>
           </div>
@@ -191,7 +191,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
           )}
           {error && <p className="error-text">{error}</p>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="spacer muted" style={{ fontSize: 12 }}>
+            <span className="spacer muted" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
               Starts from revision {project.revision}
             </span>
             <button type="button" className="btn primary" style={{ height: 38, padding: '0 18px' }} disabled={empty || !agent} onClick={() => void start(prompt)}>
@@ -220,7 +220,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
         </div>
         <div className="ai-headline">
           <span className="serif">{headline}</span>
-          <span className="muted num" style={{ fontSize: 12 }}>
+          <span className="muted num" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
             {tools} {tools === 1 ? 'step' : 'steps'}
           </span>
         </div>
@@ -306,7 +306,7 @@ export function AgentPanel({ project, pack, onClose }: { project: Project; pack:
           )}
         </div>
         {!running && (
-          <button type="button" className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => setDismissed(latest.id)}>
+          <button type="button" className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 'calc(13px * var(--ts, 1))' }} onClick={() => setDismissed(latest.id)}>
             <Plus size={14} />
             New request
           </button>

@@ -137,7 +137,7 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 500 }}>{door.id}</span> <span className="faint">· {WALL_NAMES[door.wall]}</span>
                   <br />
-                  <span className="faint" style={{ fontSize: 12 }}>
+                  <span className="faint" style={{ fontSize: 'calc(12px * var(--ts, 1))' }}>
                     {door.width} cm wide · {door.offset} m from the corner
                   </span>
                 </span>
@@ -173,7 +173,7 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
           </button>
         </div>
         {draft.columns.length > 0 && (
-          <p className="faint" style={{ fontSize: 11.5, margin: '-4px 0 6px' }}>
+          <p className="faint" style={{ fontSize: 'calc(11.5px * var(--ts, 1))', margin: '-4px 0 6px' }}>
             Centre from the west and south walls, and size.
           </p>
         )}
@@ -197,7 +197,7 @@ export function RoomPanel({ project, dispatch }: { project: Project; dispatch: (
         )}
       </div>
       <div className={`panel-foot nowrap${dirty ? ' dirty' : ''}`}>
-        <span className="spacer" style={{ fontSize: 12.5, color: dirty ? 'var(--ink)' : 'var(--ink-3)' }}>
+        <span className="spacer" style={{ fontSize: 'calc(12.5px * var(--ts, 1))', color: dirty ? 'var(--ink)' : 'var(--ink-3)' }}>
           {dirty ? 'Unsaved' : ''}
         </span>
         <button type="button" className="btn" disabled={!dirty} onClick={() => setDirty(false)}>

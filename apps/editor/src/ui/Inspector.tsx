@@ -357,7 +357,7 @@ function OneItem({
         </div>
       </Group>
       <div className="insp-foot">
-        <button type="button" className="link-btn" style={{ fontSize: 13 }} onClick={() => onEditType(definition.id)}>
+        <button type="button" className="link-btn" style={{ fontSize: 'calc(13px * var(--ts, 1))' }} onClick={() => onEditType(definition.id)}>
           <PencilSimpleLine size={14} />
           Edit item type · applies to {same} placed
         </button>
@@ -617,7 +617,7 @@ export function ReviewPanel({
         <div className="rules-block" aria-label="Planning rules">
           <h4>Planning rules</h4>
           <div className="grid-2" style={{ margin: '12px 0 6px' }}>
-            <label className="stack" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+            <label className="stack" style={{ fontSize: 'calc(11.5px * var(--ts, 1))', color: 'var(--ink-3)' }}>
               Activity
               <select className="input" name="activity" value={activity.pack} onChange={(e) => onActivity(activityOf(e.target.value, null))}>
                 {PACKS.map((p) => (
@@ -627,7 +627,7 @@ export function ReviewPanel({
                 ))}
               </select>
             </label>
-            <label className="stack" style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+            <label className="stack" style={{ fontSize: 'calc(11.5px * var(--ts, 1))', color: 'var(--ink-3)' }}>
               Planning style
               <select className="input" name="activity-style" value={activity.style} onChange={(e) => onActivity(activityOf(activity.pack, e.target.value))}>
                 {pack.styles.map((s) => (
@@ -676,7 +676,7 @@ export function ReviewPanel({
               </Tag>
             );
           })}
-          <p className="muted" style={{ marginTop: 14, fontSize: 12 }}>
+          <p className="muted" style={{ marginTop: 14, fontSize: 'calc(12px * var(--ts, 1))' }}>
             Each rule names where its numbers come from. None is a verified local regulation yet. Missing data is reported as unknown, never as a pass.
           </p>
         </div>

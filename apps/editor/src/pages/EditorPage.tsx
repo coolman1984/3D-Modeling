@@ -62,7 +62,7 @@ import { formatCount, formatMetres } from '../logic/format.js';
 import { nextId } from '../logic/ids.js';
 import { REJECTION_MESSAGES, RESTORE_CONFLICT } from '../logic/messages.js';
 import { retryDelay } from '../logic/retry.js';
-import { findFreeSpot } from '../logic/placement.js';
+import { findFreeSpot, wallPlacement } from '../logic/placement.js';
 import { reduce, startSession, visibleProject, type Action } from '../logic/session.js';
 import {
   duplicateCommands,
@@ -317,6 +317,13 @@ function Editor({ initial }: { initial: Project }) {
       const width = pane?.clientWidth ?? box.clientWidth;
       const centre = toWorld(viewport, { x: width / 2, y: box.clientHeight / 2 });
       if (centre.x > room.minX && centre.x < room.maxX && centre.y > room.minY && centre.y < room.maxY) spot = centre;
+    }
+    // Art, mirrors and wall TVs go on the nearest wall, facing the room, at their own height.
+    const onWall = wallPlacement(project, definition, spot);
+    if (onWall) {
+      const { position, rotation, elevation } = onWall;
+      dispatch({ type: 'command', command: { type: 'item.add', item: { id, definitionId: definition.id, position, rotation, locked: false, ...(elevation > 0 ? { elevation } : {}) } }, select: [id] });
+      return;
     }
     const item = { id, definitionId: definition.id, rotation: 0, locked: false };
     const position = findFreeSpot(project, item, definition, spot, Math.max(controls.grid, fromUnit(25, 'cm')));

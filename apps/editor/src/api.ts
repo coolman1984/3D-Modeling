@@ -1,4 +1,5 @@
 import type { Command, Project, Rejection } from '@space-planner/core';
+import type { HOME_TEMPLATES } from '@space-planner/starter';
 
 export interface ProjectSummary {
   id: string;
@@ -63,7 +64,7 @@ const post = <T>(path: string, body: unknown) => request<T>(path, { method: 'POS
 
 export const api = {
   listProjects: () => request<ProjectSummary[]>('/api/projects'),
-  createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference' | 'production-reference' | 'depot-reference' | 'restaurant-reference'; file?: string }) =>
+  createProject: (body: { name: string; width_m?: number; depth_m?: number; ceiling_m?: number; activity?: string; container_type?: string; template?: 'demo' | 'warehouse-reference' | 'production-reference' | 'depot-reference' | 'restaurant-reference' | (typeof HOME_TEMPLATES)[number]['id']; file?: string }) =>
     post<Project>('/api/projects', body),
   /** Plan how many containers the parts need; the server stores one loaded container project each. */
   createShipment: (body: { name: string; container_type: string; parts: Array<{ name: string; length_mm: number; width_mm: number; height_mm: number; quantity: number; may_tilt: boolean; model?: string; mass_kg?: number; max_layers?: number }> }) =>

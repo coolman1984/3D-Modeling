@@ -1,7 +1,9 @@
-import { add, boundsOf, footprintOf, itemPolygon, rectangle, rotate, type Id, type Issue, type Project } from '@space-planner/core';
-import { formatCount } from '../logic/format.js';
+import { add, area, boundsOf, footprintOf, itemPolygon, rectangle, rotate, toSquareMetres, type Id, type Issue, type Project } from '@space-planner/core';
+import { formatCount, formatSquareMetres } from '../logic/format.js';
+import { homeFill, homeSymbol } from './PlanSymbols.js';
 import { fitViewport, pathOf, toScreen } from '../logic/viewport.js';
 import { zoneStyle } from '../logic/zoneStyle.js';
+import type { CSSProperties } from 'react';
 
 /**
  * A still, printable plan: walls, door swings, columns, items with the number of their line in
@@ -10,7 +12,9 @@ import { zoneStyle } from '../logic/zoneStyle.js';
 export function PlanDrawing({ project, issues, keyOf, width, height }: { project: Project; issues: readonly Issue[]; keyOf: Readonly<Record<Id, number>>; width: number; height: number }) {
   const room = boundsOf(project.space.boundary);
   const v = fitViewport(room, width, height, 30);
-  const items = Object.values(project.items).sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0));
+  // Rugs first, then the floor, then what hangs higher.
+  const layer = (item: (typeof project.items)[string]) => (project.catalog[item.definitionId]?.surface ? -1 : (item.elevation ?? 0));
+  const items = Object.values(project.items).sort((a, b) => layer(a) - layer(b));
   const flagged = new Map<Id, 'error' | 'warning'>();
   for (const issue of issues) {
     const first = issue.entityIds[0];
@@ -42,6 +46,7 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
       <path d={grid.join('')} className="grid" />
       {(project.space.zones ?? []).map((zone) => {
         const style = zoneStyle(zone.kind);
+        if (style.room) return null; // named on top, after the furniture
         return <path key={zone.id} data-report-zone={zone.id} d={pathOf(v, zone.polygon)} fill={style.fill} fillOpacity={style.opacity} stroke={style.stroke} strokeDasharray={style.dash} />;
       })}
       {project.space.obstacles.map((o) => (
@@ -67,16 +72,36 @@ export function PlanDrawing({ project, issues, keyOf, width, height }: { project
         const front = [toScreen(v, outline[2]!), toScreen(v, outline[3]!)];
         const centre = toScreen(v, item.position);
         const small = Math.min(definition.size.w, definition.size.d) * v.scale;
+        const symbol = homeSymbol(definition);
+        const fill = symbol ? homeFill(definition) : undefined;
         return (
-          <g key={item.id} className={`item shape-${definition.category} ${flagged.get(item.id) ?? ''} ${item.elevation ? 'raised' : ''}`.trim()} data-report-item={item.id}>
+          <g key={item.id} className={`item shape-${definition.category} ${flagged.get(item.id) ?? ''} ${item.elevation ? 'raised' : ''}`.trim()} data-report-item={item.id} style={fill ? ({ '--fill': fill } as CSSProperties) : undefined}>
             <path d={pathOf(v, itemPolygon(item, definition))} className="item-body" />
-            <line x1={front[0]!.x} y1={front[0]!.y} x2={front[1]!.x} y2={front[1]!.y} className="item-front" />
+            {symbol ? (
+              <g transform={`translate(${centre.x.toFixed(1)},${centre.y.toFixed(1)}) rotate(${(-item.rotation / 1000).toFixed(2)}) scale(${v.scale})`} className="item-symbol">
+                {symbol}
+              </g>
+            ) : (
+              <line x1={front[0]!.x} y1={front[0]!.y} x2={front[1]!.x} y2={front[1]!.y} className="item-front" />
+            )}
             {small >= 11 && (
               <text x={centre.x} y={centre.y} className="item-key" style={{ fontSize: Math.min(12, small * 0.6), fill: definition.category === 'stage' ? '#fff' : undefined }}>
                 {formatCount(keyOf[item.id] ?? 0)}
               </text>
             )}
           </g>
+        );
+      })}
+      {(project.space.zones ?? []).map((zone) => {
+        if (!zoneStyle(zone.kind).room) return null;
+        const b = boundsOf(zone.polygon);
+        const corner = toScreen(v, { x: b.minX, y: b.maxY });
+        const name = typeof zone.meta?.label === 'string' ? zone.meta.label : zone.kind;
+        if ((b.maxX - b.minX) * v.scale < 70) return null;
+        return (
+          <text key={`label-${zone.id}`} x={corner.x + 6} y={corner.y + 13} className="room-label">
+            {`${name.toUpperCase()} · ${formatSquareMetres(toSquareMetres(area(zone.polygon)))}`}
+          </text>
         );
       })}
       <g className="north" transform={`translate(${width - 16},${18})`}>
