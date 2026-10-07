@@ -46,6 +46,7 @@ import {
   type IssueGroup,
 } from '../logic/messages.js';
 import type { Action } from '../logic/session.js';
+import { zoneStyle } from '../logic/zoneStyle.js';
 import {
   alignCommands,
   distributeCommands,
@@ -152,8 +153,13 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
     ['Room', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
     ['Ceiling', project.space.ceilingHeight === undefined ? 'Not set' : `${formatMetres(project.space.ceilingHeight)} m`],
     ['Floor area', formatArea(metrics.floorArea)],
-    ['Seats', <span data-testid="seats">{formatCount(metrics.seats)}</span>],
-    ['Area per seat', areaPerSeat === undefined ? '—' : formatSquareMetres(Math.round(areaPerSeat * 100) / 100)],
+    // Seats and floor per seat matter for halls and offices; an apartment counts rooms instead.
+    ...(activity.pack === 'home'
+      ? ([['Rooms', formatCount((project.space.zones ?? []).filter((z) => zoneStyle(z.kind).room).length)]] as Array<[string, ReactNode]>)
+      : ([
+          ['Seats', <span data-testid="seats">{formatCount(metrics.seats)}</span>],
+          ['Area per seat', areaPerSeat === undefined ? '—' : formatSquareMetres(Math.round(areaPerSeat * 100) / 100)],
+        ] as Array<[string, ReactNode]>)),
     ['Occupied', `${formatArea(metrics.occupiedArea)} · ${formatPercent(metrics.occupancy)}`],
     ['Items placed', `${formatCount(metrics.itemCount)} · ${plural(types, 'type')}`],
     ['Doors · columns', `${formatCount(project.space.doors.length)} · ${formatCount(columns)}`],
@@ -167,9 +173,7 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
   return (
     <div aria-label="Project">
       <div className="insp-head" style={{ paddingTop: 28 }}>
-        <div className="kicker">
-          {pack.label} · {style}
-        </div>
+        <div className="kicker">{style && style !== pack.label ? `${pack.label} · ${style}` : pack.label}</div>
         <h3 className="xl">{project.name}</h3>
         <p className="sub">Nothing selected. Click an item to edit it.</p>
       </div>
