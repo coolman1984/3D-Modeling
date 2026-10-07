@@ -9,7 +9,6 @@ import { formatCentimetres, formatCount, formatLength, formatMass, formatMetres,
 import { buildReport } from '../logic/report.js';
 import { RULE_STATUS_WORD, SEVERITY_WORD, SOURCE_KIND_WORD } from '../logic/messages.js';
 import { PlanDrawing } from '../ui/PlanDrawing.js';
-import { renderSnapshot } from '../ui/View3D.js';
 
 const VERDICT = {
   ready: { tone: 'ok', title: 'Ready to approve', text: 'Nothing overlaps, no door is blocked, nothing is outside the room, and every planning rule passes.' },
@@ -57,8 +56,17 @@ export function ReportPage({ projectId }: { projectId: string }) {
     const rack = project.space.meta?.pack === 'warehouse' ? Object.values(project.items).find((i) => project.catalog[i.definitionId]?.category === 'rack') : undefined;
     const sample = rack && project.space.doors[0] ? warehouseRoute(project, project.space.doors[0].id, rack.id) : null;
     const look = cargo ? { itemColors: colorsOf(project, 'stop').colors, cutaway: true } : sample?.reachable ? { routePoints: sample.points } : undefined;
-    const timer = setTimeout(() => setPicture(renderSnapshot(project, issues, 1200, 640, look, cargo)), 30);
-    return () => clearTimeout(timer);
+    // The 3D engine loads only for the picture, so the report's text shows at once.
+    let alive = true;
+    const timer = setTimeout(() => {
+      void import('../ui/View3D.js')
+        .then((m) => alive && setPicture(m.renderSnapshot(project, issues, 1200, 640, look, cargo)))
+        .catch(() => alive && setPicture(null));
+    }, 30);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
   }, [project, issues]);
   useEffect(() => {
     if (report) document.title = `Client report · ${report.name}`;
