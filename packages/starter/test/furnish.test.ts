@@ -57,6 +57,42 @@ describe('furnishing options', () => {
     expect(beds).toHaveLength(2);
   });
 
+  it('applying another option takes the finish variants of the first out of the catalogue', () => {
+    const [a, b] = furnishOptions(flat, { count: 2 });
+    const first = applied(flat, a!.command);
+    const variants = (p: Project) => Object.keys(p.catalog).filter((id) => id.includes('--'));
+    expect(variants(first).length).toBeGreaterThan(0);
+    const second = applied(first, furnishOptions(first, { count: 2 })[1]!.command);
+    const used = new Set(Object.values(second.items).map((i) => i.definitionId));
+    expect(variants(second).every((id) => used.has(id))).toBe(true);
+    expect(b!.title).toContain('Option B');
+  });
+
+  it('piece names carry their finish once: no bouclé armchair in charcoal, no doubled colour words', () => {
+    const option = furnishOptions(flat)[2]!;
+    const furnished = applied(flat, option.command);
+    const names = Object.values(furnished.catalog).map((d) => d.name);
+    expect(names.filter((n) => /bouclé/i.test(n) && /charcoal/i.test(n))).toEqual([]);
+    expect(names.filter((n) => /(charcoal.*charcoal|white.*white|oak.*oak)/i.test(n))).toEqual([]);
+    expect(names.some((n) => / · charcoal/.test(n))).toBe(true);
+  });
+
+  it('a small laundry is furnished with a machine; a balcony or an unknown name is left alone with a reason', () => {
+    const f = buildFlat({ name: 'x', rooms: [{ name: 'Living', x: 0, y: 0, width: 5, depth: 4 }, { name: 'Laundry', x: 5, y: 0, width: 2, depth: 2 }, { name: 'Store', x: 5, y: 2, width: 2, depth: 2 }, { name: 'Balcony', x: 0, y: 4, width: 3, depth: 1.5 }], doors: [{ between: ['Living', 'Laundry'], at: 0.4, width: 0.7 }] });
+    const [o] = furnishOptions(f, { count: 1 });
+    const placed = Object.values(applied(f, o!.command).items).map((i) => i.definitionId);
+    expect(placed).toContain('home-washer');
+    expect(o!.unfurnished).toEqual([expect.stringMatching(/^Store: no layout is known/)]);
+  });
+
+  it('a study gets a desk and a chair that do not overlap', () => {
+    const f = buildFlat({ name: 'x', rooms: [{ name: 'Living', x: 0, y: 0, width: 5, depth: 4 }, { name: 'Study', x: 5, y: 0, width: 3, depth: 2.6 }], doors: [{ between: ['Living', 'Study'], at: 0.5 }] });
+    const [o] = furnishOptions(f, { count: 1, areas: ['Study'] });
+    expect(o!.errors).toBe(0);
+    const cats = Object.values(applied(f, o!.command).items).map((i) => applied(f, o!.command).catalog[i.definitionId]!.category);
+    expect(cats).toEqual(expect.arrayContaining(['desk', 'chair']));
+  });
+
   it('only the rooms asked for', () => {
     const [option] = furnishOptions(flat, { count: 1, areas: ['Bath'] });
     expect(option!.rooms.map((r) => r.area)).toEqual(['Bath']);

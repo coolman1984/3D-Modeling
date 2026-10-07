@@ -13,10 +13,14 @@ interface ToolInfo {
   description: string;
 }
 
-const MCP_COMMANDS = [
-  { label: 'Claude Code', command: 'claude mcp add planner -- node <project folder>/apps/server/dist/mcp.mjs' },
-  { label: 'Codex', command: 'codex mcp add planner -- node <project folder>/apps/server/dist/mcp.mjs' },
-];
+/** The commands that connect an assistant to this very copy of Atrium (its own bridge file and address). */
+function mcpCommands(setup: { script: string | null; url: string } | null) {
+  const target = setup?.script ? `"${setup.script}" --url ${setup.url}` : '<project folder>/apps/server/dist/mcp.mjs';
+  return [
+    { label: 'Claude Code', command: `claude mcp add planner -- node ${target}` },
+    { label: 'Codex', command: `codex mcp add planner -- node ${target}` },
+  ];
+}
 
 /** AI providers, the planner's tools, and movement preferences. API keys stay on this computer and are never shown again. */
 export function SettingsPage() {
@@ -30,6 +34,7 @@ export function SettingsPage() {
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [controls, setControlsState] = useState<ControlSettings>(loadControls);
   const [copied, setCopied] = useState<string | null>(null);
+  const [mcpSetup, setMcpSetup] = useState<{ script: string | null; url: string } | null>(null);
 
   const load = () => {
     void api.getSettings().then((s) => {
@@ -37,6 +42,10 @@ export function SettingsPage() {
       setCommands(Object.fromEntries(Object.entries(s.agents).map(([id, a]) => [id, JSON.stringify(a.command)])));
     });
     void api.agents().then(setAgents);
+    void fetch('/api/mcp-setup')
+      .then((r) => r.json() as Promise<{ script: string | null; url: string }>)
+      .then(setMcpSetup)
+      .catch(() => undefined);
     void fetch('/api/tools')
       .then((r) => r.json() as Promise<ToolInfo[]>)
       .then(setTools)
@@ -288,7 +297,10 @@ export function SettingsPage() {
                 <div className="muted" style={{ marginTop: 4 }}>
                   Assistants that support the Model Context Protocol can use the same tools in your own sessions.
                 </div>
-                {MCP_COMMANDS.map((c) => (
+                <div className="muted" style={{ marginTop: 4 }}>
+                  The assistant starts the bridge with Node.js, so Node.js must be installed on this computer. The bridge finds this program by its address, so keep Atrium open while the assistant works.
+                </div>
+                {mcpCommands(mcpSetup).map((c) => (
                   <div key={c.label} className="copy-line">
                     <input className="input" readOnly value={c.command} aria-label={`${c.label} command`} />
                     <button

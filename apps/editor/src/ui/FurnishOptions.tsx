@@ -14,8 +14,19 @@ const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
  * options, each a different arrangement in a different palette, with its reasons and its check
  * result. Preview shows one on the plan and in 3D; Apply makes it one step in the history.
  */
+/** The last proposal per project, kept while the plan has not changed: leaving the panel and coming back does not lose it. */
+const kept = new Map<string, { revision: number; list: FurnishOption[] }>();
+
 export function FurnishOptions({ project, dispatch }: { project: Project; dispatch: (a: Action) => void }) {
-  const [options, setOptions] = useState<{ revision: number; list: FurnishOption[] } | null>(null);
+  const [options, setOptionsState] = useState<{ revision: number; list: FurnishOption[] } | null>(() => {
+    const hit = kept.get(project.id);
+    return hit && hit.revision === project.revision ? hit : null;
+  });
+  const setOptions = (next: { revision: number; list: FurnishOption[] } | null) => {
+    if (next) kept.set(project.id, next);
+    else kept.delete(project.id);
+    setOptionsState(next);
+  };
   const [busy, setBusy] = useState(false);
   const [previewing, setPreviewing] = useState<number | null>(null);
   const [open, setOpen] = useState<number | null>(0);
@@ -95,7 +106,11 @@ export function FurnishOptions({ project, dispatch }: { project: Project; dispat
                         <span className="muted">{r.reasons.slice(0, 2).join(' ')}</span>
                       </li>
                     ))}
-                    {o.unfurnished.length > 0 && <li className="muted">Left empty: {o.unfurnished.join(', ')} (no arrangement fits)</li>}
+                    {o.unfurnished.map((note) => (
+                      <li key={note} className="muted">
+                        Left empty · {note}
+                      </li>
+                    ))}
                   </ul>
                 )}
                 <div className="furnish-actions">

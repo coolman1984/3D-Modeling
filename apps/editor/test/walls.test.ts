@@ -1,7 +1,7 @@
 import { apply, detectRooms, fromUnit, roomMap, validateProject, type Command, type Project } from '@space-planner/core';
 import { newHome } from '@space-planner/starter';
 import { describe, expect, it } from 'vitest';
-import { addOpening, addWall, nameRoom, moveWall, moveWallEnd, pointAtLength, removeWallsAndOpenings, setWallLength, snapWallPoint, typedLength, updateOpening, updateWall } from '../src/logic/walls.js';
+import { addOpening, addWall, nameRoom, openingNote, typedLengthGuessed, wallLengthProblem, moveWall, moveWallEnd, pointAtLength, removeWallsAndOpenings, setWallLength, snapWallPoint, typedLength, updateOpening, updateWall } from '../src/logic/walls.js';
 
 const m = (v: number) => fromUnit(v, 'm');
 const cm = (v: number) => fromUnit(v, 'cm');
@@ -39,6 +39,41 @@ describe('drawing walls', () => {
     const end = pointAtLength(p(1, 1), p(1.2, 1.01), m(3.15));
     expect(Math.abs(Math.hypot(end.x - m(1), end.y - m(1)) - m(3.15))).toBeLessThan(1);
     expect(pointAtLength(p(1, 1), p(1, 3), m(2.5))).toEqual(p(1, 3.5));
+  });
+});
+
+describe('walls never lose a door or window silently', () => {
+  const two = run(flat, addWall(flat, p(2.3, 0.1), p(2.3, 3.3))!.command);
+  const withDoor = run(two, addOpening(two, 'wall-1', 'door', p(2.25, 1.0))!.command);
+
+  it('a wall cannot be made shorter than the door in it: no command, and a reason in words', () => {
+    expect(setWallLength(withDoor, 'wall-1', cm(50))).toBeUndefined();
+    expect(wallLengthProblem(withDoor, 'wall-1', cm(50))).toMatch(/door in this wall is 80 cm wide/);
+    expect(wallLengthProblem(withDoor, 'wall-1', cm(2))).toMatch(/at least 5 cm/);
+    expect(wallLengthProblem(withDoor, 'wall-1', cm(120))).toBeUndefined();
+    expect(setWallLength(withDoor, 'wall-1', cm(120))).toBeDefined();
+    // Dragging an end so far that the door would be lost is refused too.
+    expect(moveWallEnd(withDoor, 'wall-1', 'b', p(2.3, 0.4))).toBeUndefined();
+  });
+
+  it('drawing over an existing wall adds nothing', () => {
+    expect(addWall(two, p(2.3, 0.1), p(2.3, 3.3))).toBeUndefined();
+    expect(addWall(two, p(2.3, 3.3), p(2.3, 0.1))).toBeUndefined();
+  });
+
+  it('says what was adjusted when an opening is cut to its wall', () => {
+    expect(openingNote(withDoor, 'door-1', { width: cm(900) })).toMatch(/only 320 cm long.*cut to fit/);
+    expect(openingNote(withDoor, 'door-1', { width: cm(90) })).toBeUndefined();
+    expect(openingNote(withDoor, 'door-1', { offset: cm(900) })).toMatch(/stay inside the wall/);
+  });
+});
+
+describe('typed lengths with units', () => {
+  it('a unit settles any doubt: 35 m, 35 cm, 3500 mm, and Arabic units', () => {
+    expect([typedLength('35 m'), typedLength('35m'), typedLength('35cm'), typedLength('3500 mm'), typedLength('٣٥ م'), typedLength('٣٥ سم')]).toEqual([m(35), m(35), cm(35), m(3.5), m(35), cm(35)]);
+    expect([typedLength('35'), typedLength('12'), typedLength('315'), typedLength('3.15')]).toEqual([cm(35), m(12), m(3.15), m(3.15)]);
+    expect([typedLength('3 x'), typedLength('m'), typedLength('-2')]).toEqual([undefined, undefined, undefined]);
+    expect([typedLengthGuessed('35'), typedLengthGuessed('35 m'), typedLengthGuessed('3.5')]).toEqual([true, false, false]);
   });
 });
 

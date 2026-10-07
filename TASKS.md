@@ -1,5 +1,22 @@
 # TASKS
 
+## Done: fixes from the review report (7 Oct 2026)
+
+Fixed: door lost silently when its wall is shortened (now refused, with the reason in the Inspector);
+typed lengths take units (35 m, 35 cm, 3500 mm, Arabic م / سم) and the readout says when a unit was
+guessed; the length field shows the real value after a refusal; apartments only can be rebuilt by
+`build_apartment` (a hall keeps its doors and kind), locked pieces named; `side` validated; the
+tools accept measurements as text ("4,5", "٤٫٥ م"); slivers between rooms and corner-only doors
+are named; ceiling range checked; default windows slide off the entrance; clash messages name rooms;
+room finding 3x faster and cached per space (rooms are not re-found while dragging furniture);
+options kept when leaving the Space panel and shown first; study desk/chair overlap fixed; laundry
+recipe; unfurnished rooms carry real reasons; piece names carry their finish once; unused finish
+variants leave the catalogue; MCP bridge finds the installed program, serves `design_guide` offline,
+Settings shows the command for this copy; drawing hint no longer covers the plan title; labels
+leave out what does not fit a small room; duplicate walls refused.
+Left as they are: room list rows do not select the room on the plan; the engine runs on the main
+thread (about 1 s for seven rooms).
+
 ## Now: H1b — the AI interior designer (7 Oct 2026, decision 0029)
 
 Owner: any AI agent connects by MCP; the client gives the agent a file of measurements and

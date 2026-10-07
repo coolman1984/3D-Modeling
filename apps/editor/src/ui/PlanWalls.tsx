@@ -15,6 +15,8 @@ export interface NamedRoom {
   readonly area: number;
   readonly label: Vec2;
   readonly name: string | undefined;
+  /** Width and depth of the room's bounding box, ticks: labels that would not fit inside are left out. */
+  readonly span: { readonly w: number; readonly d: number };
   /** The room zones that name it. */
   readonly zoneIds: readonly Id[];
 }
@@ -42,7 +44,7 @@ export function namedRooms(space: Space): NamedRoom[] {
       zoneIds[i]!.push(zone.id);
       if (!names[i]!.includes(name)) names[i]!.push(name);
     }
-    rooms = map.rooms.map((r, i) => ({ area: r.area, label: r.label, name: names[i]!.length ? names[i]!.join(' · ') : undefined, zoneIds: zoneIds[i]! }));
+    rooms = map.rooms.map((r, i) => ({ area: r.area, label: r.label, span: { w: r.max.x - r.min.x, d: r.max.y - r.min.y }, name: names[i]!.length ? names[i]!.join(' · ') : undefined, zoneIds: zoneIds[i]! }));
   }
   cache.set(space, rooms);
   return rooms;
@@ -136,10 +138,14 @@ export function RoomAreas({ v, project, testId = true }: { v: Viewport; project:
       {rooms.map((r, i) => {
         const at = toScreen(v, r.label);
         const area = formatSquareMetres(toSquareMetres(r.area));
+        const width = r.span.w * v.scale;
+        // Only what fits inside the room: the name first goes, then the area, so a small room never prints across its walls.
+        const name = r.name && width >= r.name.length * 7.5 + 10 ? r.name : undefined;
+        if (width < area.length * 6.8 + 6 || r.span.d * v.scale < 22) return null;
         return (
           <text key={i} x={at.x} y={at.y} className="room-area" textAnchor="middle" {...(testId ? { 'data-room': i } : {})}>
-            {r.name && <tspan x={at.x} dy="-0.35em" className="room-area-name">{r.name.toUpperCase()}</tspan>}
-            <tspan x={at.x} dy={r.name ? '1.3em' : '0.35em'}>{area}</tspan>
+            {name && <tspan x={at.x} dy="-0.35em" className="room-area-name">{name.toUpperCase()}</tspan>}
+            <tspan x={at.x} dy={name ? '1.3em' : '0.35em'}>{area}</tspan>
           </text>
         );
       })}

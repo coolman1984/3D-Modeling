@@ -69,6 +69,8 @@ function WalledSpace({ project, dispatch }: { project: Project; dispatch: (a: Ac
   const ceiling = project.space.ceilingHeight === undefined ? undefined : toUnit(project.space.ceilingHeight, 'm');
   return (
     <div className="panel-scroll panel-pad" aria-label="Walls and rooms">
+      <FurnishOptions project={project} dispatch={dispatch} />
+      <div className="section-gap" />
       <div className="section-title">
         <span className="kicker">Rooms · {rooms.length}</span>
         <span className="faint">{formatSquareMetres(Math.round(toSquareMetres(total) * 100) / 100)}</span>
@@ -94,8 +96,6 @@ function WalledSpace({ project, dispatch }: { project: Project; dispatch: (a: Ac
         ))}
       </ul>
       <p className="muted" style={{ marginTop: 8 }}>Floor inside the walls, worked out from them. Doors do not join rooms.</p>
-      <div className="section-gap" />
-      <FurnishOptions project={project} dispatch={dispatch} />
       <div className="section-gap" />
       <div className="section-title">
         <span className="kicker">Walls · {walls.length}</span>

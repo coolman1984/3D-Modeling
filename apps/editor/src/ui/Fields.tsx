@@ -98,6 +98,8 @@ export function CommitField({
     const n = parseNumber(text);
     if (onCommit && text.trim() !== '' && Number.isFinite(n) && Math.abs(n) <= limit) {
       if (n !== value) onCommit(n);
+      // Show the real value again: if the change was refused or adjusted, the field must not keep what was typed.
+      setText(shown);
     } else setText(shown);
   };
   return (

@@ -156,6 +156,17 @@ export interface RoomMap {
 
 /** {@link detectRooms}, with a lookup from a point to its room (to name rooms from labelled zones). */
 export function roomMap(space: Space): RoomMap {
+  // Dragging furniture changes the project but not its space: the rooms are found once per space value.
+  const hit = ROOM_CACHE.get(space);
+  if (hit) return hit;
+  const map = findRooms(space);
+  ROOM_CACHE.set(space, map);
+  return map;
+}
+
+const ROOM_CACHE = new WeakMap<Space, RoomMap>();
+
+function findRooms(space: Space): RoomMap {
   const xs = space.boundary.map((p) => p.x);
   const ys = space.boundary.map((p) => p.y);
   let cell = 100;
@@ -176,47 +187,50 @@ export function roomMap(space: Space): RoomMap {
   const inside = grid.slice();
   for (const solid of wallSolids(space, { doors: false })) paint(grid, cols, rows, x0, y0, cell, solid.polygon, 0);
 
-  const distance = chamfer(grid, cols, rows);
   const label = new Int32Array(cols * rows).fill(-1);
   const rooms: DetectedRoom[] = [];
-  const stack: number[] = [];
+  const firstCell: number[] = [];
+  const stack = new Int32Array(cols * rows);
   for (let start = 0; start < grid.length; start++) {
     if (grid[start] !== 1 || label[start] !== -1) continue;
     let count = 0;
-    let best = start;
     let c0 = cols;
     let c1 = 0;
     let r0 = rows;
     let r1 = 0;
-    label[start] = rooms.length;
-    stack.push(start);
-    while (stack.length > 0) {
-      const i = stack.pop()!;
+    const id = rooms.length;
+    label[start] = id;
+    let top = 0;
+    stack[top++] = start;
+    while (top > 0) {
+      const i = stack[--top]!;
       count++;
-      if (distance[i]! > distance[best]! || (distance[i] === distance[best] && i < best)) best = i;
       const c = i % cols;
       const r = (i - c) / cols;
-      c0 = Math.min(c0, c);
-      c1 = Math.max(c1, c);
-      r0 = Math.min(r0, r);
-      r1 = Math.max(r1, r);
-      for (const j of [c > 0 ? i - 1 : -1, c < cols - 1 ? i + 1 : -1, r > 0 ? i - cols : -1, r < rows - 1 ? i + cols : -1]) {
-        if (j >= 0 && grid[j] === 1 && label[j] === -1) {
-          label[j] = rooms.length;
-          stack.push(j);
-        }
-      }
+      if (c < c0) c0 = c;
+      if (c > c1) c1 = c;
+      if (r < r0) r0 = r;
+      if (r > r1) r1 = r;
+      // Inline neighbours: this loop runs over every floor cell of the flat.
+      if (c > 0 && grid[i - 1] === 1 && label[i - 1] === -1) { label[i - 1] = id; stack[top++] = i - 1; }
+      if (c < cols - 1 && grid[i + 1] === 1 && label[i + 1] === -1) { label[i + 1] = id; stack[top++] = i + 1; }
+      if (r > 0 && grid[i - cols] === 1 && label[i - cols] === -1) { label[i - cols] = id; stack[top++] = i - cols; }
+      if (r < rows - 1 && grid[i + cols] === 1 && label[i + cols] === -1) { label[i + cols] = id; stack[top++] = i + cols; }
     }
-    const area = count * cell * cell;
-    const bc = best % cols;
-    const br = (best - bc) / cols;
+    firstCell.push(start);
     rooms.push({
-      area,
-      label: { x: x0 + (bc + 0.5) * cell, y: y0 + (br + 0.5) * cell },
+      area: count * cell * cell,
+      label: { x: 0, y: 0 },
       min: { x: x0 + c0 * cell, y: y0 + r0 * cell },
       max: { x: x0 + (c1 + 1) * cell, y: y0 + (r1 + 1) * cell },
     });
   }
+  // Label points on a grid four times coarser: the spot farthest from the walls in each room.
+  const labels = labelPoints(grid, label, cols, rows, rooms.length, firstCell);
+  rooms.forEach((room, i) => {
+    const { c, r } = labels[i]!;
+    (room as { label: Vec2 }).label = { x: x0 + (c + 0.5) * cell, y: y0 + (r + 0.5) * cell };
+  });
   // A flat drawn with outer walls (they line at least half of the outline from inside) is closed
   // by them: floor that reaches the outline lies outside the flat (the corner beside an L-shape).
   // Without outer walls the outline itself closes the rooms.
@@ -224,11 +238,12 @@ export function roomMap(space: Space): RoomMap {
   let edge = 0;
   let walled = 0;
   for (let r = 0; r < rows; r++) {
+    const rowStart = r * cols;
     for (let c = 0; c < cols; c++) {
-      const i = r * cols + c;
+      const i = rowStart + c;
       if (!inside[i]) continue;
-      const out = (cc: number, rr: number) => cc < 0 || rr < 0 || cc >= cols || rr >= rows || !inside[rr * cols + cc];
-      if (!(out(c - 1, r) || out(c + 1, r) || out(c, r - 1) || out(c, r + 1))) continue;
+      // An outline cell: one of its four neighbours lies outside the outline.
+      if (c > 0 && c < cols - 1 && r > 0 && r < rows - 1 && inside[i - 1] && inside[i + 1] && inside[i - cols] && inside[i + cols]) continue;
       edge++;
       if (grid[i] === 0) walled++;
       else outside[label[i]!] = 1;
@@ -285,25 +300,58 @@ function paint(grid: Uint8Array, cols: number, rows: number, x0: number, y0: num
   }
 }
 
-/** Distance of each floor cell to the nearest non-floor cell, in a 3-4 chamfer metric. */
-function chamfer(grid: Uint8Array, cols: number, rows: number): Uint32Array {
+const COARSE = 4;
+
+/** Per room, the fine cell (column, row) at the centre of the roomiest coarse block: farthest from walls, ties by first. */
+function labelPoints(grid: Uint8Array, label: Int32Array, cols: number, rows: number, count: number, firstCell: readonly number[]): Array<{ c: number; r: number }> {
+  const cc = Math.ceil(cols / COARSE);
+  const cr = Math.ceil(rows / COARSE);
+  const owner = new Int32Array(cc * cr).fill(-1);
+  for (let r = 0; r < cr; r++) {
+    for (let c = 0; c < cc; c++) {
+      const first = label[Math.min(rows - 1, r * COARSE) * cols + Math.min(cols - 1, c * COARSE)]!;
+      if (first < 0) continue;
+      let whole = true;
+      for (let y = r * COARSE; y < Math.min(rows, (r + 1) * COARSE) && whole; y++) {
+        for (let x = c * COARSE; x < Math.min(cols, (c + 1) * COARSE); x++) {
+          if (grid[y * cols + x] !== 1 || label[y * cols + x] !== first) {
+            whole = false;
+            break;
+          }
+        }
+      }
+      if (whole) owner[r * cc + c] = first;
+    }
+  }
   const far = 0xffffffff;
-  const d = new Uint32Array(grid.length);
-  for (let i = 0; i < grid.length; i++) d[i] = grid[i] === 1 ? far : 0;
-  const at = (c: number, r: number) => (c < 0 || r < 0 || c >= cols || r >= rows ? 0 : d[r * cols + c]!);
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const i = r * cols + c;
+  const d = new Uint32Array(cc * cr);
+  for (let i = 0; i < d.length; i++) d[i] = owner[i]! >= 0 ? far : 0;
+  const at = (c: number, r: number) => (c < 0 || r < 0 || c >= cc || r >= cr ? 0 : d[r * cc + c]!);
+  for (let r = 0; r < cr; r++) {
+    for (let c = 0; c < cc; c++) {
+      const i = r * cc + c;
       if (d[i] === 0) continue;
       d[i] = Math.min(d[i]!, at(c - 1, r) + 3, at(c, r - 1) + 3, at(c - 1, r - 1) + 4, at(c + 1, r - 1) + 4);
     }
   }
-  for (let r = rows - 1; r >= 0; r--) {
-    for (let c = cols - 1; c >= 0; c--) {
-      const i = r * cols + c;
+  for (let r = cr - 1; r >= 0; r--) {
+    for (let c = cc - 1; c >= 0; c--) {
+      const i = r * cc + c;
       if (d[i] === 0) continue;
       d[i] = Math.min(d[i]!, at(c + 1, r) + 3, at(c, r + 1) + 3, at(c + 1, r + 1) + 4, at(c - 1, r + 1) + 4);
     }
   }
-  return d;
+  const best: number[] = new Array(count).fill(-1);
+  for (let i = 0; i < d.length; i++) {
+    const o = owner[i]!;
+    if (o >= 0 && (best[o]! < 0 || d[i]! > d[best[o]!]!)) best[o] = i;
+  }
+  return best.map((i, room) => {
+    if (i < 0) {
+      const f = firstCell[room]!; // a room too thin for a coarse block: its first cell
+      return { c: f % cols, r: Math.floor(f / cols) };
+    }
+    const c = i % cc;
+    return { c: Math.min(cols - 1, c * COARSE + COARSE / 2), r: Math.min(rows - 1, Math.floor(i / cc) * COARSE + COARSE / 2) };
+  });
 }

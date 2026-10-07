@@ -140,7 +140,7 @@ export const HOME_STYLES: readonly { readonly id: HomeStyle; readonly label: str
 export const isHome = (project: Project): boolean => project.space.meta?.pack === 'home';
 
 /** Room-name zones in an apartment: drawn and labelled, never checked against. */
-export const HOME_ROOM_KINDS = ['living', 'dining', 'kitchen', 'bedroom', 'bathroom', 'hall', 'study'] as const;
+export const HOME_ROOM_KINDS = ['living', 'dining', 'kitchen', 'bedroom', 'bathroom', 'hall', 'study', 'laundry', 'balcony'] as const;
 
 /** Clear width a person needs to walk from every seat to the front door (common guidance). */
 export const HOME_WALKWAY = cm(80);

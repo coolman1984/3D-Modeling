@@ -71,10 +71,42 @@ function outlineOf(space: Space): Vec2[] | undefined {
 
 const set = (space: Space): Command => ({ type: 'space.set', space });
 
+/** Doors and windows a change would lose because their wall became shorter than they are wide. */
+export function droppedOpenings(space: Space, walls: readonly WallSegment[], openings: readonly Opening[]): Opening[] {
+  const byId = new Map(walls.map((w) => [w.id, w]));
+  return openings.filter((o) => {
+    const wall = byId.get(o.wall);
+    return wall !== undefined && o.width > Math.floor(lengthOf(wall));
+  });
+}
+
+const cmText = (ticks: number) => `${Math.round(ticks / 100)} cm`;
+
+/**
+ * Why a wall cannot be this long, in words for the person typing: too short to be a wall, or a
+ * door or window in it would not fit. Undefined when the change is fine.
+ */
+export function wallLengthProblem(project: Project, wallId: Id, length: number): string | undefined {
+  const { space } = project;
+  const wall = space.walls?.find((w) => w.id === wallId);
+  if (!wall) return 'This wall no longer exists.';
+  if (!(length >= MIN_WALL)) return `A wall is at least ${cmText(MIN_WALL)} long.`;
+  const f = wallFrame(wall);
+  const walls = space.walls!.map((w) => (w.id === wallId ? { ...w, b: { x: w.a.x + f.along.x * length, y: w.a.y + f.along.y * length } } : w));
+  const lost = droppedOpenings(space, walls, space.openings ?? []);
+  if (lost.length) {
+    const o = lost[0]!;
+    return `The ${o.kind} in this wall is ${cmText(o.width)} wide, so the wall cannot be shorter than that. Make the ${o.kind} narrower or remove it first.`;
+  }
+  return undefined;
+}
+
 /** Draw a wall from `a` to `b`. Undefined when it is too short to be a wall. */
 export function addWall(project: Project, a: Vec2, b: Vec2, thickness = DEFAULT_THICKNESS): { command: Command; id: Id } | undefined {
   const [p, q] = [round(a), round(b)];
   if (Math.hypot(q.x - p.x, q.y - p.y) < MIN_WALL) return undefined;
+  // The same wall twice is one wall too many: drawing over an existing wall adds nothing.
+  if ((project.space.walls ?? []).some((w) => (same(w.a, p) && same(w.b, q)) || (same(w.a, q) && same(w.b, p)))) return undefined;
   const id = nextId('wall', takenIds(project));
   const { space } = project;
   return { command: set(withWalls(space, [...(space.walls ?? []), { id, a: p, b: q, thickness }], space.openings ?? [])), id };
@@ -96,6 +128,7 @@ export function moveWallEnd(project: Project, wallId: Id, end: 'a' | 'b', to: Ve
     return same(a, b) || Math.hypot(b.x - a.x, b.y - a.y) < MIN_WALL ? w : a === w.a && b === w.b ? w : { ...w, a, b };
   });
   if (walls.find((w) => w.id === wallId)![end] !== target) return undefined; // too short
+  if (droppedOpenings(space, walls, space.openings ?? []).length) return undefined; // never lose a door or window silently
   return set(withWalls(space, walls, shiftOpenings(space, walls)));
 }
 
@@ -114,6 +147,7 @@ export function moveWall(project: Project, wallId: Id, delta: Vec2): Command | u
     return a === w.a && b === w.b ? w : { ...w, a, b };
   });
   if (walls.some((w) => Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y) < MIN_WALL)) return undefined;
+  if (droppedOpenings(space, walls, space.openings ?? []).length) return undefined;
   return set(withWalls(space, walls, shiftOpenings(space, walls)));
 }
 
@@ -219,6 +253,19 @@ export function updateOpening(project: Project, id: Id, patch: Partial<Pick<Open
   return set(withWalls(space, space.walls!, space.openings!.map((o) => (o.id === id ? next : o))));
 }
 
+/** What updateOpening had to change from what was asked (cut to the wall's length), in words; undefined when nothing. */
+export function openingNote(project: Project, id: Id, patch: Partial<Pick<Opening, 'offset' | 'width'>>): string | undefined {
+  const opening = project.space.openings?.find((o) => o.id === id);
+  const wall = opening && project.space.walls?.find((w) => w.id === opening.wall);
+  if (!opening || !wall) return undefined;
+  const length = Math.floor(lengthOf(wall));
+  if (patch.width !== undefined && Math.round(patch.width) > length) return `The wall is only ${cmText(length)} long, so the ${opening.kind} was cut to fit.`;
+  if (patch.width !== undefined && Math.round(patch.width) < MIN_WALL) return `A ${opening.kind} is at least ${cmText(MIN_WALL)} wide.`;
+  const width = Math.round(patch.width ?? opening.width);
+  if (patch.offset !== undefined && (Math.round(patch.offset) < 0 || Math.round(patch.offset) + width > length)) return `It was moved to stay inside the wall (${cmText(length)} long).`;
+  return undefined;
+}
+
 export interface Snap {
   readonly point: Vec2;
   /** What it snapped to, for the guide drawn on the plan. */
@@ -292,12 +339,22 @@ export function nameRoom(project: Project, room: { readonly label: Vec2; readonl
 }
 
 /**
- * A typed wall length: "3.15", "3,15" or "٣٫١٥" is metres, a whole number above 30 is centimetres
- * ("315"), so both ways people read a plan work. Undefined when it is not a length.
+ * A typed wall length. With a unit it is exact: "3.15 m", "315 cm", "3150 mm". Without one:
+ * a number with a decimal point is metres ("3.15", "3,15", "٣٫١٥"), a whole number up to 30 is
+ * metres ("12"), and a larger whole number is centimetres ("315"). The drawing readout always
+ * shows the result, and a unit settles any doubt. Undefined when it is not a length.
  */
 export function typedLength(text: string): number | undefined {
-  const n = parseNumber(text);
-  if (!text.trim() || !Number.isFinite(n) || n <= 0) return undefined;
-  const metres = /[.,٫]/.test(text) || n <= 30 ? n : n / 100;
+  const m = /^\s*([0-9٠-٩.,٫]+)\s*(mm|cm|m|م|سم)?\s*$/i.exec(text);
+  if (!m) return undefined;
+  const n = parseNumber(m[1]!);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  const unit = m[2]?.toLowerCase();
+  const metres = unit === 'mm' ? n / 1000 : unit === 'cm' || unit === 'سم' ? n / 100 : unit === 'm' || unit === 'م' ? n : /[.,٫]/.test(m[1]!) || n <= 30 ? n : n / 100;
   return Math.round(metres * 10_000);
+}
+
+/** True when the typed text has no unit and no decimal point, so its unit was guessed. */
+export function typedLengthGuessed(text: string): boolean {
+  return /^\s*[0-9٠-٩]+\s*$/.test(text);
 }

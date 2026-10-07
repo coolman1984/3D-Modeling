@@ -1,9 +1,9 @@
 import { toUnit, wallFrame, type Command, type Id, type Project } from '@space-planner/core';
 import { ArrowsLeftRight, Door, FrameCorners, Trash } from '@phosphor-icons/react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { formatCentimetres, formatMetres } from '../logic/format.js';
 import type { Action } from '../logic/session.js';
-import { addOpening, removeWallsAndOpenings, setWallLength, updateOpening, updateWall } from '../logic/walls.js';
+import { addOpening, openingNote, removeWallsAndOpenings, setWallLength, updateOpening, updateWall, wallLengthProblem } from '../logic/walls.js';
 import { CommitField, Segmented } from './Fields.js';
 import { toTicks } from './units.js';
 
@@ -27,6 +27,8 @@ function Group({ title, hint, children }: { title: string; hint?: string; childr
 
 export function WallInspector({ project, id, dispatch }: { project: Project; id: Id; dispatch: (a: Action) => void }) {
   const wall = project.space.walls?.find((w) => w.id === id);
+  const [problem, setProblem] = useState<string | undefined>();
+  useEffect(() => setProblem(undefined), [id]);
   if (!wall) return null;
   const length = wallFrame(wall).length;
   const openings = (project.space.openings ?? []).filter((o) => o.wall === id);
@@ -60,13 +62,22 @@ export function WallInspector({ project, id, dispatch }: { project: Project; id:
       </div>
       <Group title="Size" hint="Length along the centre line; the far end moves, and walls joined there follow.">
         <div className="grid-2">
-          <CommitField label="L" ariaLabel="Wall length" unit="cm" value={cm(length)} onCommit={(v) => run(dispatch, setWallLength(project, id, toTicks(v)))} />
+          <CommitField label="L" ariaLabel="Wall length" unit="cm" value={cm(length)} onCommit={(v) => {
+            const why = wallLengthProblem(project, id, toTicks(v));
+            setProblem(why);
+            if (!why) run(dispatch, setWallLength(project, id, toTicks(v)));
+          }} />
           <CommitField label="T" ariaLabel="Wall thickness" unit="cm" value={cm(wall.thickness)} onCommit={(v) => v > 0 && run(dispatch, updateWall(project, id, { thickness: toTicks(v) }))} />
         </div>
         <div className="grid-2" style={{ marginTop: 8 }}>
           <CommitField label="H" ariaLabel="Wall height" unit="cm" value={cm(wall.height ?? project.space.ceilingHeight ?? 0)} onCommit={(v) => run(dispatch, updateWall(project, id, { height: v > 0 ? toTicks(v) : null }))} />
         </div>
       </Group>
+      {problem && (
+        <p className="error-text" role="alert" style={{ margin: '0 16px 12px' }}>
+          {problem}
+        </p>
+      )}
       {openings.length > 0 && (
         <Group title="In this wall">
           <ul className="opening-list">
@@ -87,10 +98,15 @@ export function WallInspector({ project, id, dispatch }: { project: Project; id:
 export function OpeningInspector({ project, id, dispatch }: { project: Project; id: Id; dispatch: (a: Action) => void }) {
   const opening = project.space.openings?.find((o) => o.id === id);
   const wall = opening && project.space.walls?.find((w) => w.id === opening.wall);
+  const [note, setNote] = useState<string | undefined>();
+  useEffect(() => setNote(undefined), [id]);
   if (!opening || !wall) return null;
   const door = opening.kind === 'door';
   const length = wallFrame(wall).length;
-  const set = (patch: Parameters<typeof updateOpening>[2]) => run(dispatch, updateOpening(project, id, patch));
+  const set = (patch: Parameters<typeof updateOpening>[2]) => {
+    setNote(openingNote(project, id, patch));
+    run(dispatch, updateOpening(project, id, patch));
+  };
   return (
     <div aria-label={door ? 'Selected door' : 'Selected window'}>
       <div className="insp-head">
@@ -129,6 +145,11 @@ export function OpeningInspector({ project, id, dispatch }: { project: Project; 
           {!door && <CommitField label="S" ariaLabel="Sill height" unit="cm" value={cm(opening.sill ?? 9_000)} onCommit={(v) => v >= 0 && set({ sill: toTicks(v) })} />}
         </div>
       </Group>
+      {note && (
+        <p className="muted" role="status" style={{ margin: '0 16px 12px' }}>
+          {note}
+        </p>
+      )}
       {door && (
         <Group title="Swing">
           <Segmented

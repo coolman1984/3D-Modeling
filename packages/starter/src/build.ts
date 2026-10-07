@@ -45,6 +45,12 @@ export interface FlatSpec {
   readonly ceiling?: number;
 }
 
+const SIDES: readonly Side[] = ['south', 'north', 'west', 'east'];
+const checkSide = (side: unknown, what: string): Side => {
+  if (!SIDES.includes(side as Side)) throw new FlatError(`${what}: the side is "${String(side)}", but it must be south, north, west or east`);
+  return side as Side;
+};
+
 /** Why a flat cannot be built, in words for the person or agent who described it. */
 export class FlatError extends Error {}
 
@@ -55,6 +61,8 @@ const KIND_WORDS: ReadonlyArray<readonly [string, RegExp]> = [
   ['dining', /dining|سفرة|طعام/i],
   ['study', /study|office|مكتب/i],
   ['hall', /hall|corridor|entry|lobby|طرقة|مدخل|ممر/i],
+  ['laundry', /laundry|utility|مغسلة|غسيل/i],
+  ['balcony', /balcon|terrace|veranda|شرفة|بلكون|تراس/i],
   ['living', /living|lounge|reception|salon|family|معيشة|ريسبشن|صالة|استقبال/i],
 ];
 
@@ -73,6 +81,8 @@ interface Rect {
 
 const m = (v: number) => fromUnit(Math.round(v * 1000) / 1000, 'm');
 /** Rooms where a door opens into rather than out of: the private side. */
+/** Rooms closer than this (25 cm) but not touching are a measuring slip. */
+const HOME_GAP = 2_500;
 const PRIVATE = new Set(['bathroom', 'bedroom', 'study']);
 
 interface Run {
@@ -123,6 +133,7 @@ function wallRuns(rects: readonly Rect[]): Run[] {
 /** Builds the flat; throws {@link FlatError} with a plain reason when the description does not hold together. */
 export function buildFlat(spec: FlatSpec): Project {
   if (!spec.rooms.length) throw new FlatError('a flat needs at least one room');
+  if (spec.ceiling !== undefined && !(spec.ceiling >= 1.8 && spec.ceiling <= 10)) throw new FlatError('the ceiling height must be between 1.8 and 10 m');
   const names = new Set<string>();
   const rects: Rect[] = spec.rooms.map((r) => {
     if (!r.name.trim()) throw new FlatError('every room needs a name');
@@ -137,7 +148,15 @@ export function buildFlat(spec: FlatSpec): Project {
     for (let j = i + 1; j < rects.length; j++) {
       const a = rects[i]!;
       const b = rects[j]!;
-      if (Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0) throw new FlatError(`rooms "${a.name}" and "${b.name}" overlap`);
+      const overlapX = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+      const overlapY = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+      if (overlapX > 0 && overlapY > 0) throw new FlatError(`rooms "${a.name}" and "${b.name}" overlap`);
+      // A sliver between two rooms is a typo in a measurement, not a wall: two outer walls are 40 cm apart or more.
+      const gapY = overlapX > 0 ? Math.max(a.y0, b.y0) - Math.min(a.y1, b.y1) : 0;
+      const gapX = overlapY > 0 ? Math.max(a.x0, b.x0) - Math.min(a.x1, b.x1) : 0;
+      for (const gap of [gapX, gapY]) {
+        if (gap > 0 && gap < HOME_GAP) throw new FlatError(`rooms "${a.name}" and "${b.name}" are ${Math.round(gap / 100)} cm apart: make them touch, or leave at least ${HOME_GAP / 100} cm between them`);
+      }
     }
   }
   const byName = new Map(rects.map((r) => [r.name, r]));
@@ -176,6 +195,7 @@ export function buildFlat(spec: FlatSpec): Project {
     if (a.y1 === b.y0 || a.y0 === b.y1) [axis, at, s0, s1] = ['x', a.y1 === b.y0 ? a.y1 : a.y0, Math.max(a.x0, b.x0), Math.min(a.x1, b.x1)];
     else if (a.x1 === b.x0 || a.x0 === b.x1) [axis, at, s0, s1] = ['y', a.x1 === b.x0 ? a.x1 : a.x0, Math.max(a.y0, b.y0), Math.min(a.y1, b.y1)];
     else throw new FlatError(`${what}: the rooms do not share a wall`);
+    if (s1 <= s0) throw new FlatError(`${what}: the rooms only touch at a corner, so there is no wall to put a door in`);
     const width = take(d.width, 8_000);
     // Clear of the walls that meet at the ends of the shared stretch.
     const start = s0 + take(d.at, 1_500);
@@ -194,7 +214,26 @@ export function buildFlat(spec: FlatSpec): Project {
     const axis: 'x' | 'y' = side === 'south' || side === 'north' ? 'x' : 'y';
     const at = side === 'south' ? r.y0 : side === 'north' ? r.y1 : side === 'west' ? r.x0 : r.x1;
     const [s0, s1] = axis === 'x' ? [r.x0, r.x1] : [r.y0, r.y1];
-    const start = wanted === undefined ? Math.round((s0 + s1 - width) / 2) : s0 + m(wanted);
+    let start = wanted === undefined ? Math.round((s0 + s1 - width) / 2) : s0 + m(wanted);
+    if (wanted === undefined) {
+      // Not told where: the middle if it is free, else the nearest free spot along the side.
+      const free = (from: Tick) => {
+        const i = runs.findIndex((run) => run.axis === axis && run.at === at && run.from <= from && run.to >= from + width);
+        if (i < 0 || !runs[i]!.outer) return false;
+        const wallId = walls[i]!.id;
+        const offset = from - runs[i]!.from;
+        return !openings.some((o) => o.wall === wallId && Math.min(offset + width + 1_000, o.offset + o.width) > Math.max(offset - 1_000, o.offset));
+      };
+      if (!runs.some((run) => run.axis === axis && run.at === at && run.outer && run.to > s0 && run.from < s1)) throw new FlatError(`${what}: the ${side} side of "${r.name}" is an inside wall`);
+      const lo = s0 + HOME_OUTER_WALL / 2;
+      const hi = s1 - HOME_OUTER_WALL / 2 - width;
+      const candidates: Tick[] = [];
+      for (let t = lo; t <= hi; t += 500) candidates.push(t);
+      candidates.sort((p, q) => Math.abs(p - start) - Math.abs(q - start) || p - q);
+      const spot = candidates.find(free);
+      if (spot === undefined) throw new FlatError(`${what}: there is no free ${width / 100} cm stretch on the ${side} side of "${r.name}"`);
+      start = spot;
+    }
     if (start < s0 + HOME_OUTER_WALL / 2 || start + width > s1 - HOME_OUTER_WALL / 2) throw new FlatError(`${what}: it does not fit on the ${side} side of "${r.name}"`);
     const found = wallOn(axis, at, start, start + width, what);
     if (!found.run.outer) throw new FlatError(`${what}: the ${side} side of "${r.name}" is an inside wall`);
@@ -206,18 +245,27 @@ export function buildFlat(spec: FlatSpec): Project {
   if (spec.entrance) {
     const e = spec.entrance;
     const width = take(e.width, 9_000);
-    const { wall, offset, side } = onSide(room(e.room), e.side, width, e.at, 'the entrance');
+    const { wall, offset, side } = onSide(room(e.room), checkSide(e.side, 'the entrance'), width, e.at, 'the entrance');
     openings.push({ id: 'front-door', wall: wall.id, kind: 'door', offset, width, hinge: 'start', side, meta: { role: 'entrance' } });
   }
   (spec.windows ?? []).forEach((w, i) => {
     const width = take(w.width, 12_000);
-    const { wall, offset } = onSide(room(w.room), w.side, width, w.at, `window in "${w.room}"`);
+    const { wall, offset } = onSide(room(w.room), checkSide(w.side, `window in "${w.room}"`), width, w.at, `window in "${w.room}"`);
     openings.push({ id: `window-${i + 1}`, wall: wall.id, kind: 'window', offset, width, ...(w.sill === undefined ? {} : { sill: m(w.sill) }), ...(w.height === undefined ? {} : { height: m(w.height) }) });
   });
   const taken = openings.map((o) => [o.wall, o.offset, o.offset + o.width] as const);
+  const describe = (o: Opening) => {
+    if (o.id === 'front-door') return 'the entrance';
+    if (o.id.startsWith('window-')) {
+      const w = spec.windows?.[Number(o.id.slice(7)) - 1];
+      return `the window in "${w?.room ?? '?'}"`;
+    }
+    const d = spec.doors?.[Number(o.id.slice(5)) - 1];
+    return `the door between "${d?.between[0] ?? '?'}" and "${d?.between[1] ?? '?'}"`;
+  };
   taken.forEach(([wall, a, b], i) => {
     const clash = taken.findIndex(([w2, c, d], j) => j > i && w2 === wall && Math.min(b, d) > Math.max(a, c));
-    if (clash >= 0) throw new FlatError(`${openings[i]!.id} and ${openings[clash]!.id} overlap in the same wall`);
+    if (clash >= 0) throw new FlatError(`${describe(openings[i]!)} and ${describe(openings[clash]!)} overlap in the same wall: give one of them a different position (at)`);
   });
 
   const half = HOME_OUTER_WALL / 2;

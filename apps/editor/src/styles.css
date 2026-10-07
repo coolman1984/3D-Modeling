@@ -1618,7 +1618,7 @@ button.rule-row:hover { background: var(--page); }
 .draw-tools button:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
 .draw-tools button[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); }
 .draw-tools button:disabled { opacity: 0.35; cursor: default; }
-.draw-hint { order: -1; padding: 0 10px 0 8px; border-right: 1px solid var(--line); margin-right: 4px; font-size: calc(12px * var(--ts, 1)); color: var(--ink-2); white-space: nowrap; }
+.draw-hint { position: absolute; top: 62px; right: 16px; z-index: 3; max-width: min(360px, calc(100% - 32px)); padding: 6px 10px; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--line); border-radius: var(--r-2); line-height: 1.4; white-space: normal; font-size: calc(12px * var(--ts, 1)); color: var(--ink-2); }
 .room-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 0; }
 .room-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: calc(13px * var(--ts, 1)); }
 .room-name { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; padding: 5px 6px; font: inherit; color: var(--ink); border-radius: var(--r-1); }

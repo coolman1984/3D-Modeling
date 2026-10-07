@@ -88,6 +88,8 @@ const def = (id: string) => CATALOG.get(id)!;
 const m = (v: number) => Math.round(v * 10_000);
 const STEP = 500; // 5 cm
 /** Areas whose pieces people sit at: furnished after the rest, so their walkways stay open. */
+/** Kinds of room the engine knows how to furnish. */
+const HAS_RECIPE = new Set(['bedroom', 'living', 'dining', 'kitchen', 'bathroom', 'study', 'hall', 'laundry']);
 const SEATING = new Set(['living', 'dining', 'study']);
 
 /** The areas to furnish: each detected room, split into its named zones when it holds several. */
@@ -103,9 +105,10 @@ export function furnishAreas(project: Project): FurnishArea[] {
     if (zones.length <= 1) {
       const name = zones[0] ? label(zones[0]) : `Room ${index + 1}`;
       const named = zones[0] && zones[0].kind !== 'room' ? zones[0].kind : roomKindOf(name);
-      // An unnamed room is read by its size: the largest is the living room, a small one a bath.
+      // A room with a name we do not know (a balcony, a store) is left alone. A room with no name at
+      // all is read by its size: the largest is the living room, a small one a bath, the rest bedrooms.
       const largest = map.rooms.every((other) => other.area <= room.area);
-      const kind = named !== 'room' ? named : largest ? 'living' : room.area < 60_000_000 ? 'bathroom' : 'bedroom';
+      const kind = zones[0] ? named : largest ? 'living' : room.area < 600_000_000 ? 'bathroom' : 'bedroom';
       areas.push({ name, kind, x0: room.min.x, y0: room.min.y, x1: room.max.x, y1: room.max.y, room: index });
       return;
     }
@@ -551,7 +554,7 @@ function study(r: Area): Draft[] {
     const at = r.slot(side, desk.size.w);
     if (at === undefined) continue;
     const items: Placement[] = [r.against(desk, side, at)];
-    const seat = r.point(side, at, desk.size.d + chair.size.d / 2 - m(0.1));
+    const seat = r.point(side, at, desk.size.d + chair.size.d / 2 + m(0.02));
     items.push({ def: chair, position: { x: Math.round(seat.x), y: Math.round(seat.y) }, rotation: (ROTATION[side] + 180_000) % 360_000 });
     const reasons = ['A desk with room to push the chair back.'];
     let bonus = 0;
@@ -565,6 +568,20 @@ function study(r: Area): Draft[] {
       items.push(extra(r.against(shelves, shelfSide, r.slot(shelfSide, shelves.size.w)!), `Bookshelves on the ${shelfSide} wall.`));
     }
     drafts.push({ key: `desk-${side}`, title: `Desk against the ${side} wall`, reasons, bonus, items });
+  }
+  return drafts;
+}
+
+function laundry(r: Area): Draft[] {
+  const washer = def('home-washer');
+  const shelf = def('home-shelf');
+  const drafts: Draft[] = [];
+  for (const side of SIDES) {
+    const at = r.slot(side, washer.size.w + m(0.4), 'start');
+    if (at === undefined) continue;
+    const start = at - (washer.size.w + m(0.4)) / 2;
+    const items: Placement[] = [r.against(washer, side, start + washer.size.w / 2), extra(r.against(shelf, side, start + washer.size.w / 2, 0, wallElevation(shelf)), 'A shelf above the machine for detergent and baskets.')];
+    drafts.push({ key: `washer-${side}`, title: `Washing machine on the ${side} wall`, reasons: ['The machine stands against a solid wall near the water; 90 cm free in front to load it.'], bonus: 0, items });
   }
   return drafts;
 }
@@ -596,6 +613,8 @@ function draftsFor(r: Area, palette: Palette): Draft[] {
       return study(r);
     case 'hall':
       return hall(r);
+    case 'laundry':
+      return laundry(r);
     default:
       return [];
   }
@@ -604,19 +623,27 @@ function draftsFor(r: Area, palette: Palette): Draft[] {
 // ─── Finishes ──────────────────────────────────────────────────────────────────────────────────
 
 /** The piece in this option's finishes: a variant type when its fabric or wood changes. */
+const FABRIC_WORD: Readonly<Record<Fabric, string>> = { linen: 'linen', cream: 'cream', boucle: 'bouclé', charcoal: 'charcoal', sage: 'sage', terracotta: 'terracotta', navy: 'navy', ochre: 'ochre' };
+const WOOD_WORD: Readonly<Record<string, string>> = { oak: 'oak', walnut: 'walnut', white: 'white', black: 'black' };
+/** Finish words in a piece's name: replaced when the finish changes, never doubled. */
+const FINISH_NAME = /^(oak|walnut|white|black|marble|linen|cream|bouclé|boucle|charcoal|sage|terracotta|navy|ochre)$/i;
+
 function finished(d: ItemDefinition, palette: Palette): ItemDefinition {
   const meta: Record<string, string | number | boolean> = { ...(d.meta ?? {}) };
-  let changed = false;
+  const words: string[] = [];
   if (typeof meta.fabric === 'number' && ['bed', 'armchair', 'dining-set'].includes(d.category) && meta.fabric !== FABRICS[palette.fabric]) {
     meta.fabric = FABRICS[palette.fabric];
-    changed = true;
+    words.push(FABRIC_WORD[palette.fabric]);
   }
   if (typeof meta.wood === 'string' && meta.wood !== 'marble' && meta.wood !== palette.wood && ['bed', 'wardrobe', 'nightstand', 'dresser', 'sideboard', 'coffee-table', 'tv-unit', 'desk', 'bookcase', 'dining-set', 'side-table'].includes(d.category)) {
     meta.wood = palette.wood;
-    changed = true;
+    words.push(WOOD_WORD[palette.wood] ?? palette.wood);
   }
-  if (!changed) return d;
-  return { ...d, id: `${d.id}--${palette.id}`, name: `${d.name.split(' · ').filter((p) => !/oak|walnut|white|linen|sage|charcoal/.test(p)).join(' · ')} · ${palette.name.toLowerCase()}`, meta: meta as Meta };
+  if (!words.length) return d;
+  // "Armchair Oslo · bouclé" in charcoal becomes "Armchair Oslo · charcoal"; "Bed · king · 180 × 200" in
+  // charcoal fabric and white wood becomes "Bed · king · 180 × 200 · charcoal · white".
+  const kept = d.name.split(' · ').filter((part) => !FINISH_NAME.test(part.trim()));
+  return { ...d, id: `${d.id}--${palette.id}`, name: [...kept, ...words].join(' · '), meta: meta as Meta };
 }
 
 // ─── Checking and choosing ─────────────────────────────────────────────────────────────────────
@@ -735,7 +762,9 @@ export function furnishOptions(project: Project, { count = 3, areas: only }: { c
       // Each area is chosen against the flat as furnished so far in this option.
       const ranked = arrangementsFor(working, area, palette);
       if (!ranked.length) {
-        if (draftsFor(new Area(working, area), palette).length || ['bedroom', 'living', 'dining', 'kitchen', 'bathroom', 'study'].includes(area.kind)) unfurnished.push(area.name);
+        if (!HAS_RECIPE.has(area.kind)) {
+          if (area.kind !== 'balcony') unfurnished.push(`${area.name}: no layout is known for this kind of room (rename it, e.g. bedroom, study or laundry, to furnish it)`);
+        } else if (area.kind !== 'hall') unfurnished.push(`${area.name}: nothing fits there with the doors, windows and walkways kept clear`); // a bare corridor is fine
         continue;
       }
       let step: Step = { area, before: working, ranked, ...choose(working, area, ranked) };
@@ -781,6 +810,10 @@ export function furnishOptions(project: Project, { count = 3, areas: only }: { c
       ...types.map((definition): Command => ({ type: 'catalog.define', definition })),
       ...removed.map((id): Command => ({ type: 'item.remove', id })),
       ...newItems.map((item): Command => ({ type: 'item.add', item })),
+      // Finish variants of an earlier option that no piece uses any more go with it, so the catalogue does not pile up.
+      ...Object.keys(project.catalog)
+        .filter((id) => id.includes('--') && !Object.values(working.items).some((i) => i.definitionId === id))
+        .map((id): Command => ({ type: 'catalog.remove', id })),
     ];
     options.push({
       index: k,

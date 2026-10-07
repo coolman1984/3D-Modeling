@@ -45,6 +45,29 @@ describe('a flat from its measurements', () => {
     expect(bad({ windows: [{ room: 'Living', side: 'south', width: 13 }] })).toThrow(FlatError);
   });
 
+  it('refuses a side that is not a side, a measuring slip between rooms, a corner-only door, an impossible ceiling', () => {
+    const one = (patch: Partial<FlatSpec>) => () => buildFlat({ name: 'x', rooms: [{ name: 'Living', x: 0, y: 0, width: 5, depth: 4 }], ...patch });
+    expect(one({ entrance: { room: 'Living', side: 'up' as 'south' } })).toThrow(/must be south, north, west or east/);
+    expect(one({ windows: [{ room: 'Living', side: 'top' as 'south' }] })).toThrow(/must be south/);
+    expect(one({ ceiling: 0 })).toThrow(/between 1.8 and 10 m/);
+    const two = (b: { x: number; y: number }, doors?: FlatSpec['doors']) => () => buildFlat({ name: 'x', rooms: [{ name: 'A', x: 0, y: 0, width: 3, depth: 3 }, { name: 'B', ...b, width: 3, depth: 3 }], ...(doors ? { doors } : {}) });
+    expect(two({ x: 3.01, y: 0 })).toThrow(/1 cm apart: make them touch/);
+    expect(two({ x: 3.4, y: 0 })).not.toThrow(); // 40 cm: two outer walls side by side
+    expect(two({ x: 3, y: 3 }, [{ between: ['A', 'B'] }])).toThrow(/only touch at a corner/);
+  });
+
+  it('puts a window where it is free when no position is given, and names what clashes by room', () => {
+    const base: FlatSpec = { name: 'x', rooms: [{ name: 'Living', x: 0, y: 0, width: 5, depth: 4 }], entrance: { room: 'Living', side: 'south', at: 1.8 } };
+    // The default window is 1.2 m, centred at 2.5 m: it would clash with the entrance (1.8–2.7 m), so it slides along.
+    const flat = buildFlat({ ...base, windows: [{ room: 'Living', side: 'south' }] });
+    const door = flat.space.openings!.find((o) => o.id === 'front-door')!;
+    const window = flat.space.openings!.find((o) => o.id === 'window-1')!;
+    expect(door.wall).toBe(window.wall);
+    expect(window.offset >= door.offset + door.width || window.offset + window.width <= door.offset).toBe(true);
+    // Told exactly where: the clash is named by rooms, not ids.
+    expect(() => buildFlat({ ...base, windows: [{ room: 'Living', side: 'south', at: 2 }] })).toThrow(/the entrance and the window in "Living" overlap/);
+  });
+
   it('reads room kinds from English and Arabic names', () => {
     expect(['Master bedroom', 'غرفة نوم', 'WC', 'حمام', 'Reception', 'صالة', 'المطبخ', 'Store'].map(roomKindOf)).toEqual(['bedroom', 'bedroom', 'bathroom', 'bathroom', 'living', 'living', 'kitchen', 'room']);
   });

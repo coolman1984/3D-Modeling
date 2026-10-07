@@ -150,6 +150,16 @@ describe('agent tools', () => {
     const bad = runTool(ctx, 'build_apartment', { name: 'x', rooms: [rooms[0], { ...rooms[1], y_m: 4 }] });
     expect(bad.isError).toBe(true);
     expect(bad.text).toContain('overlap');
+    // A side that is not a side is refused, not turned into some wall.
+    const wrongSide = runTool(ctx, 'build_apartment', { name: 'x', rooms: [rooms[0]], entrance: { room: 'Reception', side: 'up' } });
+    expect(wrongSide.isError).toBe(true);
+    expect(wrongSide.text).toContain('must be south, north, west or east');
+    // Measurements copied from a file as text: "4,5" and "٤٫٥ م".
+    const textNumbers = runTool(ctx, 'build_apartment', { name: 'text', rooms: [{ name: 'Living', x_m: '0', y_m: '0', width_m: '4,5', depth_m: '٤٫٥ م' }] });
+    expect(textNumbers.isError).toBe(false);
+    expect(textNumbers.text).toContain('18.49 m²'); // 4.5 × 4.5 m on the wall centre lines: 4.3 × 4.3 m inside 20 cm outer walls
+    expect(runTool(ctx, 'build_apartment', { name: 'x', rooms: [{ ...rooms[0], width_m: 'wide' }] }).text).toContain('"width_m" must be a number (got "wide")');
+    expect(runTool(ctx, 'build_apartment', { name: 'x', rooms: [rooms[0]], ceiling_m: 0 }).text).toContain('between 1.8 and 10 m');
 
     const options = runTool(ctx, 'furnish_options', { project_id: id });
     expect(options.isError).toBe(false);
@@ -168,6 +178,21 @@ describe('agent tools', () => {
     expect(kept.isError).toBe(false);
     expect(store.listProjects().length).toBe(before + 3);
     expect(kept.text).toContain('Client flat · Option A · Warm oak and linen');
+
+    // A hall is not rebuilt as a flat (it would lose its doors and kind); a locked piece stops a rebuild.
+    const hall = store.createProject(demoHall(), 'human');
+    const refused = runTool(ctx, 'build_apartment', { project_id: hall.id, rooms });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain('is not an apartment');
+    expect(store.getProject(hall.id)!.revision).toBe(0);
+    const withLock = store.createProject(newHomeProject(), 'human');
+    const piece = runTool(ctx, 'place_items', { project_id: withLock.id, items: [{ definition_id: 'home-sofa-linen', x_m: 3, y_m: 3 }] });
+    expect(piece.isError).toBe(false);
+    const pieceId = Object.keys(store.getProject(withLock.id)!.items)[0]!;
+    runTool(ctx, 'apply_commands', { project_id: withLock.id, commands: [{ type: 'item.lock', id: pieceId, locked: true }] });
+    const stuck = runTool(ctx, 'build_apartment', { project_id: withLock.id, rooms });
+    expect(stuck.isError).toBe(true);
+    expect(stuck.text).toContain(`locked and would be removed by the rebuild: ${pieceId}`);
 
     // The same flat, built into an existing project in one revision.
     const target = store.createProject(newHomeProject(), 'human');
@@ -632,6 +657,12 @@ describe('HTTP app', () => {
     expect(read.result.contents[0].text).toContain('Screen distance');
     const nope = (await handleMessage({ jsonrpc: '2.0', id: 7, method: 'resources/read', params: { uri: 'atrium://skills/nope' } }, options)) as any;
     expect(nope.error.code).toBe(-32002);
+    // The guides also answer as a tool call, with the program closed.
+    const guide = (await handleMessage({ jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'design_guide', arguments: { topic: 'bedroom' } } }, options)) as any;
+    expect(guide.result.isError).toBe(false);
+    expect(guide.result.content[0].text).toContain('command position');
+    const closed = (await handleMessage({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'list_projects', arguments: {} } }, options)) as any;
+    expect(closed.result.content[0].text).toContain('Open the Atrium program');
   });
 
   it('runs a local coding agent that designs through the tools', async () => {

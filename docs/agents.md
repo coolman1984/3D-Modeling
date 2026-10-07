@@ -17,17 +17,25 @@ interior designer's workflow and knowledge:
 - **Resources:** `atrium://skills/workflow`, `space-planning`, `living-room`, `bedroom`,
   `dining-kitchen`, `bathroom`, `style-and-finish`.
 
-Connect an agent to the running program:
+Connect an agent to the running program: open **Settings → Agent Tools → Connect another assistant**.
+It shows the exact command for this copy of Atrium (the browser version or the installed program),
+for example:
 
 ```bash
-claude mcp add atrium -- node /path/to/apps/server/dist/mcp.mjs   # Claude Code
-# any other client: command "node", args ["/path/to/apps/server/dist/mcp.mjs"]
+claude mcp add planner -- node "<path shown in Settings>/mcp.mjs" --url http://127.0.0.1:4650
 ```
 
+Any other MCP client: command `node`, arguments `["<path>/mcp.mjs", "--url", "<address>"]`. Node.js
+must be installed on the computer. Without `--url` the bridge looks for the program's address file
+(project folder, or the installed program's data folder) and then tries ports 4650 and 4600. The
+design guides (`design_guide`, prompts, resources) answer even when Atrium is closed; every other
+tool needs Atrium open.
+
 Then: "Here are my client's measurements: … Draw the flat and give me three furnished options."
-Inside the program, Settings → AI takes an Anthropic key or any OpenAI-compatible service
-(OpenAI, Gemini, OpenRouter, DeepSeek, a local model…); the agent there has the same tools and
-guides, and the AI Planner panel takes the client's file.
+Inside the program, **Settings → AI Providers** takes an Anthropic key or any OpenAI-compatible
+service (a base URL and a key: OpenAI, Gemini's compatible endpoint, OpenRouter, DeepSeek, a local
+model…; only the Anthropic and a generic compatible server were exercised so far); the agent there has
+the same tools and guides, and the AI Planner panel takes the client's file.
 
 ## Tools
 

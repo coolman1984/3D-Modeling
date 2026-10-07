@@ -26,7 +26,7 @@ import { snapAngle, snapMove, type Guide } from '../logic/snap.js';
 import { boxCentre, itemsInBox, movable, moveCommands, rotateCommands, selectionBounds } from '../logic/transform.js';
 import { fitViewport, panBy, pathOf, toScreen, toWorld, zoomAt, type Viewport } from '../logic/viewport.js';
 import { zoneStyle } from '../logic/zoneStyle.js';
-import { addOpening, addWall, alongWall, MIN_WALL, moveWall, moveWallEnd, pointAtLength, snapWallPoint, typedLength, updateOpening, wallAt, type Snap } from '../logic/walls.js';
+import { addOpening, addWall, alongWall, MIN_WALL, moveWall, moveWallEnd, pointAtLength, snapWallPoint, typedLength, typedLengthGuessed, updateOpening, wallAt, type Snap } from '../logic/walls.js';
 
 interface Props {
   /** What to draw: the saved project with any change in progress on top. */
@@ -215,7 +215,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
         return;
       }
       if (tool !== 'wall' || !chain) return;
-      if (/^[0-9٠-٩.,٫]$/.test(e.key)) {
+      if (/^[0-9٠-٩.,٫mcمس]$/i.test(e.key)) {
         e.preventDefault();
         setTyped((t) => (t + e.key).slice(0, 10));
       } else if (e.key === 'Backspace') {
@@ -811,7 +811,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
           const at = toScreen(v, cursor.point);
           const from = chain ? toScreen(v, chain.from) : null;
           const length = chain ? typedLength(typed) ?? Math.round(Math.hypot(cursor.point.x - chain.from.x, cursor.point.y - chain.from.y)) : undefined;
-          const label = length === undefined ? '' : typed ? `${typed}▌ → ${formatMetres(length)} m` : `${formatMetres(length)} m`;
+          const label = length === undefined ? '' : typed ? `${typed}▌ → ${formatMetres(length)} m${typedLengthGuessed(typed) ? ' · add m or cm to be sure' : ''}` : `${formatMetres(length)} m`;
           return (
             <g className="draw-cursor" pointerEvents="none">
               {from && <line x1={from.x} y1={from.y} x2={at.x} y2={at.y} className="draw-line" />}
@@ -848,16 +848,16 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
               {icon}
             </button>
           ))}
-          {tool !== 'select' && (
+        </div>
+      )}
+      {tool !== 'select' && (
             <span className="draw-hint" role="status">
               {tool === 'wall'
                 ? chain
-                  ? 'Click the next corner, or type a length (3.15 or 315) and press Enter · double-click or Esc to stop'
+                  ? 'Click the next corner, or type a length (3.15 m or 315 cm) and press Enter · double-click or Esc to stop'
                   : 'Click where the wall starts · it snaps to wall ends and stays square'
                 : `Click a wall to put a ${tool} in it · Esc to cancel`}
             </span>
-          )}
-        </div>
       )}
       <div className="floating-tools" role="toolbar" aria-label="Zoom">
         <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => onViewport(zoomAt(v, 1 / 1.25, { x: size.width / 2, y: size.height / 2 }))}>

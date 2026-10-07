@@ -73,8 +73,10 @@ function num(input: Record<string, unknown>, key: string, optional: true): numbe
 function num(input: Record<string, unknown>, key: string, optional = false): number | undefined {
   const v = input[key];
   if (v === undefined && optional) return undefined;
-  if (typeof v !== 'number' || !Number.isFinite(v)) throw new ToolError(`"${key}" must be a number`);
-  return v;
+  // Measurements read from a client's file arrive as text: "4,5", "٤٫٥", "4.5 m" are all 4.5.
+  const n = typeof v === 'string' ? Number(v.trim().replace(/\s*(m|م)$/i, '').replace(/[,٫]/, '.').replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n) || (typeof v === 'string' && v.trim() === '')) throw new ToolError(`"${key}" must be a number${typeof v === 'string' ? ` (got "${v}")` : ''}`);
+  return n;
 }
 
 function list(input: Record<string, unknown>, key: string, optional = false): Array<Record<string, unknown>> {
@@ -105,8 +107,9 @@ function commit(ctx: ToolContext, project: Project, commands: Command[], summary
   if (result.ok) return result.project;
   if (result.status === 422) {
     const detail = result.rejection.problems?.map((p) => `${p.path}: ${p.message}`).join('; ');
-    const at = result.rejection.at ? ` (command #${result.rejection.at.join('.')})` : '';
-    throw new ToolError(`Rejected${at}: ${result.rejection.code}: ${result.rejection.message}${detail ? ` — ${detail}` : ''}`);
+    const at = result.rejection.at ? ` (step ${result.rejection.at.map((n) => n + 1).join('.')} of the change)` : '';
+    const lockedHint = result.rejection.code === 'locked' ? ' Unlock it first (item.lock with locked false), then try again.' : '';
+    throw new ToolError(`Rejected${at}: ${result.rejection.code}: ${result.rejection.message}${detail ? ` — ${detail}` : ''}.${lockedHint}`.replace('..', '.'));
   }
   throw new ToolError('The project could not be changed.');
 }
@@ -297,7 +300,7 @@ function describeOption(o: FurnishOption): string {
   const status = o.errors === 0 && o.failedRules.length === 0 ? 'passes every check' : `${o.errors} error(s)${o.failedRules.length ? `, rules not met: ${o.failedRules.join(', ')}` : ''}`;
   const lines = [`${o.title} — ${o.pieces} pieces, ${o.seats} seats, ${status}${o.warnings ? `, ${o.warnings} warning(s)` : ''}`];
   for (const room of o.rooms) lines.push(`  ${room.area}: ${room.arrangement}. ${room.reasons.join(' ')}`);
-  if (o.unfurnished.length) lines.push(`  Not furnished (no arrangement fits): ${o.unfurnished.join(', ')}`);
+  for (const note of o.unfurnished) lines.push(`  Not furnished · ${note}`);
   return lines.join('\n');
 }
 
@@ -320,7 +323,7 @@ export const TOOLS: readonly ToolDef[] = [
   },
   {
     name: 'create_project',
-    description: 'Create an apartment (home), hall, office, container, warehouse, production-line, vehicle-depot or restaurant project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Depot reference layout: activity depot, reference true (30 × 18 m, a two-way lane and six parking bays, two occupied). Restaurant reference layout: activity restaurant, reference true (20 × 14 m, a kitchen pass and 9 tables of mixed families seating 44). Furnished apartments: activity home with template home-studio (49 m²), home-one-bedroom (70 m²) or home-two-bedroom (108 m²). Returns the project id.',
+    description: 'Create an apartment (home), hall, office, container, warehouse, production-line, vehicle-depot or restaurant project. Warehouse reference layout: activity warehouse, reference true (30 × 20 × 8 m, five rack rows). Production reference layout: activity production, reference true (30 × 8 m, source → machine A → buffer → machine B → inspection → finished goods). Depot reference layout: activity depot, reference true (30 × 18 m, a two-way lane and six parking bays, two occupied). Restaurant reference layout: activity restaurant, reference true (20 × 14 m, a kitchen pass and 9 tables of mixed families seating 44). Furnished apartments: activity home with template home-studio (49 m²), home-one-bedroom (70 m²) or home-two-bedroom (108 m²). To draw a client\'s own flat from its room sizes use build_apartment instead. Returns the project id.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -943,7 +946,7 @@ export const TOOLS: readonly ToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        project_id: { type: 'string', description: 'Optional: rebuild this project as the flat (its furniture is removed) instead of creating a new one.' },
+        project_id: { type: 'string', description: 'Optional: rebuild this apartment project as the flat (its furniture, rooms, doors and windows are replaced; refused for other kinds of project) instead of creating a new project.' },
         name: { type: 'string' },
         rooms: {
           type: 'array',
@@ -982,6 +985,13 @@ export const TOOLS: readonly ToolDef[] = [
     },
     run: (ctx, input) => {
       const target = typeof input.project_id === 'string' && input.project_id ? load(ctx, input) : undefined;
+      if (target) {
+        // Rebuilding replaces the whole space. Only an apartment may be rebuilt: a hall, warehouse or
+        // restaurant would lose its doors, zones and its kind without anyone asking.
+        if (target.space.meta?.pack !== 'home') throw new ToolError(`project ${target.id} is not an apartment (it is a ${detectPack(target)} project), so it would lose its doors, zones and kind. Call build_apartment without project_id to make a new project.`);
+        const locked = Object.values(target.items).filter((i) => i.locked).map((i) => i.id);
+        if (locked.length) throw new ToolError(`these pieces are locked and would be removed by the rebuild: ${locked.join(', ')}. Unlock them first, or build a new project.`);
+      }
       const cmM = (v: unknown) => (typeof v === 'number' ? v / 100 : undefined);
       const opt = <T,>(v: T | undefined, key: string) => (v === undefined ? {} : { [key]: v });
       const spec: FlatSpec = {
