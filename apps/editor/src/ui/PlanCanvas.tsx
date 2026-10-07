@@ -105,6 +105,8 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
   const [overlay, setOverlay] = useState<Overlay>({});
   const spaceHeld = useRef(false);
   const roomBounds = useMemo(() => boundsOf(project.space.boundary), [project.space.boundary]);
+  // The largest side of the place: a whole number typed for a wall is read in metres only if a wall that long fits it.
+  const span = Math.max(roomBounds.maxX - roomBounds.minX, roomBounds.maxY - roomBounds.minY);
   // Drawing walls: the chain's last point and first point, the snapped cursor, and a typed length.
   const [chain, setChain] = useState<{ from: Vec2; start: Vec2 } | null>(null);
   const [cursor, setCursor] = useState<(Snap & { screen: Vec2 }) | null>(null);
@@ -223,7 +225,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
         setTyped((t) => t.slice(0, -1));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        const length = typedLength(typed);
+        const length = typedLength(typed, span);
         if (length === undefined) {
           // Enter with nothing typed ends the chain, like a double-click.
           if (!typed) {
@@ -343,7 +345,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
     if (tool === 'wall') {
       const snap = snapWallPoint(saved, world, reach, event.ctrlKey || event.metaKey ? 1 : gridStep, chain?.from);
       setCursor({ ...snap, screen });
-      const added = chain ? addWall(saved, chain.from, typedLength(typed) !== undefined ? pointAtLength(chain.from, snap.point, typedLength(typed)!) : snap.point) : undefined;
+      const added = chain ? addWall(saved, chain.from, typedLength(typed, span) !== undefined ? pointAtLength(chain.from, snap.point, typedLength(typed, span)!) : snap.point) : undefined;
       dispatch({ type: 'preview', command: added?.command ?? null });
       return;
     }
@@ -810,7 +812,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
         {tool === 'wall' && cursor && (() => {
           const at = toScreen(v, cursor.point);
           const from = chain ? toScreen(v, chain.from) : null;
-          const length = chain ? typedLength(typed) ?? Math.round(Math.hypot(cursor.point.x - chain.from.x, cursor.point.y - chain.from.y)) : undefined;
+          const length = chain ? typedLength(typed, span) ?? Math.round(Math.hypot(cursor.point.x - chain.from.x, cursor.point.y - chain.from.y)) : undefined;
           const label = length === undefined ? '' : typed ? `${typed}▌ → ${formatMetres(length)} m${typedLengthGuessed(typed) ? ' · add m or cm to be sure' : ''}` : `${formatMetres(length)} m`;
           return (
             <g className="draw-cursor" pointerEvents="none">

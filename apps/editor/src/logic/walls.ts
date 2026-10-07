@@ -340,17 +340,19 @@ export function nameRoom(project: Project, room: { readonly label: Vec2; readonl
 
 /**
  * A typed wall length. With a unit it is exact: "3.15 m", "315 cm", "3150 mm". Without one:
- * a number with a decimal point is metres ("3.15", "3,15", "٣٫١٥"), a whole number up to 30 is
- * metres ("12"), and a larger whole number is centimetres ("315"). The drawing readout always
- * shows the result, and a unit settles any doubt. Undefined when it is not a length.
+ * a number with a decimal point is metres ("3.15", "3,15", "٣٫١٥"); a whole number is metres when
+ * a wall that long fits the place being drawn (up to 1.5 × its largest side, and never less than
+ * 30 m), else centimetres. So in a 12 m flat "12" is 12 m and "35" is 35 cm, while in a 60 m
+ * warehouse "35" is 35 m. The readout always shows the result; a unit settles any doubt.
+ * `span` is the largest side of the place in ticks. Undefined when it is not a length.
  */
-export function typedLength(text: string): number | undefined {
+export function typedLength(text: string, span = 0): number | undefined {
   const m = /^\s*([0-9٠-٩.,٫]+)\s*(mm|cm|m|م|سم)?\s*$/i.exec(text);
   if (!m) return undefined;
   const n = parseNumber(m[1]!);
   if (!Number.isFinite(n) || n <= 0) return undefined;
   const unit = m[2]?.toLowerCase();
-  const metres = unit === 'mm' ? n / 1000 : unit === 'cm' || unit === 'سم' ? n / 100 : unit === 'm' || unit === 'م' ? n : /[.,٫]/.test(m[1]!) || n <= 30 ? n : n / 100;
+  const metres = unit === 'mm' ? n / 1000 : unit === 'cm' || unit === 'سم' ? n / 100 : unit === 'm' || unit === 'م' ? n : /[.,٫]/.test(m[1]!) || n <= Math.max(30, (1.5 * span) / 10_000) ? n : n / 100;
   return Math.round(metres * 10_000);
 }
 

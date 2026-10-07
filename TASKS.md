@@ -3,7 +3,7 @@
 ## Done: fixes from the review report (7 Oct 2026)
 
 Fixed: door lost silently when its wall is shortened (now refused, with the reason in the Inspector);
-typed lengths take units (35 m, 35 cm, 3500 mm, Arabic م / سم) and the readout says when a unit was
+typed lengths take units (35 m, 35 cm, 3500 mm, Arabic م / سم); a bare whole number is metres only if a wall that long fits the place (so 35 is 35 cm in a flat, 35 m in a 60 m warehouse), and the readout says when a unit was
 guessed; the length field shows the real value after a refusal; apartments only can be rebuilt by
 `build_apartment` (a hall keeps its doors and kind), locked pieces named; `side` validated; the
 tools accept measurements as text ("4,5", "٤٫٥ م"); slivers between rooms and corner-only doors

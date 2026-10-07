@@ -72,6 +72,8 @@ describe('typed lengths with units', () => {
   it('a unit settles any doubt: 35 m, 35 cm, 3500 mm, and Arabic units', () => {
     expect([typedLength('35 m'), typedLength('35m'), typedLength('35cm'), typedLength('3500 mm'), typedLength('٣٥ م'), typedLength('٣٥ سم')]).toEqual([m(35), m(35), cm(35), m(3.5), m(35), cm(35)]);
     expect([typedLength('35'), typedLength('12'), typedLength('315'), typedLength('3.15')]).toEqual([cm(35), m(12), m(3.15), m(3.15)]);
+    // The place decides a bare whole number: in a 13 m flat 35 is centimetres, in a 60 m warehouse metres.
+    expect([typedLength('35', m(13)), typedLength('12', m(13)), typedLength('35', m(60)), typedLength('90', m(60)), typedLength('95', m(60))]).toEqual([cm(35), m(12), m(35), m(90), cm(95)]);
     expect([typedLength('3 x'), typedLength('m'), typedLength('-2')]).toEqual([undefined, undefined, undefined]);
     expect([typedLengthGuessed('35'), typedLengthGuessed('35 m'), typedLengthGuessed('3.5')]).toEqual([true, false, false]);
   });
