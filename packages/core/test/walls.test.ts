@@ -156,6 +156,24 @@ describe('walls and openings: geometry', () => {
     expect(m2(measureProject(project(flat())).floorArea)).toBeCloseTo(19.8, 6);
   });
 
+  it('an L-shaped flat: the corner outside its outer walls is not a room', () => {
+    // Outline 6 × 4 m; outer walls (20 cm) run round an L that leaves out the north-east 3 × 2 m.
+    const L: WallSegment[] = [
+      outer('l1', [10, 10], [590, 10]),
+      outer('l2', [590, 10], [590, 190]),
+      outer('l3', [590, 190], [300, 190]),
+      outer('l4', [300, 190], [300, 390]),
+      outer('l5', [300, 390], [10, 390]),
+      outer('l6', [10, 390], [10, 10]),
+    ];
+    const rooms = detectRooms(flat({ walls: L, openings: [] }));
+    // Inside: 5.60 × 1.60 (south strip) + 2.70 × 2.00 (west wing above it) = 8.96 + 5.40 = 14.36 m².
+    expect(rooms.map((r) => m2(r.area))).toEqual([14.36]);
+    // A hall with one partition and no outer walls keeps both rooms the outline closes.
+    const hall = createSpace(rectangleBoundary(cm(600), cm(400)), { walls: [{ ...PARTITION, a: p(300, 0), b: p(300, 400) }] });
+    expect(detectRooms(hall)).toHaveLength(2);
+  });
+
   it('room areas plus wall areas fill the boundary when walls run on whole centimetres', () => {
     fc.assert(
       fc.property(fc.integer({ min: 40, max: 560 }), fc.integer({ min: 2, max: 30 }), (x, half) => {

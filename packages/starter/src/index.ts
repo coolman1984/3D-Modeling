@@ -147,3 +147,5 @@ export * from './sampleCompanies.js';
 export * from './nileVision.js';
 export * from './plantLink.js';
 export * from './home.js';
+export * from './build.js';
+export * from './furnish.js';

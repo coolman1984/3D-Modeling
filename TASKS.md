@@ -1,5 +1,30 @@
 # TASKS
 
+## Now: H1b — the AI interior designer (7 Oct 2026, decision 0029)
+
+Owner: any AI agent connects by MCP; the client gives the agent a file of measurements and
+quantities and gets the flat drawn; "furnish it" gives several layouts and furniture choices, as
+if the client had an expert interior designer. The MCP server carries the design skills. Any API
+key in Settings runs the same agent inside the program. Later: a web app by monthly subscription.
+
+**Finish line (done means):** (1) `build_apartment` draws a flat from room sizes (walls shared,
+outer walls thicker, doors between rooms, windows, entrance, room names) in one revision;
+(2) furnishing options: for a flat or one room, three distinct layouts with different
+arrangements and finishes, each passing the checks, with reasons, applied in one step or kept as
+separate projects to compare; available as MCP tools and as a button in the program that works
+without any AI; (3) MCP serves design skills as prompts, resources and a `design_guide` tool, and
+the in-app agent (any API: Anthropic or OpenAI-compatible) gets the same skills; the agent panel
+takes a measurements file; (4) L-shaped flats count only real rooms; (5) `pnpm check` green, the
+journey run in the real app with screenshots, docs, pushed.
+
+- [x] Core: rooms of a walled flat exclude the space outside its outer walls (L-shapes)
+- [x] Starter: `buildFlat(spec)` from room rectangles + tests
+- [x] Starter: furnishing engine (bedroom, living, dining, kitchen, bath, study, hall), three options with reasons and palettes + tests
+- [ ] Starter: design skills text (space planning, clearances, orientation, styles)
+- [ ] Server: tools build_apartment, furnish_options, apply_furnishing, furnish_apartment (option projects), design_guide; MCP prompts and resources; agent instructions
+- [ ] Editor: "Furnish" options in the program (no AI needed); agent panel takes a file
+- [ ] e2e, screenshots, docs, push
+
 ## Now: H1 — draw the real space (7 Oct 2026, decision 0028, `docs/04-home-studio-plan.md`)
 
 **Finish line (done means):** a designer draws a client's 2-bedroom apartment from its measurements

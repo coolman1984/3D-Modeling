@@ -173,6 +173,7 @@ export function roomMap(space: Space): RoomMap {
   // 1 = floor, 0 = outside or wall.
   const grid = new Uint8Array(cols * rows);
   paint(grid, cols, rows, x0, y0, cell, space.boundary, 1);
+  const inside = grid.slice();
   for (const solid of wallSolids(space, { doors: false })) paint(grid, cols, rows, x0, y0, cell, solid.polygon, 0);
 
   const distance = chamfer(grid, cols, rows);
@@ -216,10 +217,28 @@ export function roomMap(space: Space): RoomMap {
       max: { x: x0 + (c1 + 1) * cell, y: y0 + (r1 + 1) * cell },
     });
   }
+  // A flat drawn with outer walls (they line at least half of the outline from inside) is closed
+  // by them: floor that reaches the outline lies outside the flat (the corner beside an L-shape).
+  // Without outer walls the outline itself closes the rooms.
+  const outside = new Uint8Array(rooms.length);
+  let edge = 0;
+  let walled = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      if (!inside[i]) continue;
+      const out = (cc: number, rr: number) => cc < 0 || rr < 0 || cc >= cols || rr >= rows || !inside[rr * cols + cc];
+      if (!(out(c - 1, r) || out(c + 1, r) || out(c, r - 1) || out(c, r + 1))) continue;
+      edge++;
+      if (grid[i] === 0) walled++;
+      else outside[label[i]!] = 1;
+    }
+  }
+  const enclosed = edge > 0 && walled * 2 >= edge;
   const kept = new Int32Array(rooms.length).fill(-1);
   const result: DetectedRoom[] = [];
   rooms.forEach((r, i) => {
-    if (r.area < MIN_ROOM_AREA) return;
+    if (r.area < MIN_ROOM_AREA || (enclosed && outside[i])) return;
     kept[i] = result.length;
     result.push(r);
   });
