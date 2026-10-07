@@ -350,6 +350,10 @@ function Editor({ initial }: { initial: Project }) {
   const nudge = useRef<{ dx: number; dy: number; dz: number; repeats: number } | null>(null);
   const clipboard = useRef<readonly ItemInstance[]>([]);
   const [tool, setTool] = useState<PlanTool>('select');
+  // The drawing tools live on the plan: without it they are put down, so the keys work again.
+  useEffect(() => {
+    if (view === '3d') setTool('select');
+  }, [view]);
   // A drawing tool owns the keyboard (typed lengths, Esc) until it is put down.
   const blocked = preview !== null || editingType !== null || tool !== 'select';
   useEffect(() => {

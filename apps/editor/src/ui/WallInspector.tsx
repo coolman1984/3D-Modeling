@@ -135,9 +135,9 @@ export function OpeningInspector({ project, id, dispatch }: { project: Project; 
             label="Hinge"
             value={opening.hinge ?? 'none'}
             options={[
-              { id: 'start', label: 'Hinge at start' },
-              { id: 'end', label: 'Hinge at end' },
-              { id: 'none', label: 'Sliding · open' },
+              { id: 'start', label: 'At start', title: 'Hinged at the jamb nearer the wall start' },
+              { id: 'end', label: 'At end', title: 'Hinged at the jamb nearer the wall end' },
+              { id: 'none', label: 'Sliding', title: 'No swing: a sliding door or a plain opening' },
             ]}
             onChange={(hinge) => {
               if (hinge === 'none') {

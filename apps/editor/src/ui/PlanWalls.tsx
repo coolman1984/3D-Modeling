@@ -1,4 +1,4 @@
-import { add, openingPolygon, openingSwing, roomMap, rotate, toSquareMetres, wallFrame, wallPoint, wallSolids, type Id, type Opening, type Project, type Space, type Vec2 } from '@space-planner/core';
+import { add, doorSwingPolygon, openingPolygon, openingSwing, roomMap, rotate, toSquareMetres, wallFrame, wallPoint, wallSolids, type Id, type Opening, type Project, type Space, type Vec2 } from '@space-planner/core';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { formatSquareMetres } from '../logic/format.js';
 import { pathOf, toScreen, type Viewport } from '../logic/viewport.js';
@@ -107,6 +107,7 @@ function OpeningMark({ v, space, opening, selected, onDown }: { v: Viewport; spa
   return (
     <g className={cls} data-opening={opening.id} onPointerDown={down}>
       <path d={pathOf(v, gap)} className="opening-gap" />
+      {swing && <path d={pathOf(v, doorSwingPolygon(swing))} className="opening-hit" />}
       {!swing && faces.map(([a, b], i) => <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="door-arc" />)}
       {swing &&
         (() => {

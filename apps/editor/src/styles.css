@@ -1605,6 +1605,8 @@ button.rule-row:hover { background: var(--page); }
 .wall-solid { cursor: pointer; }
 .plan.tool-wall .wall-solid, .plan.tool-door .wall-solid, .plan.tool-window .wall-solid { cursor: crosshair; }
 .opening { cursor: ew-resize; }
+.opening-hit { fill: transparent; }
+.opening.selected .opening-hit { fill: var(--accent-soft); }
 .wall-end { fill: var(--white); stroke: var(--accent); stroke-width: 2; cursor: move; }
 .wall-length { font-size: calc(11px * var(--ts, 1)); font-weight: 500; fill: var(--accent); paint-order: stroke; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; font-variant-numeric: tabular-nums; }
 .draw-line { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; }

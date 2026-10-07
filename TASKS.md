@@ -14,13 +14,18 @@ still open; `pnpm check` green; screenshots sent; measured time written down.
 - [x] Starter: walkway passes doorways and starts at the entrance; apartments rebuilt on real walls
       (20 cm outer, 10 cm inner, swinging doors); wall items removed from the catalogue
 - [x] Editor: wall pieces hang on drawn walls, never on an outside face
-- [ ] Editor plan: walls, joins, door swings, windows, room areas
-- [ ] Editor 3D: walls with door and window openings, glass, door leaves
-- [ ] Wall tool: click to click, typed length, snaps (ends, right angles), Esc/double-click to finish
-- [ ] Select a wall: length, thickness, height; drag ends (joined walls follow); delete
-- [ ] Doors and windows: add on a wall, drag along it, width, hinge/side, sill
-- [ ] Agent tools for walls and openings
-- [ ] e2e: draw a 2-bedroom from measurements; time it; screenshots; docs, README, push
+- [x] Editor plan: walls, joins, door swings, windows, room areas (named from zones; Space panel names rooms)
+- [x] Editor 3D: walls with door and window openings, glass, door leaves; selected wall tinted
+- [x] Wall tool: click to click, typed length (4.75 / 475 / ٤٫٧٥), snaps (ends, wall lines, square), Esc/double-click/Enter to finish
+- [x] Select a wall: length, thickness, height; drag it or its ends (joined walls follow); delete with its openings
+- [x] Doors and windows: add on a wall, drag along it, width, height, hinge/side, sill
+- [x] Agent tools: draw_walls, add_openings, remove_walls; get_project lists walls, openings and rooms
+- [x] e2e: draw a 2-bedroom from measurements (`e2e/walls.spec.ts`); measured: 5 walls + 3 doors + 4
+      windows driven in 9.9 s, the same room areas as the template (62, 18.17, 18.17, 7.67 m²)
+- [x] Screenshots to the owner; full `pnpm check` (27 browser tests); push
+- Later (found while building): a non-rectangular outline (L-shaped flat) leaves the outside
+  corner as a room; dimension lines on the plan belong to H3; walls at odd angles leave a small
+  notch at the corner (no mitre)
 
 ## Now: Home studio release (7 Oct 2026, decision 0027)
 

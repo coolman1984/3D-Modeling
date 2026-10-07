@@ -88,6 +88,7 @@
 | E2 — Sample company Nile Vision (plant, final assembly lines, SMT and THT) whose stations carry their GMES code, and **Link by code** ([decision 0023](docs/decisions/0023-gmes-link.md)) | ✅ |
 | م١ — برنامج مكتبي مستقل: شباك لوحده من غير متصفح، وملف تسطيب لويندوز بيتعمل ويتجرّب أوتوماتيك ([قرار ٠٠٢٦](docs/decisions/0026-desktop-program.md)) | ✅ |
 | ب٢ — استوديو التصميم: شقق مفروشة، ٥٤ قطعة عفش بتفاصيلها، رموز مخطط، مكتبة بالصور، إعدادات الشكل والوضع الغامق، حزم في ملفات، وتحميل أسرع ([قرار ٠٠٢٧](docs/decisions/0027-home-studio.md)) | ✅ |
+| ح١ — ارسم الشقة الحقيقية: حيطان بتترسم من نقطة لنقطة وبتتقفل في الأركان، طول تكتبه بالأرقام، أبواب وشبابيك جوه الحيطة بتتحرك معاها، ومساحة كل أوضة بتتحسب من الحيطان (شقة أوضتين اترسمت في أقل من دقيقة في الاختبار) ([قرار ٠٠٢٨](docs/decisions/0028-walls-and-openings.md)) | ✅ |
 | ت١١ الحسابات والشركات | 🗓️ مخطط ([الخطة](docs/03-industrial-packs-plan.md)) |
 
 ## 🛠️ للمطورين

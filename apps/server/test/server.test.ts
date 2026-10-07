@@ -126,6 +126,31 @@ describe('store', () => {
 });
 
 describe('agent tools', () => {
+  it('draws walls, puts a door in one and removes it again, each as one revision; rooms come from the walls', () => {
+    const ctx = { store, actor: 'agent:test' };
+    const created = runTool(ctx, 'create_project', { name: 'Flat', activity: 'home', width_m: 4, depth_m: 3 });
+    const id = /Created (p-[\w]+)/.exec(created.text)![1]!;
+    // Inside 4 × 3 m from 0.2 m; a 10 cm partition at x = 2.5 from the south to the north wall centre line.
+    const drawn = runTool(ctx, 'draw_walls', { project_id: id, walls: [{ from: [2.5, 0.1], to: [2.5, 3.3] }] });
+    expect(drawn.isError).toBe(false);
+    expect(drawn.text).toContain('Drew wall-1.');
+    const door = runTool(ctx, 'add_openings', { project_id: id, openings: [{ wall: 'wall-1', kind: 'door', from_start_m: 1, width_cm: 80, hinge: 'start', side: 'left' }] });
+    expect(door.isError).toBe(false);
+    const described = runTool(ctx, 'get_project', { project_id: id }).text;
+    expect(described).toContain('wall-1 | (2.5, 0.1) | (2.5, 3.3) | 10 cm | ceiling');
+    expect(described).toContain('door-1 | door | wall-1 | 1.00 m | 80 cm | hinge at start, opens to the left');
+    // West 2.25 × 3 = 6.75 m², east 1.65 × 3 = 4.95 m².
+    expect(described).toContain('Rooms from the walls (2): 6.75 m²');
+    expect(described).toContain('; 4.95 m²');
+    expect(runTool(ctx, 'add_openings', { project_id: id, openings: [{ wall: 'wall-1', kind: 'window', from_start_m: 3, width_cm: 120 }] }).isError).toBe(true);
+    expect(runTool(ctx, 'set_room', { project_id: id, width_m: 5 }).isError).toBe(true);
+    expect(runTool(ctx, 'remove_walls', { project_id: id, ids: ['wall-1'] }).isError).toBe(false);
+    const after = store.getProject(id)!;
+    expect(after.revision).toBe(3);
+    expect(after.space.walls?.map((w) => w.id)).toEqual(['wall-south', 'wall-east', 'wall-north', 'wall-west']);
+    expect(after.space.openings?.map((o) => o.id)).toEqual(['front-door']);
+  });
+
   it('creates a warehouse and adds an addressable rack through one revision', () => {
     const ctx = { store, actor: 'agent:test' };
     const created = runTool(ctx, 'create_project', { name: 'Warehouse', activity: 'warehouse', reference: true });

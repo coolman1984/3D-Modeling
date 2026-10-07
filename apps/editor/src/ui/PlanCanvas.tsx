@@ -187,7 +187,9 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
       setCursor(null);
       setTyped('');
     }
-  }, [tool]);
+    // The ghost of what the tool would draw goes with it.
+    return () => dispatch({ type: 'preview', command: null });
+  }, [tool, dispatch]);
 
   // While drawing: type a length and press Enter; Backspace corrects it; Esc ends the chain, a
   // second Esc puts the tool down. W and D pick the wall and door tools from the plan.
@@ -547,7 +549,9 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
           }
         }}
         onPointerLeave={() => {
-          if (tool !== 'select' && !gesture.current) setCursor(null);
+          if (tool === 'select' || gesture.current) return;
+          setCursor(null);
+          dispatch({ type: 'preview', command: null });
         }}
         aria-label="Plan"
         data-selected={selectedIds.join(' ')}

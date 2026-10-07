@@ -22,8 +22,9 @@ the planner tools.
 | `bay_entry_check` | Whether a named vehicle type can turn from the nearest lane into a named bay, swept-body checked |
 | `restaurant_metrics` | Cover count, table counts by family, floor area per cover, zone areas, table reachability |
 | `table_route` | Waitstaff route from the kitchen pass door to a table, reachability and sampled distance |
-| `get_project` | Room, doors, columns, item types, every item, issues, metrics |
-| `set_room` | Size, ceiling, doors on walls, columns |
+| `get_project` | Room (or drawn walls, doors, windows and the rooms they close off), item types, every item, issues, metrics |
+| `set_room` | Size, ceiling, doors on walls, columns (rectangular rooms without drawn walls) |
+| `draw_walls` / `add_openings` / `remove_walls` | Draw walls by centre line, put doors (hinge, swing side) and windows (sill) in them, remove them; each call is one revision |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
 | `place_items` / `move_items` / `remove_items` | Edit the layout (each call is one revision); `height_m` raises an item off the floor |
 | `apply_commands` | Raw core commands, for anything else |

@@ -1,6 +1,7 @@
 import {
   checkProject,
   containsPolygon,
+  detectRooms,
   fromUnit,
   measureProject,
   normalizeAngle,
@@ -16,9 +17,11 @@ import {
   type ColumnSpec,
   type DoorSpec,
   type Issue,
+  type Opening,
   type Project,
   type RoomSpec,
   type Wall,
+  type WallSegment,
 } from '@space-planner/core';
 import { HOME_TEMPLATES, newHome, BAY_TYPES, bayEntry, bayZone, cargoOf, checkPack, CONTAINER_TYPES, containerMetrics, DEFAULT_FORKLIFT, DEFAULT_SERVER, depotMetrics, referenceVehicleFor, DEPOT_ZONE_KINDS, detectPack, siteMetrics, extremePointPacker, isContainer, newContainer, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packContainer, packOf, PACKS, productionMetrics, rackDefinition, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse, restaurantMetrics, ROUND_SHAPES, locationsOf, optimizeSlotting, parseSlot, stockCommands, stockMetrics, serviceRoute, SHAPES, stepOf, stopOf, vehicleProfileOf, WAREHOUSE_ZONE_KINDS, warehouseMetrics, warehouseRoute, type BayType, type PackId, type PackStrategy, type RuleResult } from '@space-planner/starter';
 import { createShipment, readShipmentInput, ShipmentInputError } from './shipments.js';
@@ -116,6 +119,8 @@ function takenIds(project: Project): Set<string> {
     ...project.space.doors.map((d) => d.id),
     ...project.space.obstacles.map((o) => o.id),
     ...(project.space.zones ?? []).map((z) => z.id),
+    ...(project.space.walls ?? []).map((w) => w.id),
+    ...(project.space.openings ?? []).map((o) => o.id),
   ]);
 }
 
@@ -144,12 +149,23 @@ export function describeProject(project: Project): string {
   const lines: string[] = [];
   lines.push(`Project ${project.id} "${project.name}" — revision ${project.revision}`);
   lines.push('Coordinates: metres from the south-west corner; x grows east, y grows north. Rotation in degrees counter-clockwise; 0 means the item front faces north.');
-  const room = readRoom(project.space);
+  const room = project.space.walls?.length ? null : readRoom(project.space);
+  if (project.space.walls?.length) {
+    const p = (v: { x: number; y: number }) => `(${toUnit(v.x, 'm')}, ${toUnit(v.y, 'm')})`;
+    lines.push(`Outline (m): ${project.space.boundary.map(p).join(' ')}, ceiling ${project.space.ceilingHeight === undefined ? 'unknown' : fmtM(project.space.ceilingHeight)}`);
+    lines.push('Walls (id | from | to | thickness | height), centre lines in metres:');
+    for (const w of project.space.walls) lines.push(`  ${w.id} | ${p(w.a)} | ${p(w.b)} | ${fmtCm(w.thickness)} | ${w.height === undefined ? 'ceiling' : fmtM(w.height)}`);
+    const openings = project.space.openings ?? [];
+    if (openings.length) lines.push('Doors and windows (id | kind | wall | from the wall start | width | swing):');
+    for (const o of openings) lines.push(`  ${o.id} | ${o.kind} | ${o.wall} | ${fmtM(o.offset)} | ${fmtCm(o.width)} | ${o.hinge ? `hinge at ${o.hinge}, opens to the ${o.side}` : o.kind === 'door' ? 'no swing' : `sill ${fmtCm(o.sill ?? 9_000)}`}${o.meta?.role === 'entrance' ? ' | entrance' : ''}`);
+    const rooms = detectRooms(project.space);
+    lines.push(`Rooms from the walls (${rooms.length}): ${rooms.map((r) => `${toSquareMetres(r.area).toFixed(2)} m² around (${toUnit(Math.round(r.label.x), 'm')}, ${toUnit(Math.round(r.label.y), 'm')})`).join('; ')}`);
+  }
   if (room) {
     lines.push(`Room: ${fmtM(room.width)} wide (x) × ${fmtM(room.depth)} deep (y), ceiling ${room.ceilingHeight === undefined ? 'unknown' : fmtM(room.ceilingHeight)}`);
     for (const d of room.doors) lines.push(`  Door ${d.id}: ${d.wall} wall, hinge ${fmtM(d.offset)} from the wall start, ${fmtCm(d.width)} wide, opens inward`);
     for (const c of room.columns) lines.push(`  Column ${c.id}: centre (${fmtM(c.center.x)}, ${fmtM(c.center.y)}), ${fmtCm(c.width)} × ${fmtCm(c.depth)}`);
-  } else {
+  } else if (!project.space.walls?.length) {
     lines.push(`Room outline (m): ${project.space.boundary.map((p) => `(${toUnit(p.x, 'm')}, ${toUnit(p.y, 'm')})`).join(' ')}`);
   }
   lines.push('Item types (id | name | category | w×d×h cm | clearance front/back/left/right cm | seats | footprint):');
@@ -640,6 +656,7 @@ export const TOOLS: readonly ToolDef[] = [
     },
     run: (ctx, input) => {
       const project = load(ctx, input);
+      if (project.space.walls?.length) throw new ToolError('this space has drawn walls: change them with draw_walls, add_openings, remove_walls or apply_commands (space.set), not set_room');
       const current = readRoom(project.space);
       const width = input.width_m === undefined ? current?.width : metres(num(input, 'width_m'));
       const depth = input.depth_m === undefined ? current?.depth : metres(num(input, 'depth_m'));
@@ -902,6 +919,133 @@ export const TOOLS: readonly ToolDef[] = [
       if (commands.length === 0) throw new ToolError('nothing to change');
       const updated = commit(ctx, project, commands, str(input, 'summary', true) || 'Moved items');
       return afterChange(updated, `Applied ${commands.length} change(s).`);
+    },
+  },
+  {
+    name: 'draw_walls',
+    description:
+      'Draw straight walls by their centre lines (one revision). Points in metres; walls that share an end join at the corner, and a wall ending on another wall meets it. Usual thickness: 10 cm inside, 20 cm outside. Rooms and their areas come from the walls; doors do not join rooms.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        walls: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              from: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: '[x, y] in metres' },
+              to: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: '[x, y] in metres' },
+              thickness_cm: { type: 'number' },
+              height_cm: { type: 'number' },
+            },
+            required: ['from', 'to'],
+          },
+        },
+        summary,
+      },
+      required: ['project_id', 'walls'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const taken = takenIds(project);
+      const point = (w: Record<string, unknown>, key: string) => {
+        const v = w[key];
+        if (!Array.isArray(v) || v.length !== 2 || !v.every((n) => typeof n === 'number' && Number.isFinite(n))) throw new ToolError(`"${key}" must be [x, y] in metres`);
+        return { x: metres(v[0] as number), y: metres(v[1] as number) };
+      };
+      const added: WallSegment[] = list(input, 'walls').map((w) => ({
+        id: typeof w.id === 'string' && w.id ? w.id : nextId('wall', taken),
+        a: point(w, 'from'),
+        b: point(w, 'to'),
+        thickness: w.thickness_cm === undefined ? centimetres(10) : centimetres(num(w, 'thickness_cm')),
+        ...(w.height_cm === undefined ? {} : { height: centimetres(num(w, 'height_cm')) }),
+      }));
+      const space = { ...project.space, walls: [...(project.space.walls ?? []), ...added] };
+      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || `Drew ${added.length} ${added.length === 1 ? 'wall' : 'walls'}`);
+      return afterChange(updated, `Drew ${added.map((w) => w.id).join(', ')}.`);
+    },
+  },
+  {
+    name: 'add_openings',
+    description:
+      'Put doors and windows in drawn walls (one revision). from_start_m: distance along the wall from its "from" end to the near edge of the opening. A door swings when hinge ("start" or "end" jamb) and side ("left" or "right" of the wall, looking from its start to its end) are given; without them it is a plain opening or a sliding door. Windows take sill_cm (default 90) and height_cm (default 120).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project_id: projectId,
+        openings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              wall: { type: 'string' },
+              kind: { type: 'string', enum: ['door', 'window'] },
+              from_start_m: { type: 'number' },
+              width_cm: { type: 'number' },
+              hinge: { type: 'string', enum: ['start', 'end'] },
+              side: { type: 'string', enum: ['left', 'right'] },
+              sill_cm: { type: 'number' },
+              height_cm: { type: 'number' },
+            },
+            required: ['wall', 'kind', 'from_start_m', 'width_cm'],
+          },
+        },
+        summary,
+      },
+      required: ['project_id', 'openings'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const taken = takenIds(project);
+      const added: Opening[] = list(input, 'openings').map((o) => {
+        const kind = str(o, 'kind');
+        if (kind !== 'door' && kind !== 'window') throw new ToolError('kind is "door" or "window"');
+        const hinge = o.hinge === 'start' || o.hinge === 'end' ? o.hinge : undefined;
+        const side = o.side === 'left' || o.side === 'right' ? o.side : undefined;
+        return {
+          id: typeof o.id === 'string' && o.id ? o.id : nextId(kind, taken),
+          wall: str(o, 'wall'),
+          kind,
+          offset: metres(num(o, 'from_start_m')),
+          width: centimetres(num(o, 'width_cm')),
+          ...(o.height_cm === undefined ? {} : { height: centimetres(num(o, 'height_cm')) }),
+          ...(kind === 'window' && o.sill_cm !== undefined ? { sill: centimetres(num(o, 'sill_cm')) } : {}),
+          ...(kind === 'door' && hinge && side ? { hinge, side } : {}),
+        };
+      });
+      const space = { ...project.space, openings: [...(project.space.openings ?? []), ...added] };
+      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || `Added ${added.length} ${added.length === 1 ? 'opening' : 'openings'}`);
+      return afterChange(updated, `Added ${added.map((o) => o.id).join(', ')}.`);
+    },
+  },
+  {
+    name: 'remove_walls',
+    description: 'Remove drawn walls, doors and windows by id (one revision); a wall takes its doors and windows with it.',
+    inputSchema: {
+      type: 'object',
+      properties: { project_id: projectId, ids: { type: 'array', items: { type: 'string' } }, summary },
+      required: ['project_id', 'ids'],
+      additionalProperties: false,
+    },
+    run: (ctx, input) => {
+      const project = load(ctx, input);
+      const ids = input.ids;
+      if (!Array.isArray(ids) || ids.length === 0 || !ids.every((x) => typeof x === 'string')) throw new ToolError('"ids" must be a non-empty list of strings');
+      const gone = new Set(ids as string[]);
+      const known = [...(project.space.walls ?? []), ...(project.space.openings ?? [])].map((x) => x.id);
+      const missing = [...gone].filter((id) => !known.includes(id));
+      if (missing.length) throw new ToolError(`no wall, door or window ${missing.join(', ')}`);
+      const walls = (project.space.walls ?? []).filter((w) => !gone.has(w.id));
+      const openings = (project.space.openings ?? []).filter((o) => !gone.has(o.id) && walls.some((w) => w.id === o.wall));
+      const { walls: _w, openings: _o, ...rest } = project.space;
+      const space = { ...rest, ...(walls.length ? { walls } : {}), ...(openings.length ? { openings } : {}) };
+      const updated = commit(ctx, project, [{ type: 'space.set', space }], str(input, 'summary', true) || `Removed ${gone.size} wall part(s)`);
+      return afterChange(updated, `Removed ${[...gone].join(', ')}.`);
     },
   },
   {
