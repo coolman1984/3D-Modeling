@@ -98,6 +98,28 @@ describe('furnishing options', () => {
     expect(option!.rooms.map((r) => r.area)).toEqual(['Bath']);
   });
 
+  it('reports unavailable rules separately when furnishing only a kitchen', () => {
+    const kitchen = buildFlat({ name: 'Kitchen', rooms: [{ name: 'Kitchen', x: 0, y: 0, width: 5, depth: 4 }] });
+    const [option] = furnishOptions(kitchen, { count: 1 });
+    const actual = checkHome(applied(kitchen, option!.command));
+    expect(actual.filter((r) => r.status === 'unknown').length).toBeGreaterThan(0);
+    expect(option!.unknownRules).toEqual(actual.filter((r) => r.status === 'unknown').map((r) => r.code));
+    expect(option!.failedRules).toEqual(actual.filter((r) => r.status === 'fail').map((r) => r.code));
+  });
+
+  it('checks the actual customized catalogue and preserves its dimensions when applying', () => {
+    const laundry = buildFlat({ name: 'Laundry', rooms: [{ name: 'Laundry', x: 0, y: 0, width: 3, depth: 3 }] });
+    const washer = laundry.catalog['home-washer']!;
+    const customized = applied(laundry, { type: 'catalog.define', definition: { ...washer, size: { ...washer.size, w: 80_000 } } });
+    const [option] = furnishOptions(customized, { count: 1 });
+    const actual = applied(customized, option!.command);
+    expect(actual.catalog['home-washer']).toEqual(customized.catalog['home-washer']);
+    expect(option!.errors).toBe(checkProject(actual).filter((i) => i.severity === 'error').length);
+    expect(option!.warnings).toBe(checkProject(actual).filter((i) => i.severity === 'warning').length);
+    expect(Object.values(actual.items).some((i) => i.definitionId === 'home-washer')).toBe(false);
+    expect(option!.unfurnished).toEqual([expect.stringMatching(/^Laundry: nothing fits/)]);
+  });
+
   it('furnishes every ready apartment, open plans included', () => {
     for (const t of HOME_TEMPLATES) {
       for (const o of furnishOptions(t.build())) {

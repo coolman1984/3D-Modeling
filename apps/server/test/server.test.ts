@@ -128,6 +128,17 @@ describe('store', () => {
 });
 
 describe('agent tools', () => {
+  it('partial furnishing names checks with missing information instead of claiming every check passed', () => {
+    const ctx = { store, actor: 'agent:designer' };
+    const built = runTool(ctx, 'build_apartment', { name: 'Kitchen only', rooms: [{ name: 'Kitchen', x_m: 0, y_m: 0, width_m: 5, depth_m: 4 }] });
+    expect(built.isError).toBe(false);
+    const id = /Created (p-[\w]+)/.exec(built.text)![1]!;
+    const options = runTool(ctx, 'furnish_options', { project_id: id });
+    expect(options.isError).toBe(false);
+    expect(options.text).toContain('not checked (missing information)');
+    expect(options.text).not.toContain('passes every check');
+  });
+
   it('an AI designer: a flat from measurements, three furnished options with reasons, each kept as its own project', () => {
     const ctx = { store, actor: 'agent:designer' };
     const rooms = [

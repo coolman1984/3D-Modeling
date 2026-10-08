@@ -297,7 +297,7 @@ function roomFilter(input: Record<string, unknown>): { areas?: string[] } {
 }
 
 function describeOption(o: FurnishOption): string {
-  const status = o.errors === 0 && o.failedRules.length === 0 ? 'passes every check' : `${o.errors} error(s)${o.failedRules.length ? `, rules not met: ${o.failedRules.join(', ')}` : ''}`;
+  const status = o.errors === 0 && o.failedRules.length === 0 && o.unknownRules.length === 0 ? 'passes every check' : `${o.errors} error(s)${o.failedRules.length ? `, rules not met: ${o.failedRules.join(', ')}` : ''}${o.unknownRules.length ? `, not checked (missing information): ${o.unknownRules.join(', ')}` : ''}`;
   const lines = [`${o.title} — ${o.pieces} pieces, ${o.seats} seats, ${status}${o.warnings ? `, ${o.warnings} warning(s)` : ''}`];
   for (const room of o.rooms) lines.push(`  ${room.area}: ${room.arrangement}. ${room.reasons.join(' ')}`);
   for (const note of o.unfurnished) lines.push(`  Not furnished · ${note}`);

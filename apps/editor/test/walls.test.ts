@@ -104,6 +104,22 @@ describe('snapping while drawing', () => {
 describe('editing walls', () => {
   const two = run(flat, addWall(flat, p(2.3, 0.1), p(2.3, 3.3))!.command);
 
+  it.each(['door', 'window'] as const)('translating a whole wall carries its %s with it', (kind) => {
+    const added = addOpening(two, 'wall-1', kind, p(2.25, 1.5))!;
+    const before = run(two, added.command);
+    const opening = before.space.openings!.find((o) => o.id === added.id)!;
+    const moved = run(before, moveWall(before, 'wall-1', p(0.4, 0.5)));
+    expect(moved.space.walls!.find((w) => w.id === 'wall-1')).toMatchObject({ a: p(2.7, 0.6), b: p(2.7, 3.8) });
+    expect(moved.space.openings!.find((o) => o.id === added.id)).toEqual(opening);
+  });
+
+  it('moving only the start along the wall keeps the door in the same room position', () => {
+    const added = addOpening(two, 'wall-1', 'door', p(2.25, 1))!;
+    const before = run(two, added.command);
+    const moved = run(before, moveWallEnd(before, 'wall-1', 'a', p(2.3, 0.3)));
+    expect(moved.space.openings!.find((o) => o.id === added.id)!.offset).toBe(m(0.3));
+  });
+
   it('moving a corner moves every wall that ends there', () => {
     // Pull the north-east corner (4.3, 3.3) to (5.3, 4.3): the east and north walls both follow.
     const moved = run(two, moveWallEnd(two, 'wall-east', 'b', p(5.3, 4.3)));

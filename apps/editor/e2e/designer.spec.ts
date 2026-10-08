@@ -1,6 +1,25 @@
 import { expect, test } from '@playwright/test';
 import { openPanel, saved } from './helpers.js';
 
+test('a kitchen-only proposal shows unavailable checks instead of a pass', async ({ page }) => {
+  const built = await (await page.request.post('/api/tools/build_apartment', { data: { input: { name: 'Kitchen checks', rooms: [{ name: 'Kitchen', x_m: 0, y_m: 0, width_m: 5, depth_m: 4 }] }, actor: 'agent:test' } })).json();
+  expect(built.isError).toBe(false);
+  const id = /Created (p-\w+)/.exec(built.text)![1]!;
+  await page.goto(`/#/p/${id}`);
+  await saved(page);
+  await openPanel(page, 'Space');
+  await page.getByTestId('furnish-propose').click();
+  const cards = page.locator('.furnish-card');
+  await expect(cards).toHaveCount(3);
+  for (let i = 0; i < 3; i++) {
+    await expect(cards.nth(i).locator('.chip')).toContainText('not checked');
+    await expect(cards.nth(i).locator('.chip')).not.toHaveClass(/\bok\b/);
+  }
+  await expect(page.getByText('Some checks need information')).toBeVisible();
+  await expect(page.getByText('Every check passes', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/safe-merge-kitchen-checks.png' });
+});
+
 /**
  * The AI interior designer (decision 0029), without any AI: a flat built from its measurements
  * through the same tool an agent calls, then "Propose three options" in the program, a preview,
@@ -52,4 +71,5 @@ test('a flat from measurements, furnished from three proposed options, each chec
   const after = await (await page.request.get(`/api/projects/${id}`)).json();
   expect(Object.keys(after.items).length).toBeGreaterThan(20);
   await expect(page.getByText(/No errors|No issues/).first()).toBeVisible();
+  await page.screenshot({ path: 'test-results/safe-merge-furnished-flat.png' });
 });

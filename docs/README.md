@@ -47,6 +47,8 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0026 — Desktop program with a Windows installer](decisions/0026-desktop-program.md)
 - [0027 — Home studio: apartments, detailed furniture, packs, appearance, faster start](decisions/0027-home-studio.md)
 - [0028 — Walls and openings: drawing the real space](decisions/0028-walls-and-openings.md)
+- [0029 — The AI interior designer: build from measurements, furnish with options, skills over MCP](decisions/0029-ai-interior-designer.md)
+- [0030 — Safe merge of walls and furnishing (8 October 2026)](decisions/0030-safe-home-merge.md)
 
 ## Generated
 

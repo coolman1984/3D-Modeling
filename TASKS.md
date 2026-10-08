@@ -1,5 +1,19 @@
 # TASKS
 
+## Now: safe modern-branch merge (8 Oct 2026)
+
+**Finish line:** PR 15 preserves wall opening offsets during translation, evaluates furnishing
+against the same customized catalogue used after applying, and reports missing home-rule data as
+unknown in both UI and agent tools. Full `pnpm check` passes before the verified branch is merged
+to main. Incomplete tenancy work remains preserved on its original branch.
+
+- [x] Inspect branch history and all three PR 15 review findings; keep existing regression tests.
+- [x] Fix wall translation, customized furniture checks and explicit unknown-rule reporting.
+- [x] Run regression tests, full checks and the real browser journey; capture screenshots.
+  Verified: 581 unit/script checks and 29 browser journeys pass. `pnpm check` uses
+  `PLANNER_TEST_BROWSER` for the installed Chromium 153 (download blocked in this workspace).
+- [ ] Record verification, push fixes, merge PR 15 and verify remote main.
+
 ## Done: fixes from the review report (7 Oct 2026)
 
 Fixed: door lost silently when its wall is shortened (now refused, with the reason in the Inspector);

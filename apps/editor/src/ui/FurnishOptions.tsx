@@ -78,7 +78,7 @@ export function FurnishOptions({ project, dispatch }: { project: Project; dispat
       {options && !stale && (
         <ul className="furnish-list">
           {options.list.map((o) => {
-            const clean = o.errors === 0 && o.failedRules.length === 0;
+            const clean = o.errors === 0 && o.failedRules.length === 0 && o.unknownRules.length === 0;
             const expanded = open === o.index;
             return (
               <li key={o.index} className={`furnish-card${previewing === o.index ? ' on' : ''}`} data-option={o.index}>
@@ -95,11 +95,12 @@ export function FurnishOptions({ project, dispatch }: { project: Project; dispat
                   {plural(o.pieces, 'piece')} · {plural(o.seats, 'seat')}
                   <span className={`chip ${clean ? 'ok' : 'warning'}`}>
                     {clean ? <Check size={11} /> : <Warning size={11} />}
-                    {clean ? (o.warnings ? `Passes · ${formatCount(o.warnings)} tight` : 'Passes every check') : o.errors ? `${plural(o.errors, 'error')} to fix` : `Check: ${o.failedRules.map((r) => RULE_WORDS[r] ?? r).join(', ')}`}
+                    {clean ? (o.warnings ? `Passes · ${formatCount(o.warnings)} tight` : 'Passes every check') : o.errors ? `${plural(o.errors, 'error')} to fix` : o.failedRules.length ? `Check: ${o.failedRules.map((r) => RULE_WORDS[r] ?? r).join(', ')}` : `${formatCount(o.unknownRules.length)} not checked`}
                   </span>
                 </div>
                 {expanded && (
                   <ul className="furnish-rooms">
+                    {o.unknownRules.length > 0 && <li className="muted">Missing information to check: {o.unknownRules.map((r) => RULE_WORDS[r] ?? r).join(', ')}.</li>}
                     {o.rooms.map((r) => (
                       <li key={r.area}>
                         <strong>{r.area}</strong> · {r.arrangement}

@@ -75,7 +75,8 @@ import { summarize, type ReviewSummary } from '../logic/review.js';
 export function statusLine(s: ReviewSummary): { tone: 'error' | 'warning' | 'ok'; text: string } {
   if (s.errors > 0) return { tone: 'error', text: `${plural(s.errors, 'error')} · ${plural(s.warnings, 'warning')}` };
   if (s.warnings > 0) return { tone: 'warning', text: `No errors · ${plural(s.warnings, 'warning')}` };
-  return { tone: 'ok', text: s.unknown > 0 ? `No issues · ${formatCount(s.unknown)} unknown` : 'No issues found' };
+  if (s.unknown > 0) return { tone: 'warning', text: `No issues · ${formatCount(s.unknown)} unknown` };
+  return { tone: 'ok', text: 'No issues found' };
 }
 
 const SHAPE_LABEL = new Map(SHAPES.map((s) => [s.key as string, s.label]));
@@ -177,7 +178,9 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
       ? { tone: 'error', icon: <XCircle size={16} />, title: `${plural(summary.errors, 'error')} · ${plural(summary.warnings, 'warning')}`, text: 'Fix the errors before sharing the client report. Warnings can be accepted.' }
       : summary.warnings > 0
         ? { tone: 'warning', icon: <Warning size={16} />, title: `No errors · ${plural(summary.warnings, 'warning')}`, text: 'Review the warnings; each one can be fixed or accepted.' }
-        : { tone: 'ok', icon: <CheckCircle size={16} />, title: 'Every check passes', text: summary.unknown > 0 ? `${plural(summary.unknown, 'check')} could not be run because data is missing.` : 'The plan is ready for the client report.' };
+        : summary.unknown > 0
+          ? { tone: 'warning', icon: <Warning size={16} />, title: 'Some checks need information', text: `${plural(summary.unknown, 'check')} could not be run because data is missing.` }
+          : { tone: 'ok', icon: <CheckCircle size={16} />, title: 'Every check passes', text: 'The plan is ready for the client report.' };
   return (
     <div aria-label="Project">
       <div className="insp-head" style={{ paddingTop: 28 }}>

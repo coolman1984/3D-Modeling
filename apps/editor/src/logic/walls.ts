@@ -158,6 +158,8 @@ function shiftOpenings(space: Space, walls: readonly WallSegment[]): Opening[] {
     const old = before.get(o.wall);
     const now = walls.find((w) => w.id === o.wall);
     if (!old || !now || same(old.a, now.a)) return o;
+    // Translating both ends carries the opening with the wall; its local offset stays fixed.
+    if (now.a.x - old.a.x === now.b.x - old.b.x && now.a.y - old.a.y === now.b.y - old.b.y) return o;
     const f = wallFrame(old);
     const g = wallFrame(now);
     // Same direction: keep the opening's place by its distance from the old start.

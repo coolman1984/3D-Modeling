@@ -662,7 +662,7 @@ export function arrangementsFor(project: Project, area: FurnishArea, palette: Pa
 
 function evaluate(base: Project, r: Area, draft: Draft, palette: Palette): Arrangement | undefined {
   const fits = (p: Placement) => {
-    const d = finished(p.def, palette);
+    const d = placementDefinition(base, p, palette);
     const body = itemPolygon({ id: '', definitionId: d.id, position: p.position, rotation: p.rotation, locked: false }, d);
     const box = boundsOf(body);
     // Within the area (a rug may reach 5 cm past it), and clear of doorways on the floor.
@@ -720,6 +720,8 @@ export interface FurnishOption {
   readonly errors: number;
   readonly warnings: number;
   readonly failedRules: readonly string[];
+  /** Rules that could not run because the required furniture or measurements are missing. */
+  readonly unknownRules: readonly string[];
   /** One step: types in this option's finishes, the old furniture of these rooms out, the new in. */
   readonly command: Command;
 }
@@ -739,7 +741,6 @@ export function furnishOptions(project: Project, { count = 3, areas: only }: { c
     let working = withoutItemsIn(project, areas);
     const rooms: Array<{ area: string; kind: string; arrangement: string; reasons: readonly string[] }> = [];
     const unfurnished: string[] = [];
-    const placed: Array<{ p: Placement; d: ItemDefinition }> = [];
     const newIds: Id[] = [];
     // Fixed rooms first (kitchen, baths, bedrooms), the seating areas last: they then find the
     // places that keep a walkway to every seat. The list keeps the flat's order.
@@ -797,15 +798,14 @@ export function furnishOptions(project: Project, { count = 3, areas: only }: { c
       seen.add(step.pick.key);
       rooms.push({ area: step.area.name, kind: step.area.kind, arrangement: step.pick.title, reasons: step.pick.reasons });
       newIds.push(...step.added.ids);
-      for (const p of step.pick.items) placed.push({ p, d: finished(p.def, palette) });
     }
     rooms.sort((a, b) => areas.findIndex((x) => x.name === a.area) - areas.findIndex((x) => x.name === b.area));
     const issues = checkProject(working);
-    const rules = checkHome(working).filter((r) => r.status === 'fail').map((r) => r.code);
+    const rules = checkHome(working);
     // Old furniture of these areas goes first, so new pieces may take its ids.
     const removed = Object.keys(project.items).filter((id) => !withoutItemsIn(project, areas).items[id]);
-    const types = [...new Map(placed.map(({ d }) => [d.id, d])).values()].filter((d) => project.catalog[d.id] === undefined);
     const newItems = newIds.map((id) => working.items[id]!);
+    const types = [...new Map(newItems.map((i) => [i.definitionId, working.catalog[i.definitionId]!])).values()].filter((d) => project.catalog[d.id] === undefined);
     const commands: Command[] = [
       ...types.map((definition): Command => ({ type: 'catalog.define', definition })),
       ...removed.map((id): Command => ({ type: 'item.remove', id })),
@@ -825,11 +825,19 @@ export function furnishOptions(project: Project, { count = 3, areas: only }: { c
       seats: newItems.reduce((n, i) => n + (working.catalog[i.definitionId]?.seats ?? 0), 0),
       errors: issues.filter((i) => i.severity === 'error').length,
       warnings: issues.filter((i) => i.severity === 'warning').length,
-      failedRules: rules,
-      command: commands.length === 1 ? commands[0]! : { type: 'batch', commands },
+      failedRules: rules.filter((r) => r.status === 'fail').map((r) => r.code),
+      unknownRules: rules.filter((r) => r.status === 'unknown').map((r) => r.code),
+      // An empty room where nothing fits still offers a valid, reversible preview/apply step.
+      command: commands.length === 0 ? { type: 'space.set', space: project.space } : commands.length === 1 ? commands[0]! : { type: 'batch', commands },
     });
   }
   return options;
+}
+
+/** Evaluate and apply the same definition, preserving a person's customized types and variants. */
+function placementDefinition(project: Project, placement: Placement, palette: Palette): ItemDefinition {
+  const definition = finished(project.catalog[placement.def.id] ?? placement.def, palette);
+  return project.catalog[definition.id] ?? definition;
 }
 
 /** Adds placements with readable ids (bed-1, sofa-2…), defining finish variants as needed. */
@@ -839,7 +847,7 @@ function addPlacements(project: Project, placements: readonly Placement[], palet
   const taken = new Set<string>([project.id, ...Object.keys(catalog), ...Object.keys(items), ...(project.space.walls ?? []).map((w) => w.id), ...(project.space.openings ?? []).map((o) => o.id), ...(project.space.zones ?? []).map((z) => z.id), ...project.space.doors.map((d) => d.id), ...project.space.obstacles.map((o) => o.id)]);
   const ids: Id[] = [];
   for (const p of placements) {
-    const d = finished(p.def, palette);
+    const d = placementDefinition(project, p, palette);
     catalog[d.id] = d;
     taken.add(d.id);
     const prefix = d.category.replace(/[^a-z]/g, '').slice(0, 8) || 'item';

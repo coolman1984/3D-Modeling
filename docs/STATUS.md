@@ -4,27 +4,54 @@
 
 Where work stands. Read this first after an interruption, then `TASKS.md`.
 
-- **Branch:** `ccr-0fdf298a-s28hzp`
-- **Last commit:** `18c8233` H1: agent wall tools, room names, review fixes; H1 done
-- **Uncommitted files:** 0
+- **Branch:** `codex/safe-modern-merge-20261008`
+- **Last commit:** `b849556` A bare whole number for a wall is read by the size of the place
+- **Uncommitted files:** 13
 
-## Current stage: H1 — draw the real space (7 Oct 2026, decision 0028, `docs/04-home-studio-plan.md`)
+## Current stage: safe modern-branch merge (8 Oct 2026)
 
-**Finish line (done means):** a designer draws a client's 2-bedroom apartment from its measurements in under 10 minutes in the running program: walls drawn point to point that join at corners, lengths and thickness typed, doors and windows that sit in a wall and move with it, each room's area shown from the walls, dimensions edited directly; the 3D view shows the same walls with openings; old saves still open; `pnpm check` green; screenshots sent; measured time written down.
+**Finish line:** PR 15 preserves wall opening offsets during translation, evaluates furnishing against the same customized catalogue used after applying, and reports missing home-rule data as unknown in both UI and agent tools. Full `pnpm check` passes before the verified branch is merged to main. Incomplete tenancy work remains preserved on its original branch.
 
-11 done, 0 open.
+3 done, 1 open.
+
+Open items:
+
+- [ ] Record verification, push fixes, merge PR 15 and verify remote main.
 
 ## Uncommitted work
 
-Nothing uncommitted.
+```
+ M README.md
+ M TASKS.md
+ M apps/editor/e2e/designer.spec.ts
+ M apps/editor/playwright.config.ts
+ M apps/editor/src/logic/walls.ts
+ M apps/editor/src/ui/FurnishOptions.tsx
+ M apps/editor/src/ui/Inspector.tsx
+ M apps/editor/test/walls.test.ts
+ M apps/server/src/tools.ts
+ M apps/server/test/server.test.ts
+ M packages/starter/src/furnish.ts
+ M packages/starter/test/furnish.test.ts
+?? docs/decisions/0030-safe-home-merge.md
+```
 
 ## Recent checkpoints
 
-None yet on `ccr-0fdf298a-s28hzp` (`pnpm checkpoint` makes one).
+- `8eeff2a` 2026-10-08 07:43 All review fixes checked: 581 unit/script tests and 29 browser journeys green; ready to publish PR 15
+- `6b3c0bf` 2026-10-08 07:36 Review fixes implemented; regression checks exposed and fixed empty furnishing batch
+- `b849556` 2026-10-07 21:39 A bare whole number for a wall is read by the size of the place
+- `c665fc3` 2026-10-07 21:30 Fix the review findings: no silent loss, honest inputs, faster rooms, working AI connection
+- `6c6668f` 2026-10-07 12:42 AI designer, part 2: skills over MCP, designer tools, furnish button, file to the agent
+- `3546797` 2026-10-07 10:08 AI designer, part 1: a flat from room sizes, and furnishing options with reasons
+- `9524499` 2026-10-07 07:32 Docs refreshed after the H1 checkpoint
+- `18c8233` 2026-10-07 07:32 H1: agent wall tools, room names, review fixes; H1 done
+- `6fcc9c6` 2026-10-07 07:22 H1 editor: draw walls, doors and windows; rooms and areas on the plan and in 3D
+- `0dcff59` 2026-10-07 07:07 H1 core: walls and openings in the space, rooms from walls; apartments on real walls
 
 ## How to resume
 
 1. Read the open items above and the matching section of `TASKS.md`.
-2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/ccr-0fdf298a-s28hzp -- .`
+2. If files were lost, restore the last checkpoint: `git checkout refs/checkpoints/codex/safe-modern-merge-20261008 -- .`
 3. Run `pnpm typecheck` to see what the interrupted work left broken, then continue.
 4. Details: `docs/process/interruptions.md`.

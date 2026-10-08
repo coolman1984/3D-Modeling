@@ -6,6 +6,71 @@ Every change to the project, newest first, generated from the git history.
 
 ## 2026-10
 
+### A bare whole number for a wall is read by the size of the place
+
+`b849556` · 2026-10-07
+
+Metres when a wall that long fits the place (up to 1.5 x its largest side, at least 30 m), else
+centimetres: '35' is 35 cm in a flat and 35 m in a 60 m warehouse. Units still settle it.
+
+### Fix the review findings: no silent loss, honest inputs, faster rooms, working AI connection
+
+`c665fc3` · 2026-10-07
+
+- walls: a door or window is never dropped silently (the change is refused, the Inspector says
+  why); typed lengths take units (35 m, 35 cm, 3500 mm, Arabic units) and the readout says when a
+  unit was guessed; the length field shows the real value after a refusal; duplicate walls refused;
+  notes when an opening is cut to its wall
+- rooms: finding rooms is about 3x faster and cached per space, so dragging furniture no longer
+  re-finds them; labels that do not fit a small room are left out
+- build_apartment: only an apartment can be rebuilt (a hall keeps its doors and kind), locked
+  pieces are named; side validated; ceiling range checked; slivers between rooms and corner-only
+  doors are named; default windows slide off the entrance; clashes name rooms; measurements as
+  text (4,5 / Arabic digits / '4.5 m') accepted
+- furnishing: options kept when leaving the Space panel and shown first; a study desk and chair no
+  longer overlap (a study is furnished); laundry recipe; unfurnished rooms carry real reasons;
+  piece names carry their finish once; unused finish variants leave the catalogue
+- MCP: the bridge finds the installed program (data folders, ports 4650 and 4600) and answers
+  design_guide with the program closed; Settings shows the command for this copy; clearer errors
+
+…2 more lines in the commit.
+
+### AI designer, part 2: skills over MCP, designer tools, furnish button, file to the agent
+
+`6c6668f` · 2026-10-07
+
+- starter: design skills (workflow, space planning, living room, bedroom, dining and kitchen,
+  bathroom, style) and three MCP prompts built from them
+- furnishing: seating areas placed last; one step of backtracking so every option keeps a walkway
+  to every seat; WC gets basin and toilet only; a large reception without a dining room gets a
+  dining end; the dining table moves off doorways; viewing distance 2.5-3.2 m
+- server tools: build_apartment (new project or rebuild one), furnish_options, apply_furnishing,
+  furnish_apartment_options (one project per option), design_guide
+- MCP bridge: prompts and resources, served even before the program answers; instructions name
+  the designer workflow; the in-app agent (Anthropic or any OpenAI-compatible API) gets the same
+- editor: Space panel 'Propose three options' with palette swatches, reasons, check status,
+  preview and apply; AI Planner panel attaches the client's measurements file
+- e2e designer.spec; docs/agents.md, README, TASKS
+
+### AI designer, part 1: a flat from room sizes, and furnishing options with reasons
+
+`3546797` · 2026-10-07
+
+- core: a flat drawn with outer walls counts only its rooms (the corner beside an L is outside)
+- starter: buildFlat — rooms on wall centre lines, shared edges become 10 cm partitions, the rest
+  20 cm outer walls; doors between named rooms open into the private room; entrance and windows
+  in outer walls; room kinds read from English and Arabic names; plain errors
+- starter: furnishing engine — per room kind, professional arrangements tried on every wall
+  (bed head on a solid wall away from the door, sofa and screen on one axis 2.4-3.2 m apart,
+  coffee table 42 cm from the sofa, dining centred under its pendant, kitchen run with the fridge
+  at its end or on the next wall, basin and toilet sharing a wall); finishing touches kept only
+  when they fit; scored, explained, three distinct options in three palettes, deterministic
+- plan H1b and H7 (web subscription); decision 0029
+
+### Docs refreshed after the H1 checkpoint
+
+`9524499` · 2026-10-07
+
 ### H1: agent wall tools, room names, review fixes; H1 done
 
 `18c8233` · 2026-10-07
