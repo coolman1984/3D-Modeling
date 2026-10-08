@@ -3,6 +3,7 @@ import { clipConvex } from '../geometry/clip.js';
 import { area } from '../geometry/polygon.js';
 import { gridIndex } from '../geometry/grid.js';
 import { itemPolygon, placedSize } from '../model/derive.js';
+import { detectRooms } from '../model/walls.js';
 import type { Id, Project, Size3 } from '../model/types.js';
 import type { CubicTicks, SquareTicks } from '../units/area.js';
 import type { Tick } from '../units/length.js';
@@ -20,7 +21,10 @@ export interface BomLine {
 export interface Metrics {
   readonly itemCount: number;
   readonly seats: number;
-  /** Area inside the boundary, minus columns and blocked zones (assumed to lie inside the boundary). */
+  /**
+   * Area inside the boundary, minus columns and blocked zones (assumed to lie inside the boundary).
+   * With drawn walls: the rooms they close off (see `detectRooms`), minus columns and blocked zones.
+   */
   readonly floorArea: SquareTicks;
   /** Floor covered by item footprints; where items overlap the shared area is counted once. */
   readonly occupiedArea: SquareTicks;
@@ -97,7 +101,9 @@ export function measureProject(project: Project): Metrics {
   const massKnown = massUnknown === 0;
 
   const { boundary, obstacles } = project.space;
-  const floorArea = Math.max(0, area(boundary) - obstacles.reduce((sum, o) => sum + area(o.polygon), 0));
+  // With drawn walls the floor is the rooms they close off, not the outline (which includes the walls).
+  const enclosed = project.space.walls?.length ? detectRooms(project.space).reduce((sum, r) => sum + r.area, 0) : area(boundary);
+  const floorArea = Math.max(0, enclosed - obstacles.reduce((sum, o) => sum + area(o.polygon), 0));
   const occupiedArea = footprintSum - overlapArea;
 
   return {

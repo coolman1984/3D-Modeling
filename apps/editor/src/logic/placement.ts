@@ -5,10 +5,16 @@ import {
   convexOverlap,
   doorPolygon,
   itemClearancePolygon,
+  openingSwingPolygon,
+  wallFrame,
+  wallPoint,
+  wallReach,
+  wallSolids,
   itemPolygon,
   polygonsOverlap,
   type ItemDefinition,
   type ItemInstance,
+  type Opening,
   type Project,
   type Vec2,
 } from '@space-planner/core';
@@ -83,10 +89,25 @@ interface WallFace {
   readonly normal: Vec2;
 }
 
-/** The room's walls and both long faces of every partition (an item of category "wall"). */
+/**
+ * Faces a piece can hang on: both faces of every drawn wall; without drawn walls, the room's
+ * outline; and both long faces of every partition placed as an item (category "wall").
+ */
 function wallFaces(project: Project): WallFace[] {
   const faces: WallFace[] = [];
-  const outline = project.space.boundary;
+  const { space } = project;
+  for (const wall of space.walls ?? []) {
+    const frame = wallFrame(wall);
+    const reach = wallReach(space, wall);
+    for (const side of [1, -1]) {
+      const t = (side * wall.thickness) / 2;
+      const a = wallPoint(frame, -reach.start, t);
+      const b = wallPoint(frame, frame.length + reach.end, t);
+      faces.push({ a, b, normal: { x: frame.left.x * side, y: frame.left.y * side } });
+    }
+  }
+  // Drawn walls stand inside the outline, which is then their outside face.
+  const outline = space.walls?.length ? [] : space.boundary;
   // Inside is to the left of each edge of a counter-clockwise outline.
   const ccw = outline.reduce((sum, p, i) => sum + (p.x * outline[(i + 1) % outline.length]!.y - outline[(i + 1) % outline.length]!.x * p.y), 0) > 0;
   outline.forEach((a, i) => {
@@ -112,6 +133,16 @@ function wallFaces(project: Project): WallFace[] {
   return faces;
 }
 
+/** An opening and 20 cm in front of it on both sides: nothing hangs over a doorway or a window. */
+function openingFront(project: Project, opening: Opening): Vec2[] | undefined {
+  const wall = project.space.walls?.find((w) => w.id === opening.wall);
+  if (!wall) return undefined;
+  const frame = wallFrame(wall);
+  const t = wall.thickness / 2 + 2000;
+  const [s0, s1] = [opening.offset, opening.offset + opening.width];
+  return [wallPoint(frame, s0, -t), wallPoint(frame, s1, -t), wallPoint(frame, s1, t), wallPoint(frame, s0, t)];
+}
+
 /**
  * Where a wall-mounted piece (meta `mount: 'wall'`: art, a mirror, a TV) goes when placed near
  * `spot`: back against the nearest wall face, front to the room, centred on the point of the wall
@@ -121,6 +152,13 @@ function wallFaces(project: Project): WallFace[] {
 export function wallPlacement(project: Project, definition: ItemDefinition, spot: Vec2): { position: Vec2; rotation: number; elevation: number } | undefined {
   if (definition.meta?.mount !== 'wall') return undefined;
   let best: { position: Vec2; rotation: number; distance: number } | undefined;
+  // Not over a door's swing or a doorway or window, and not into a wall that meets this face.
+  const { space } = project;
+  const blockers = [
+    ...space.doors.map(doorPolygon),
+    ...(space.openings ?? []).flatMap((o) => [openingFront(project, o), openingSwingPolygon(space, o)].filter((shape) => shape !== undefined)),
+    ...wallSolids(space).map((w) => w.polygon),
+  ];
   for (const face of wallFaces(project)) {
     const dx = face.b.x - face.a.x;
     const dy = face.b.y - face.a.y;
@@ -146,7 +184,7 @@ export function wallPlacement(project: Project, definition: ItemDefinition, spot
       if (best && distance >= best.distance) break; // farther along only gets farther
       const position = { x: Math.round(onWall.x + face.normal.x * off), y: Math.round(onWall.y + face.normal.y * off) };
       const body = itemPolygon({ id: '', definitionId: definition.id, position, rotation, locked: false }, definition);
-      if (project.space.doors.some((door) => convexOverlap(body, doorPolygon(door)).overlaps)) continue;
+      if (!containsPolygon(space.boundary, body) || blockers.some((shape) => convexOverlap(body, shape).overlaps)) continue;
       best = { position, rotation, distance };
       break;
     }

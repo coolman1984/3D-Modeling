@@ -5,6 +5,8 @@ import { defineConfig } from '@playwright/test';
 
 // Cloud sessions ship a pinned Chromium; CI installs Playwright's own.
 const localChromium = '/opt/pw-browsers/chromium';
+// Restricted workspaces can point to an already-installed browser without downloading one.
+const executablePath = process.env.PLANNER_TEST_BROWSER ?? (existsSync(localChromium) && !process.env.CI ? localChromium : undefined);
 // Every browser-test run starts with an empty database.
 const dataDir = process.env.PLANNER_TEST_DATA ?? mkdtempSync(join(tmpdir(), 'planner-e2e-'));
 process.env.PLANNER_TEST_DATA = dataDir;
@@ -17,7 +19,7 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4173',
     viewport: { width: 1440, height: 900 },
     launchOptions: {
-      ...(existsSync(localChromium) && !process.env.CI ? { executablePath: localChromium } : {}),
+      ...(executablePath ? { executablePath } : {}),
       args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
       // Arabic file names need a UTF-8 locale; minimal containers default to plain C.
       env: { ...process.env, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' },

@@ -4,6 +4,39 @@ Every change to a project, by a person or an agent, goes through the same core c
 lands in the project history with the author's name. Agents never touch files: they only get
 the planner tools.
 
+## The interior designer (decision 0029)
+
+Any MCP client (Claude Code, Claude Desktop, Codex, Cursor, or anything that speaks MCP) gets an
+interior designer's workflow and knowledge:
+
+- **Tools:** `build_apartment` (a flat from room sizes in one step), `furnish_options` (three
+  checked layouts with reasons and finishes), `apply_furnishing`, `furnish_apartment_options`
+  (each option as its own project), `design_guide` (the guides below).
+- **Prompts:** `design_flat_from_measurements` (paste the client's file), `furnish_like_a_designer`,
+  `review_layout`.
+- **Resources:** `atrium://skills/workflow`, `space-planning`, `living-room`, `bedroom`,
+  `dining-kitchen`, `bathroom`, `style-and-finish`.
+
+Connect an agent to the running program: open **Settings → Agent Tools → Connect another assistant**.
+It shows the exact command for this copy of Atrium (the browser version or the installed program),
+for example:
+
+```bash
+claude mcp add planner -- node "<path shown in Settings>/mcp.mjs" --url http://127.0.0.1:4650
+```
+
+Any other MCP client: command `node`, arguments `["<path>/mcp.mjs", "--url", "<address>"]`. Node.js
+must be installed on the computer. Without `--url` the bridge looks for the program's address file
+(project folder, or the installed program's data folder) and then tries ports 4650 and 4600. The
+design guides (`design_guide`, prompts, resources) answer even when Atrium is closed; every other
+tool needs Atrium open.
+
+Then: "Here are my client's measurements: … Draw the flat and give me three furnished options."
+Inside the program, **Settings → AI Providers** takes an Anthropic key or any OpenAI-compatible
+service (a base URL and a key: OpenAI, Gemini's compatible endpoint, OpenRouter, DeepSeek, a local
+model…; only the Anthropic and a generic compatible server were exercised so far); the agent there has
+the same tools and guides, and the AI Planner panel takes the client's file.
+
 ## Tools
 
 | Tool | What it does |
@@ -22,8 +55,12 @@ the planner tools.
 | `bay_entry_check` | Whether a named vehicle type can turn from the nearest lane into a named bay, swept-body checked |
 | `restaurant_metrics` | Cover count, table counts by family, floor area per cover, zone areas, table reachability |
 | `table_route` | Waitstaff route from the kitchen pass door to a table, reachability and sampled distance |
-| `get_project` | Room, doors, columns, item types, every item, issues, metrics |
-| `set_room` | Size, ceiling, doors on walls, columns |
+| `get_project` | Room (or drawn walls, doors, windows and the rooms they close off), item types, every item, issues, metrics |
+| `set_room` | Size, ceiling, doors on walls, columns (rectangular rooms without drawn walls) |
+| `build_apartment` | A flat from room rectangles (wall centre lines, metres), doors between named rooms, entrance, windows; new project, or `project_id` to rebuild one |
+| `furnish_options` / `apply_furnishing` / `furnish_apartment_options` | Three furnished options with reasons and checks; apply one (one revision) or keep each as its own project |
+| `design_guide` | The interior design guides by topic |
+| `draw_walls` / `add_openings` / `remove_walls` | Draw walls by centre line, put doors (hinge, swing side) and windows (sill) in them, remove them; each call is one revision |
 | `define_item` | Create or edit an item type (sizes, clearances, seats, 3D shape) |
 | `place_items` / `move_items` / `remove_items` | Edit the layout (each call is one revision); `height_m` raises an item off the floor |
 | `apply_commands` | Raw core commands, for anything else |

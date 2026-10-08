@@ -5,14 +5,17 @@ import {
   itemPolygon,
   polygonsOverlap,
   rotate,
-  roomSpace,
+  createSpace,
+  rectangleBoundary,
   type Id,
   type ItemDefinition,
   type ItemInstance,
   type Meta,
+  type Opening,
   type Project,
   type Tick,
   type Vec2,
+  type WallSegment,
   type Zone,
 } from '@space-planner/core';
 import { walkwayRule, type RuleResult } from './rules.js';
@@ -126,10 +129,7 @@ export const HOME_CATALOG: readonly ItemDefinition[] = [
   item('home-toilet', 'Toilet · wall-hung', 'toilet', 40, 55, 80, front(60)),
   item('home-basin', 'Vanity basin · 80', 'basin', 80, 48, 85, front(70), { meta: { wood: 'oak' } }),
   item('home-washer', 'Washing machine', 'washer', 60, 60, 85, front(90)),
-  // Fit-out: interior walls are partitions; a gap between two is a doorway.
-  item('home-wall-100', 'Interior wall · 1 m', 'wall', 100, 10, 270),
-  item('home-wall-200', 'Interior wall · 2 m', 'wall', 200, 10, 270),
-  item('home-wall-300', 'Interior wall · 3 m', 'wall', 300, 10, 270),
+  // Walls are drawn as walls (space.walls), not placed as items.
 ];
 
 const CATALOG_BY_ID = new Map(HOME_CATALOG.map((d) => [d.id, d]));
@@ -140,7 +140,7 @@ export const HOME_STYLES: readonly { readonly id: HomeStyle; readonly label: str
 export const isHome = (project: Project): boolean => project.space.meta?.pack === 'home';
 
 /** Room-name zones in an apartment: drawn and labelled, never checked against. */
-export const HOME_ROOM_KINDS = ['living', 'dining', 'kitchen', 'bedroom', 'bathroom', 'hall', 'study'] as const;
+export const HOME_ROOM_KINDS = ['living', 'dining', 'kitchen', 'bedroom', 'bathroom', 'hall', 'study', 'laundry', 'balcony'] as const;
 
 /** Clear width a person needs to walk from every seat to the front door (common guidance). */
 export const HOME_WALKWAY = cm(80);
@@ -202,63 +202,96 @@ const WEST = 90;
 const SOUTH = 180;
 const EAST = 270;
 
+/** A door in a wall: from the wall's drawn start (metres), width (metres), hinge jamb, side it opens to. */
+type DoorIn = readonly [from: number, width: number, hinge: 'start' | 'end', side: 'left' | 'right'];
+
 interface ApartmentSpec {
   readonly name: string;
+  /** Inside the outer walls, metres. */
   readonly width: number;
   readonly depth: number;
-  /** Front door on the south wall, offset from the west corner, metres. */
+  /** Front door in the south wall, from the inside of the west wall, metres. */
   readonly door: number;
   readonly rooms: ReadonlyArray<readonly [kind: (typeof HOME_ROOM_KINDS)[number], label: string, x0: number, y0: number, x1: number, y1: number]>;
-  /** Interior walls, 10 cm thick, from one end to the other along x or y, metres. */
-  readonly walls: ReadonlyArray<readonly [x0: number, y0: number, x1: number, y1: number]>;
+  /** Interior walls, 10 cm thick, centre line from end to end, metres inside the outer walls; with their doors. */
+  readonly walls: ReadonlyArray<readonly [x0: number, y0: number, x1: number, y1: number, doors?: readonly DoorIn[]]>;
   readonly pieces: readonly Piece[];
 }
 
+/** Outer walls are 20 cm thick; the plan's origin is their outside corner, so the inside starts at 20 cm. */
+export const HOME_OUTER_WALL = cm(20);
+export const HOME_INNER_WALL = cm(10);
+const IN = 0.2;
+
 function region(id: string, kind: string, label: string, x0: number, y0: number, x1: number, y1: number): Zone {
-  return { id, kind, polygon: [{ x: m(x0), y: m(y0) }, { x: m(x1), y: m(y0) }, { x: m(x1), y: m(y1) }, { x: m(x0), y: m(y1) }], meta: { label } };
+  return { id, kind, polygon: [{ x: m(x0 + IN), y: m(y0 + IN) }, { x: m(x1 + IN), y: m(y0 + IN) }, { x: m(x1 + IN), y: m(y1 + IN) }, { x: m(x0 + IN), y: m(y1 + IN) }], meta: { label } };
 }
 
-/** An empty apartment shell with the home catalog: one front door on the south wall. */
+/** An empty apartment with the home catalog: four outer walls and a front door in the south wall. */
 export function newHome(name: string, width = 9, depth = 7, height = 2.8): Project {
   if (![width, depth, height].every((v) => Number.isFinite(v) && v >= 2 && v <= 100)) throw new RangeError('apartment dimensions must be 2 to 100 m');
   const door = Math.max(0.2, Math.min(width - 1.1, width / 2 - 0.45));
-  return shell(name, width, depth, height, door, []);
+  return shell(name, width, depth, height, door, [], []);
 }
 
-function shell(name: string, width: number, depth: number, height: number, doorOffset: number, zones: Zone[]): Project {
-  const space = roomSpace({ width: m(width), depth: m(depth), ceilingHeight: m(height), doors: [{ id: 'front-door', wall: 'south', offset: m(doorOffset), width: cm(90) }], columns: [] });
-  return {
-    ...createProject('new', name, { ...space, ...(zones.length ? { zones } : {}), meta: { pack: 'home' } }),
-    catalog: Object.fromEntries(HOME_CATALOG.map((d) => [d.id, d])),
-  };
+/**
+ * The shell: the boundary is the outside of the outer walls; the outer walls run on centre lines
+ * 10 cm in from it; the front door is a 90 cm door in the south wall opening inward, the entrance.
+ */
+function shell(name: string, width: number, depth: number, height: number, doorFrom: number, zones: Zone[], inner: WallSegment[], openings: Opening[] = []): Project {
+  const w = m(width) + 2 * HOME_OUTER_WALL;
+  const d = m(depth) + 2 * HOME_OUTER_WALL;
+  const h = HOME_OUTER_WALL / 2;
+  const corner = (x: number, y: number) => ({ x, y });
+  const outer: WallSegment[] = [
+    { id: 'wall-south', a: corner(h, h), b: corner(w - h, h), thickness: HOME_OUTER_WALL },
+    { id: 'wall-east', a: corner(w - h, h), b: corner(w - h, d - h), thickness: HOME_OUTER_WALL },
+    { id: 'wall-north', a: corner(w - h, d - h), b: corner(h, d - h), thickness: HOME_OUTER_WALL },
+    { id: 'wall-west', a: corner(h, d - h), b: corner(h, h), thickness: HOME_OUTER_WALL },
+  ];
+  // The south wall's centre line starts 10 cm west of the inside face.
+  const front: Opening = { id: 'front-door', wall: 'wall-south', kind: 'door', offset: m(doorFrom) + h, width: cm(90), hinge: 'start', side: 'left', meta: { role: 'entrance' } };
+  const space = createSpace(rectangleBoundary(w, d), {
+    walls: [...outer, ...inner],
+    openings: [front, ...openings],
+    ...(zones.length ? { zones } : {}),
+    ceilingHeight: m(height),
+    meta: { pack: 'home' },
+  });
+  return { ...createProject('new', name, space), catalog: Object.fromEntries(HOME_CATALOG.map((def) => [def.id, def])) };
 }
 
 function furnish(spec: ApartmentSpec): Project {
   const zones = spec.rooms.map(([kind, label, x0, y0, x1, y1], i) => region(`room-${i + 1}`, kind, label, x0, y0, x1, y1));
-  const project = shell(spec.name, spec.width, spec.depth, 2.8, spec.door, zones);
-  const catalog: Record<Id, ItemDefinition> = { ...project.catalog };
+  const walls: WallSegment[] = [];
+  const openings: Opening[] = [];
+  spec.walls.forEach(([x0, y0, x1, y1, doors = []], i) => {
+    // An end on the inside face of an outer wall runs on to that wall's centre line, so they join.
+    const reach = (v: number, inside: number) => (v === 0 ? -0.1 : v === inside ? inside + 0.1 : v);
+    const horizontal = y0 === y1;
+    const a = { x: horizontal ? reach(x0, spec.width) : x0, y: horizontal ? y0 : reach(y0, spec.depth) };
+    const b = { x: horizontal ? reach(x1, spec.width) : x1, y: horizontal ? y1 : reach(y1, spec.depth) };
+    const id = `wall-${i + 1}`;
+    walls.push({ id, a: { x: m(a.x + IN), y: m(a.y + IN) }, b: { x: m(b.x + IN), y: m(b.y + IN) }, thickness: HOME_INNER_WALL });
+    const shift = Math.abs(horizontal ? a.x - x0 : a.y - y0);
+    doors.forEach(([from, width, hinge, side], j) => {
+      openings.push({ id: `door-${i + 1}${doors.length > 1 ? `-${j + 1}` : ''}`, wall: id, kind: 'door', offset: m(from + shift), width: m(width), hinge, side });
+    });
+  });
+  const project = shell(spec.name, spec.width, spec.depth, 2.8, spec.door, zones, walls, openings);
   const counts = new Map<string, number>();
   const items: Record<Id, ItemInstance> = {};
-  const add = (def: ItemDefinition, x: number, y: number, rotation: number) => {
+  for (const [defId, x, y, rotation = NORTH] of spec.pieces) {
+    const def = CATALOG_BY_ID.get(defId);
+    if (!def) throw new Error(`unknown home item ${defId}`);
     const prefix = def.category.replace(/[^a-z]/g, '').slice(0, 8) || 'item';
     const n = (counts.get(prefix) ?? 0) + 1;
     counts.set(prefix, n);
     const id = `${prefix}-${n}`;
     const elevation = typeof def.meta?.elevation === 'number' ? (def.meta.elevation as Tick) : def.meta?.mount === 'ceiling' ? m(2.8) - def.size.h - cm(40) : 0;
-    items[id] = { id, definitionId: def.id, position: { x: m(x), y: m(y) }, rotation: (((rotation % 360) + 360) % 360) * 1000, locked: false, ...(elevation > 0 ? { elevation } : {}) };
-  };
-  for (const [x0, y0, x1, y1] of spec.walls) {
-    const length = Math.round(Math.abs(x1 - x0 + (y1 - y0)) * 100);
-    const id = `home-wall-${length}`;
-    catalog[id] ??= item(id, `Interior wall · ${(length / 100).toFixed(2)} m`, 'wall', length, 10, 270);
-    add(catalog[id]!, (x0 + x1) / 2, (y0 + y1) / 2, y0 === y1 ? NORTH : WEST);
+    items[id] = { id, definitionId: def.id, position: { x: m(x + IN), y: m(y + IN) }, rotation: (((rotation % 360) + 360) % 360) * 1000, locked: false, ...(elevation > 0 ? { elevation } : {}) };
   }
-  for (const [defId, x, y, rotation = NORTH] of spec.pieces) {
-    const def = CATALOG_BY_ID.get(defId);
-    if (!def) throw new Error(`unknown home item ${defId}`);
-    add(def, x, y, rotation);
-  }
-  return { ...project, catalog, items };
+  return { ...project, items };
 }
 
 /**
@@ -269,7 +302,7 @@ export function studioApartment(name = 'Studio apartment · 49 m²'): Project {
   return furnish({
     name, width: 7.5, depth: 6.5, door: 3.3,
     rooms: [['bathroom', 'Bath', 0, 4.5, 2.35, 6.5], ['bedroom', 'Sleep', 0, 0, 3, 4.4], ['kitchen', 'Kitchen', 2.45, 4.9, 6.3, 6.5], ['dining', 'Dining', 3, 2.6, 5.2, 4.9], ['living', 'Living', 4.2, 0, 7.5, 2.6]],
-    walls: [[0, 4.45, 1.5, 4.45], [2.4, 4.4, 2.4, 6.5]],
+    walls: [[0, 4.45, 2.4, 4.45, [[1.55, 0.8, 'end', 'left']]], [2.4, 4.45, 2.4, 6.5]],
     pieces: [
       ['home-toilet', 0.4, 6.2, SOUTH], ['home-basin', 1.0, 6.25, SOUTH], ['home-mirror', 1.0, 6.47, SOUTH], ['home-shower', 1.88, 6.0, SOUTH],
       ['home-bed-queen', 1.1, 1.95, EAST], ['home-nightstand', 0.22, 0.8, EAST], ['home-nightstand', 0.22, 3.1, EAST], ['home-art-90', 0.03, 1.95, EAST], ['home-wardrobe-2', 2.75, 0.3],
@@ -288,10 +321,10 @@ export function oneBedroomApartment(name = 'One-bedroom apartment · 70 m²'): P
   return furnish({
     name, width: 10, depth: 7, door: 1.2,
     rooms: [['bedroom', 'Bedroom', 0, 4.05, 4.5, 7], ['bathroom', 'Bath', 4.6, 4.65, 7, 7], ['kitchen', 'Kitchen', 7.1, 4.4, 10, 7], ['dining', 'Dining', 5.2, 0.9, 10, 4.4], ['living', 'Living', 0, 0, 5.2, 4]],
-    walls: [[0, 4, 3.6, 4], [4.55, 4, 4.55, 7], [4.6, 4.6, 5.5, 4.6], [6.3, 4.6, 7, 4.6], [7.05, 4.55, 7.05, 7]],
+    walls: [[0, 4, 4.55, 4, [[3.65, 0.85, 'end', 'right']]], [4.55, 4, 4.55, 7], [4.55, 4.6, 7.05, 4.6, [[0.95, 0.8, 'start', 'left']]], [7.05, 4.6, 7.05, 7]],
     pieces: [
       ['home-bed-king', 2.0, 5.92, SOUTH], ['home-nightstand', 0.7, 6.78, SOUTH], ['home-nightstand', 3.3, 6.78, SOUTH], ['home-art-90', 2.0, 6.97, SOUTH],
-      ['home-wardrobe-3', 4.18, 5.6, WEST], ['home-rug-round', 2.0, 4.9], ['home-plant-snake', 0.3, 4.35],
+      ['home-wardrobe-3', 4.18, 5.6, WEST], ['home-rug-round', 2.0, 5.1], ['home-plant-snake', 0.3, 4.35],
       ['home-bathtub', 5.5, 6.6, SOUTH], ['home-toilet', 6.7, 5.2, WEST], ['home-basin', 4.88, 5.1, EAST], ['home-mirror', 4.625, 5.1, EAST],
       ['home-kitchen-240', 8.32, 6.69, SOUTH], ['home-fridge', 9.66, 4.9, WEST],
       ['home-dining-6', 7.6, 2.6, WEST], ['home-pendant', 7.6, 2.6], ['home-sideboard', 9.77, 2.6, WEST], ['home-art-90', 9.97, 2.6, WEST],
@@ -309,7 +342,7 @@ export function twoBedroomApartment(name = 'Two-bedroom apartment · 108 m²'): 
   return furnish({
     name, width: 12, depth: 9, door: 5.5,
     rooms: [['bedroom', 'Main bedroom', 0, 5.05, 4.6, 9], ['bathroom', 'Bath', 4.7, 6.05, 7.3, 9], ['bedroom', 'Bedroom 2', 7.4, 5.05, 12, 9], ['living', 'Living', 0, 0, 6.2, 4.95], ['dining', 'Dining', 6.2, 0, 8.9, 4.95], ['kitchen', 'Kitchen', 8.9, 0, 12, 4.95]],
-    walls: [[0, 5, 3.6, 5], [4.65, 5, 4.65, 9], [4.7, 6, 5.4, 6], [6.2, 6, 7.3, 6], [7.35, 5, 7.35, 9], [8.3, 5, 12, 5]],
+    walls: [[0, 5, 4.65, 5, [[3.7, 0.85, 'end', 'left']]], [4.65, 5, 4.65, 9], [4.65, 6, 7.35, 6, [[0.8, 0.8, 'start', 'left']]], [7.35, 5, 7.35, 9], [7.35, 5, 12, 5, [[0.1, 0.8, 'start', 'left']]]],
     pieces: [
       ['home-bed-king', 2.3, 7.92, SOUTH], ['home-nightstand', 1.0, 8.78, SOUTH], ['home-nightstand', 3.6, 8.78, SOUTH], ['home-art-90', 2.3, 8.97, SOUTH],
       ['home-wardrobe-3', 0.32, 6.0, EAST], ['home-dresser', 4.33, 7.4, WEST], ['home-mirror', 4.58, 7.4, WEST], ['home-rug-cream', 2.3, 6.3],

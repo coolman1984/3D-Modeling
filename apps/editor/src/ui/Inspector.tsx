@@ -66,6 +66,8 @@ import { CommitField, NumberField } from './Fields.js';
 import { CargoGroup, containerFacts } from './Container.js';
 import { RackLocations, type StockView } from './Stock.js';
 import { toTicks } from './units.js';
+import { namedRooms } from './PlanWalls.js';
+import { OpeningInspector, WallInspector } from './WallInspector.js';
 
 export { summarize, type ReviewSummary } from '../logic/review.js';
 import { summarize, type ReviewSummary } from '../logic/review.js';
@@ -73,7 +75,8 @@ import { summarize, type ReviewSummary } from '../logic/review.js';
 export function statusLine(s: ReviewSummary): { tone: 'error' | 'warning' | 'ok'; text: string } {
   if (s.errors > 0) return { tone: 'error', text: `${plural(s.errors, 'error')} · ${plural(s.warnings, 'warning')}` };
   if (s.warnings > 0) return { tone: 'warning', text: `No errors · ${plural(s.warnings, 'warning')}` };
-  return { tone: 'ok', text: s.unknown > 0 ? `No issues · ${formatCount(s.unknown)} unknown` : 'No issues found' };
+  if (s.unknown > 0) return { tone: 'warning', text: `No issues · ${formatCount(s.unknown)} unknown` };
+  return { tone: 'ok', text: 'No issues found' };
 }
 
 const SHAPE_LABEL = new Map(SHAPES.map((s) => [s.key as string, s.label]));
@@ -124,6 +127,8 @@ export function PropertiesPanel({
   stockView?: StockView;
   onStockView?: (view: StockView) => void;
 }) {
+  if (selectedIds.length === 1 && project.space.walls?.some((w) => w.id === selectedIds[0])) return <WallInspector project={project} id={selectedIds[0]!} dispatch={dispatch} />;
+  if (selectedIds.length === 1 && project.space.openings?.some((o) => o.id === selectedIds[0])) return <OpeningInspector project={project} id={selectedIds[0]!} dispatch={dispatch} />;
   const items = selectedIds.map((id) => project.items[id]).filter((i) => i !== undefined);
   if (items.length === 0) return <ProjectSummary project={project} metrics={metrics} activity={activity} summary={summary} onOpenReview={onOpenReview} />;
   if (items.length === 1) return <OneItem project={project} id={items[0]!.id} controls={controls} issues={issues} dispatch={dispatch} onEditType={onEditType} onShow3D={onShow3D} onFocusIssue={onFocusIssue} cargo={activity.pack === 'container'} production={activity.pack === 'production'} stockView={stockView} onStockView={onStockView} />;
@@ -139,6 +144,8 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
   const areaPerSeat = metrics.seats > 0 ? toSquareMetres(metrics.floorArea) / metrics.seats : undefined;
   // Container figures measure every piece; worked out once per change, not on every render (load playback re-renders often).
   const cargoFacts = useMemo(() => (activity.pack === 'container' ? containerFacts(project) : null), [activity.pack, project]);
+  const walled = (project.space.walls?.length ?? 0) > 0;
+  const openings = project.space.openings ?? [];
   const facts: Array<[string, ReactNode]> = cargoFacts ? cargoFacts : activity.pack === 'warehouse' ? (() => {
     const w = warehouseMetrics(project);
     return [
@@ -150,26 +157,30 @@ function ProjectSummary({ project, metrics, activity, summary, onOpenReview }: {
       ['Docks', formatCount(w.docks)],
     ] as Array<[string, ReactNode]>;
   })() : [
-    ['Room', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
+    [walled ? 'Outside' : 'Room', `${formatMetres(room.maxX - room.minX)} × ${formatMetres(room.maxY - room.minY)} m`],
     ['Ceiling', project.space.ceilingHeight === undefined ? 'Not set' : `${formatMetres(project.space.ceilingHeight)} m`],
     ['Floor area', formatArea(metrics.floorArea)],
     // Seats and floor per seat matter for halls and offices; an apartment counts rooms instead.
     ...(activity.pack === 'home'
-      ? ([['Rooms', formatCount((project.space.zones ?? []).filter((z) => zoneStyle(z.kind).room).length)]] as Array<[string, ReactNode]>)
+      ? ([['Rooms', formatCount(walled ? namedRooms(project.space).length : (project.space.zones ?? []).filter((z) => zoneStyle(z.kind).room).length)]] as Array<[string, ReactNode]>)
       : ([
           ['Seats', <span data-testid="seats">{formatCount(metrics.seats)}</span>],
           ['Area per seat', areaPerSeat === undefined ? '—' : formatSquareMetres(Math.round(areaPerSeat * 100) / 100)],
         ] as Array<[string, ReactNode]>)),
     ['Occupied', `${formatArea(metrics.occupiedArea)} · ${formatPercent(metrics.occupancy)}`],
     ['Items placed', `${formatCount(metrics.itemCount)} · ${plural(types, 'type')}`],
-    ['Doors · columns', `${formatCount(project.space.doors.length)} · ${formatCount(columns)}`],
+    walled
+      ? ['Walls · doors · windows', `${formatCount(project.space.walls!.length)} · ${formatCount(openings.filter((o) => o.kind === 'door').length + project.space.doors.length)} · ${formatCount(openings.filter((o) => o.kind === 'window').length)}`]
+      : ['Doors · columns', `${formatCount(project.space.doors.length)} · ${formatCount(columns)}`],
   ];
   const box =
     summary.errors > 0
       ? { tone: 'error', icon: <XCircle size={16} />, title: `${plural(summary.errors, 'error')} · ${plural(summary.warnings, 'warning')}`, text: 'Fix the errors before sharing the client report. Warnings can be accepted.' }
       : summary.warnings > 0
         ? { tone: 'warning', icon: <Warning size={16} />, title: `No errors · ${plural(summary.warnings, 'warning')}`, text: 'Review the warnings; each one can be fixed or accepted.' }
-        : { tone: 'ok', icon: <CheckCircle size={16} />, title: 'Every check passes', text: summary.unknown > 0 ? `${plural(summary.unknown, 'check')} could not be run because data is missing.` : 'The plan is ready for the client report.' };
+        : summary.unknown > 0
+          ? { tone: 'warning', icon: <Warning size={16} />, title: 'Some checks need information', text: `${plural(summary.unknown, 'check')} could not be run because data is missing.` }
+          : { tone: 'ok', icon: <CheckCircle size={16} />, title: 'Every check passes', text: 'The plan is ready for the client report.' };
   return (
     <div aria-label="Project">
       <div className="insp-head" style={{ paddingTop: 28 }}>

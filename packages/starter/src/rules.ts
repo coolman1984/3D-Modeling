@@ -7,7 +7,11 @@ import {
   measureProject,
   rotate,
   toSquareMetres,
+  wallFrame,
+  wallPoint,
+  wallSolids,
   type Id,
+  type Opening,
   type Project,
   type Tick,
   type Vec2,
@@ -154,9 +158,29 @@ const NO_SEATS = { status: 'unknown' as const, reason: 'no-seats' as const, enti
 export function walkwayRule(project: Project, width: Tick): RuleResult {
   const seatIds = seatIdsOf(project);
   if (seatIds.length === 0) return { code: 'walkway', unit: 'ticks', required: width, ...NO_SEATS };
-  if (project.space.doors.length === 0) return { code: 'walkway', unit: 'ticks', required: width, status: 'unknown', reason: 'no-doors', entityIds: [] };
+  if (project.space.doors.length === 0 && entrancesOf(project).length === 0) return { code: 'walkway', unit: 'ticks', required: width, status: 'unknown', reason: 'no-doors', entityIds: [] };
   const cutOff = seatsWithoutWayOut(project, width, seatIds);
   return { code: 'walkway', unit: 'ticks', required: width, status: cutOff.length === 0 ? 'pass' : 'fail', measured: seatIds.length - cutOff.length, entityIds: cutOff };
+}
+
+/** Doors in walls that lead outside (an apartment's front door): `meta.role` is `entrance`. */
+export function entrancesOf(project: Project): Opening[] {
+  return (project.space.openings ?? []).filter((o) => o.kind === 'door' && o.meta?.role === 'entrance');
+}
+
+/**
+ * The floor a person crosses to pass a door in a wall: the opening itself and, on each side, as
+ * deep as half the walkway plus `margin`. A doorway is narrower than a walkway by nature (an
+ * 80 cm door in an 80 cm walkway); its own width is a matter for door rules, not the walkway.
+ */
+function doorwayPolygon(project: Project, opening: Opening, width: Tick, margin: number): Vec2[] | undefined {
+  const wall = project.space.walls?.find((w) => w.id === opening.wall);
+  if (!wall) return undefined;
+  const frame = wallFrame(wall);
+  const depth = wall.thickness / 2 + width / 2 + margin;
+  const s0 = opening.offset;
+  const s1 = opening.offset + opening.width;
+  return [wallPoint(frame, s0, -depth), wallPoint(frame, s1, -depth), wallPoint(frame, s1, depth), wallPoint(frame, s0, depth)];
 }
 
 /** Floor area per person (seat), rounded to hundredths of a square metre, at least `required`. */
@@ -212,6 +236,7 @@ export function seatsWithoutWayOut(project: Project, width: Tick, seatIds: reado
   paint(project.space.boundary, blocked, 0);
   const fill = (polygon: readonly Vec2[]) => paint(polygon, blocked, 1);
   for (const o of project.space.obstacles) fill(o.polygon);
+  for (const w of wallSolids(project.space)) fill(w.polygon);
   for (const item of Object.values(project.items)) {
     const definition = project.catalog[item.definitionId];
     // People walk over floor coverings (rugs) and under things hung above head room.
@@ -226,6 +251,24 @@ export function seatsWithoutWayOut(project: Project, width: Tick, seatIds: reado
   // Doorways: the cells just inside each door opening, as deep as half the walkway plus a cell.
   const reached = new Uint8Array(nx * ny);
   const queue: number[] = [];
+  // Doorways in walls are passed whatever their width; an entrance's doorway is where walking starts.
+  const passage = new Uint8Array(nx * ny);
+  for (const opening of project.space.openings ?? []) {
+    if (opening.kind !== 'door') continue;
+    const polygon = doorwayPolygon(project, opening, width, cell);
+    if (!polygon) continue;
+    const here = new Uint8Array(nx * ny);
+    paint(polygon, here, 1);
+    const entrance = opening.meta?.role === 'entrance';
+    for (let k = 0; k < here.length; k++) {
+      if (!here[k] || blocked[k]) continue;
+      passage[k] = 1;
+      if (entrance && !reached[k]) {
+        reached[k] = 1;
+        queue.push(k);
+      }
+    }
+  }
   for (const door of project.space.doors) {
     const along = rotate({ x: 1, y: 0 }, door.angle);
     const inward = rotate(along, door.swing === 'left' ? 90_000 : -90_000);
@@ -252,7 +295,7 @@ export function seatsWithoutWayOut(project: Project, width: Tick, seatIds: reado
       const b = j + dj;
       if (a < 0 || b < 0 || a >= nx || b >= ny) continue;
       const n = index(a, b);
-      if (!reached[n] && clearance[n]! >= half) {
+      if (!reached[n] && (clearance[n]! >= half || passage[n])) {
         reached[n] = 1;
         queue.push(n);
       }

@@ -9,6 +9,7 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [🧭 الخطة الرئيسية لمنصة تخطيط المساحات](01-master-plan.md)
 - [🧱 خطة النواة الصافية](02-core-plan.md)
 - [Industrial packs plan](03-industrial-packs-plan.md)
+- [04 — Home studio plan: win one use first](04-home-studio-plan.md)
 - [AI agents in Space Planner](agents.md)
 - [Atrium redesign: audit and mapping](redesign-audit.md)
 
@@ -44,6 +45,10 @@ Start with [STATUS.md](STATUS.md) (where work stands) and the root `TASKS.md` (t
 - [0024 — Shipments: pieces lie flat and stack; height is not the goal](decisions/0024-lie-flat-and-stack-limits.md)
 - [0025 - Bounded shipment planning and isolated demo launcher](decisions/0025-bounded-shipment-planning-and-demo.md)
 - [0026 — Desktop program with a Windows installer](decisions/0026-desktop-program.md)
+- [0027 — Home studio: apartments, detailed furniture, packs, appearance, faster start](decisions/0027-home-studio.md)
+- [0028 — Walls and openings: drawing the real space](decisions/0028-walls-and-openings.md)
+- [0029 — The AI interior designer: build from measurements, furnish with options, skills over MCP](decisions/0029-ai-interior-designer.md)
+- [0030 — Safe merge of walls and furnishing (8 October 2026)](decisions/0030-safe-home-merge.md)
 
 ## Generated
 

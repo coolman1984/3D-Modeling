@@ -10,8 +10,8 @@ export interface ZoneStyle {
   readonly room?: boolean;
 }
 
-/** Room kinds of the home pack (`HOME_ROOM_KINDS` in the starter). */
-const ROOMS = new Set(['living', 'dining', 'kitchen', 'bedroom', 'bathroom', 'hall', 'study']);
+/** Room kinds of the home pack (`HOME_ROOM_KINDS` in the starter), and `room`: a name given to a room found from walls. */
+const ROOMS = new Set(['living', 'dining', 'kitchen', 'bedroom', 'bathroom', 'hall', 'study', 'laundry', 'balcony', 'room']);
 
 export function zoneStyle(kind: string): ZoneStyle {
   if (ROOMS.has(kind)) return { fill: 'none', opacity: 0, stroke: 'none', dash: undefined, label: true, room: true };

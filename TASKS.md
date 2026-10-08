@@ -1,5 +1,89 @@
 # TASKS
 
+## Now: safe modern-branch merge (8 Oct 2026)
+
+**Finish line:** PR 15 preserves wall opening offsets during translation, evaluates furnishing
+against the same customized catalogue used after applying, and reports missing home-rule data as
+unknown in both UI and agent tools. Full `pnpm check` passes before the verified branch is merged
+to main. Incomplete tenancy work remains preserved on its original branch.
+
+- [x] Inspect branch history and all three PR 15 review findings; keep existing regression tests.
+- [x] Fix wall translation, customized furniture checks and explicit unknown-rule reporting.
+- [x] Run regression tests, full checks and the real browser journey; capture screenshots.
+  Verified: 581 unit/script checks and 29 browser journeys pass. `pnpm check` uses
+  `PLANNER_TEST_BROWSER` for the installed Chromium 153 (download blocked in this workspace).
+- [ ] Record verification, push fixes, merge PR 15 and verify remote main.
+
+## Done: fixes from the review report (7 Oct 2026)
+
+Fixed: door lost silently when its wall is shortened (now refused, with the reason in the Inspector);
+typed lengths take units (35 m, 35 cm, 3500 mm, Arabic م / سم); a bare whole number is metres only if a wall that long fits the place (so 35 is 35 cm in a flat, 35 m in a 60 m warehouse), and the readout says when a unit was
+guessed; the length field shows the real value after a refusal; apartments only can be rebuilt by
+`build_apartment` (a hall keeps its doors and kind), locked pieces named; `side` validated; the
+tools accept measurements as text ("4,5", "٤٫٥ م"); slivers between rooms and corner-only doors
+are named; ceiling range checked; default windows slide off the entrance; clash messages name rooms;
+room finding 3x faster and cached per space (rooms are not re-found while dragging furniture);
+options kept when leaving the Space panel and shown first; study desk/chair overlap fixed; laundry
+recipe; unfurnished rooms carry real reasons; piece names carry their finish once; unused finish
+variants leave the catalogue; MCP bridge finds the installed program, serves `design_guide` offline,
+Settings shows the command for this copy; drawing hint no longer covers the plan title; labels
+leave out what does not fit a small room; duplicate walls refused.
+Left as they are: room list rows do not select the room on the plan; the engine runs on the main
+thread (about 1 s for seven rooms).
+
+## Now: H1b — the AI interior designer (7 Oct 2026, decision 0029)
+
+Owner: any AI agent connects by MCP; the client gives the agent a file of measurements and
+quantities and gets the flat drawn; "furnish it" gives several layouts and furniture choices, as
+if the client had an expert interior designer. The MCP server carries the design skills. Any API
+key in Settings runs the same agent inside the program. Later: a web app by monthly subscription.
+
+**Finish line (done means):** (1) `build_apartment` draws a flat from room sizes (walls shared,
+outer walls thicker, doors between rooms, windows, entrance, room names) in one revision;
+(2) furnishing options: for a flat or one room, three distinct layouts with different
+arrangements and finishes, each passing the checks, with reasons, applied in one step or kept as
+separate projects to compare; available as MCP tools and as a button in the program that works
+without any AI; (3) MCP serves design skills as prompts, resources and a `design_guide` tool, and
+the in-app agent (any API: Anthropic or OpenAI-compatible) gets the same skills; the agent panel
+takes a measurements file; (4) L-shaped flats count only real rooms; (5) `pnpm check` green, the
+journey run in the real app with screenshots, docs, pushed.
+
+- [x] Core: rooms of a walled flat exclude the space outside its outer walls (L-shapes)
+- [x] Starter: `buildFlat(spec)` from room rectangles + tests
+- [x] Starter: furnishing engine (bedroom, living, dining, kitchen, bath, study, hall), three options with reasons and palettes + tests
+- [x] Starter: design skills text (workflow, space planning, living, bedroom, dining and kitchen, bathroom, style)
+- [x] Server: tools build_apartment, furnish_options, apply_furnishing, furnish_apartment_options, design_guide; MCP prompts and resources; agent instructions
+- [x] Editor: "Propose three options" in the Space panel (no AI needed), preview and apply; agent panel takes a file
+- [x] e2e (`designer.spec.ts`), screenshots, docs, push. Measured: three options for a 7-room flat in about 1 s in the browser
+- Later: a cost and shopping list per option (H5); more pieces and styles in the catalogue (H4); the web subscription (H7)
+
+## Now: H1 — draw the real space (7 Oct 2026, decision 0028, `docs/04-home-studio-plan.md`)
+
+**Finish line (done means):** a designer draws a client's 2-bedroom apartment from its measurements
+in under 10 minutes in the running program: walls drawn point to point that join at corners, lengths
+and thickness typed, doors and windows that sit in a wall and move with it, each room's area shown
+from the walls, dimensions edited directly; the 3D view shows the same walls with openings; old saves
+still open; `pnpm check` green; screenshots sent; measured time written down.
+
+- [x] Core: optional `walls` and `openings` on the space; validation; derived wall solids (joined
+      corners, door gaps), door swings, rooms from walls by raster; checks treat walls as obstacles
+      and door swings as doors (`packages/core/src/model/walls.ts`, `test/walls.test.ts`)
+- [x] Starter: walkway passes doorways and starts at the entrance; apartments rebuilt on real walls
+      (20 cm outer, 10 cm inner, swinging doors); wall items removed from the catalogue
+- [x] Editor: wall pieces hang on drawn walls, never on an outside face
+- [x] Editor plan: walls, joins, door swings, windows, room areas (named from zones; Space panel names rooms)
+- [x] Editor 3D: walls with door and window openings, glass, door leaves; selected wall tinted
+- [x] Wall tool: click to click, typed length (4.75 / 475 / ٤٫٧٥), snaps (ends, wall lines, square), Esc/double-click/Enter to finish
+- [x] Select a wall: length, thickness, height; drag it or its ends (joined walls follow); delete with its openings
+- [x] Doors and windows: add on a wall, drag along it, width, height, hinge/side, sill
+- [x] Agent tools: draw_walls, add_openings, remove_walls; get_project lists walls, openings and rooms
+- [x] e2e: draw a 2-bedroom from measurements (`e2e/walls.spec.ts`); measured: 5 walls + 3 doors + 4
+      windows driven in 9.9 s, the same room areas as the template (62, 18.17, 18.17, 7.67 m²)
+- [x] Screenshots to the owner; full `pnpm check` (27 browser tests); push
+- Later (found while building): a non-rectangular outline (L-shaped flat) leaves the outside
+  corner as a room; dimension lines on the plan belong to H3; walls at odd angles leave a small
+  notch at the corner (no mitre)
+
 ## Now: Home studio release (7 Oct 2026, decision 0027)
 
 Owner: sellable to interior designers. Focus on apartments with beautiful, detailed furniture (sofas,

@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { extname, join, normalize, sep } from 'node:path';
+import { dirname, extname, join, normalize, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { deserializeProject, type Command } from '@space-planner/core';
 import { demoHall, HOME_TEMPLATES, newContainer, newHome, newProductionLine, newRestaurant, newRoom, newVehicleDepot, newWarehouse, packOf, referenceProductionLine, referenceRestaurant, referenceVehicleDepot, referenceWarehouse } from '@space-planner/starter';
 import { AgentRunner } from './agents.js';
@@ -117,6 +118,13 @@ export function createApp(options: AppOptions): App {
   };
 
   route('GET', '/api/health', (_q, res) => send(res, 200, { ok: true, name: 'space-planner' }));
+
+  // Where an AI assistant connects: the bridge file next to this server and this server's address,
+  // so Settings can show a command that works for this copy (browser version or installed program).
+  route('GET', '/api/mcp-setup', (req, res) => {
+    const script = join(dirname(fileURLToPath(import.meta.url)), 'mcp.mjs');
+    send(res, 200, { script: existsSync(script) ? script : null, url: `http://${req.headers.host ?? '127.0.0.1'}` });
+  });
 
   route('POST', '/api/backups', async (req, res) => {
     await readJson(req);

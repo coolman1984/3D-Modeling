@@ -1,4 +1,5 @@
 import { homeFill, homeSymbol } from './PlanSymbols.js';
+import { PlanWalls, RoomAreas } from './PlanWalls.js';
 import {
   add,
   area,
@@ -17,7 +18,7 @@ import {
   type Vec2,
 } from '@space-planner/core';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { CornersOut, Minus, Plus } from '@phosphor-icons/react';
+import { CornersOut, Cursor, Door, FrameCorners, Minus, Plus, Wall as WallIcon } from '@phosphor-icons/react';
 import type { ControlSettings } from '../logic/controls.js';
 import { formatCentimetres, formatCount, formatDegrees, formatLength, formatMetres, formatSquareMetres } from '../logic/format.js';
 import type { Action } from '../logic/session.js';
@@ -25,6 +26,7 @@ import { snapAngle, snapMove, type Guide } from '../logic/snap.js';
 import { boxCentre, itemsInBox, movable, moveCommands, rotateCommands, selectionBounds } from '../logic/transform.js';
 import { fitViewport, panBy, pathOf, toScreen, toWorld, zoomAt, type Viewport } from '../logic/viewport.js';
 import { zoneStyle } from '../logic/zoneStyle.js';
+import { addOpening, addWall, alongWall, MIN_WALL, moveWall, moveWallEnd, pointAtLength, snapWallPoint, typedLength, typedLengthGuessed, updateOpening, wallAt, type Snap } from '../logic/walls.js';
 
 interface Props {
   /** What to draw: the saved project with any change in progress on top. */
@@ -53,14 +55,23 @@ interface Props {
   readonly itemLabels?: ReadonlyMap<Id, string> | undefined;
   /** Temporary movement route drawn over the plan; never saved. */
   readonly route?: readonly Vec2[] | undefined;
+  /** What a click on the plan does: pick and move (default), draw walls, or put a door or window in a wall. */
+  readonly tool?: PlanTool;
+  readonly onTool?: (tool: PlanTool) => void;
 }
+
+export type PlanTool = 'select' | 'wall' | 'door' | 'window';
+
 
 type Gesture =
   | { kind: 'press'; id: Id; start: Vec2; pointerId: number; toggled: boolean }
   | { kind: 'move'; ids: readonly Id[]; last: Vec2; raw: Vec2; pointerId: number }
   | { kind: 'rotate'; ids: readonly Id[]; pivot: Vec2; lastAngle: number; raw: number; pointerId: number }
   | { kind: 'marquee'; start: Vec2; pointerId: number; additive: boolean }
-  | { kind: 'pan'; last: Vec2; moved: boolean; pointerId: number };
+  | { kind: 'pan'; last: Vec2; moved: boolean; pointerId: number }
+  | { kind: 'wall'; id: Id; start: Vec2; pointerId: number; moved: boolean; toggled: boolean }
+  | { kind: 'wall-end'; id: Id; end: 'a' | 'b'; pointerId: number }
+  | { kind: 'opening'; id: Id; grab: number; start: Vec2; pointerId: number; moved: boolean };
 
 /** What the canvas shows while a gesture runs: guide lines, the selection box, and a readout. */
 interface Overlay {
@@ -87,13 +98,19 @@ const HANDLE_GAP = 26; // pixels between the selection box and the rotation hand
  * click / Shift-click / box select, drag with grid and smart guides (Shift locks the axis,
  * Alt is slow and precise, Ctrl ignores snapping), a rotation handle, and pan and zoom.
  */
-export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route }: Props) {
+export function PlanCanvas({ project, saved, issues, selectedIds, controls, viewport, onViewport, dispatch, readOnly = false, onDropType, onFit, onZoom, openEnd, itemFills, itemLabels, route, tool = 'select', onTool }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const gesture = useRef<Gesture | null>(null);
   const [overlay, setOverlay] = useState<Overlay>({});
   const spaceHeld = useRef(false);
   const roomBounds = useMemo(() => boundsOf(project.space.boundary), [project.space.boundary]);
+  // The largest side of the place: a whole number typed for a wall is read in metres only if a wall that long fits it.
+  const span = Math.max(roomBounds.maxX - roomBounds.minX, roomBounds.maxY - roomBounds.minY);
+  // Drawing walls: the chain's last point and first point, the snapped cursor, and a typed length.
+  const [chain, setChain] = useState<{ from: Vec2; start: Vec2 } | null>(null);
+  const [cursor, setCursor] = useState<(Snap & { screen: Vec2 }) | null>(null);
+  const [typed, setTyped] = useState('');
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -165,8 +182,83 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
     if (viewport) onZoom?.(zoom, scaleRatio);
   }, [zoom, scaleRatio, viewport, onZoom]);
 
+  // Leaving a tool drops whatever it was drawing.
+  useEffect(() => {
+    if (tool === 'select') {
+      setChain(null);
+      setCursor(null);
+      setTyped('');
+    }
+    // The ghost of what the tool would draw goes with it.
+    return () => dispatch({ type: 'preview', command: null });
+  }, [tool, dispatch]);
+
+  // While drawing: type a length and press Enter; Backspace corrects it; Esc ends the chain, a
+  // second Esc puts the tool down. W and D pick the wall and door tools from the plan.
+  useEffect(() => {
+    if (readOnly) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (tool === 'select') {
+        const k = e.key.toLowerCase();
+        if ((k === 'w' || k === 'ص') && onTool) onTool('wall');
+        else if ((k === 'd' || k === 'ي') && onTool && (project.space.walls?.length ?? 0) > 0) onTool('door');
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        dispatch({ type: 'preview', command: null });
+        if (chain) {
+          setChain(null);
+          setTyped('');
+        } else onTool?.('select');
+        return;
+      }
+      if (tool !== 'wall' || !chain) return;
+      if (/^[0-9٠-٩.,٫mcمس]$/i.test(e.key)) {
+        e.preventDefault();
+        setTyped((t) => (t + e.key).slice(0, 10));
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setTyped((t) => t.slice(0, -1));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const length = typedLength(typed, span);
+        if (length === undefined) {
+          // Enter with nothing typed ends the chain, like a double-click.
+          if (!typed) {
+            dispatch({ type: 'preview', command: null });
+            setChain(null);
+          }
+          return;
+        }
+        const toward = cursor && (cursor.point.x !== chain.from.x || cursor.point.y !== chain.from.y) ? cursor.point : { x: chain.from.x + 1, y: chain.from.y };
+        placeWallEnd(pointAtLength(chain.from, toward, length));
+        setTyped('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   if (!viewport) return <svg ref={svgRef} className="plan" aria-label="Plan" />;
+  const walled = (project.space.walls?.length ?? 0) > 0;
   const v = viewport;
+  const reach = 14 / v.scale; // 14 px, in ticks
+  const gridStep = controls.grid > 1 ? controls.grid : 1;
+
+  /** Draw the wall from the chain's last point to `end`, then go on from there (or close the loop). */
+  function placeWallEnd(end: Vec2) {
+    if (!chain) return;
+    dispatch({ type: 'preview', command: null });
+    const added = addWall(saved, chain.from, end);
+    if (!added) return;
+    dispatch({ type: 'command', command: added.command });
+    const closed = end.x === chain.start.x && end.y === chain.start.y;
+    setChain(closed ? null : { from: end, start: chain.start });
+  }
 
   const local = (event: ReactPointerEvent): Vec2 => {
     const rect = svgRef.current!.getBoundingClientRect();
@@ -176,7 +268,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
   const wantsPan = (event: ReactPointerEvent) => event.button === 1 || event.button === 2 || spaceHeld.current;
 
   const onItemDown = (event: ReactPointerEvent, id: Id) => {
-    if (wantsPan(event) || readOnly) return; // let the background start a pan
+    if (wantsPan(event) || readOnly || tool !== 'select') return; // let the background start a pan or the tool act
     event.stopPropagation();
     if (event.button !== 0) return;
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
@@ -197,7 +289,77 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
     capture(event);
   };
 
+  const onWallDown = (event: ReactPointerEvent, id: Id) => {
+    if (wantsPan(event) || readOnly || tool !== 'select' || event.button !== 0) return;
+    event.stopPropagation();
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+    if (additive) dispatch({ type: 'select', ids: [id], mode: 'toggle' });
+    else if (!selectedIds.includes(id)) dispatch({ type: 'select', ids: [id] });
+    gesture.current = { kind: 'wall', id, start: toWorld(v, local(event)), pointerId: event.pointerId, moved: false, toggled: additive };
+    capture(event);
+  };
+
+  const onWallEndDown = (event: ReactPointerEvent, id: Id, end: 'a' | 'b') => {
+    if (event.button !== 0 || readOnly) return;
+    event.stopPropagation();
+    gesture.current = { kind: 'wall-end', id, end, pointerId: event.pointerId };
+    capture(event);
+  };
+
+  const onOpeningDown = (event: ReactPointerEvent, id: Id) => {
+    if (wantsPan(event) || readOnly || tool !== 'select' || event.button !== 0) return;
+    event.stopPropagation();
+    dispatch({ type: 'select', ids: [id] });
+    const opening = saved.space.openings?.find((o) => o.id === id);
+    const wall = opening && saved.space.walls?.find((w) => w.id === opening.wall);
+    if (!opening || !wall) return;
+    const world = toWorld(v, local(event));
+    gesture.current = { kind: 'opening', id, grab: alongWall(wall, world).along - opening.offset, start: local(event), pointerId: event.pointerId, moved: false };
+    capture(event);
+  };
+
+  /** A click with a drawing tool: a wall point, or a door or window in the wall under the pointer. */
+  const onToolDown = (event: ReactPointerEvent) => {
+    const world = toWorld(v, local(event));
+    if (tool === 'wall') {
+      const snap = snapWallPoint(saved, world, reach, event.ctrlKey || event.metaKey ? 1 : gridStep, chain?.from);
+      if (!chain) setChain({ from: snap.point, start: snap.point });
+      else if (Math.hypot(snap.point.x - chain.from.x, snap.point.y - chain.from.y) >= MIN_WALL) placeWallEnd(snap.point);
+      setTyped('');
+      return;
+    }
+    const wall = wallAt(saved, world, reach);
+    if (!wall) return;
+    dispatch({ type: 'preview', command: null });
+    const added = addOpening(saved, wall.id, tool === 'door' ? 'door' : 'window', world);
+    if (added) {
+      dispatch({ type: 'command', command: added.command, select: [added.id] });
+      onTool?.('select');
+    }
+  };
+
+  /** What the drawing tool would do here, shown before the click. */
+  const onToolHover = (event: ReactPointerEvent) => {
+    const screen = local(event);
+    const world = toWorld(v, screen);
+    if (tool === 'wall') {
+      const snap = snapWallPoint(saved, world, reach, event.ctrlKey || event.metaKey ? 1 : gridStep, chain?.from);
+      setCursor({ ...snap, screen });
+      const added = chain ? addWall(saved, chain.from, typedLength(typed, span) !== undefined ? pointAtLength(chain.from, snap.point, typedLength(typed, span)!) : snap.point) : undefined;
+      dispatch({ type: 'preview', command: added?.command ?? null });
+      return;
+    }
+    const wall = wallAt(saved, world, reach);
+    const added = wall && addOpening(saved, wall.id, tool === 'door' ? 'door' : 'window', world);
+    dispatch({ type: 'preview', command: added?.command ?? null });
+    setCursor(null);
+  };
+
   const onBackgroundDown = (event: ReactPointerEvent) => {
+    if (tool !== 'select' && !readOnly && event.button === 0 && !spaceHeld.current) {
+      onToolDown(event);
+      return;
+    }
     if (wantsPan(event)) {
       gesture.current = { kind: 'pan', last: local(event), moved: false, pointerId: event.pointerId };
     } else if (readOnly && event.button === 0) {
@@ -219,6 +381,10 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
 
   const onMove = (event: ReactPointerEvent) => {
     let g = gesture.current;
+    if (!g && tool !== 'select' && !readOnly) {
+      onToolHover(event);
+      return;
+    }
     if (!g || g.pointerId !== event.pointerId) return;
     const point = local(event);
     if (g.kind === 'press') {
@@ -250,6 +416,36 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
       const delta = event.shiftKey || event.altKey ? Math.round(raw) : snapAngle(lead.rotation + raw, controls.angleStep) - lead.rotation;
       dispatch({ type: 'preview', command: rotateCommands(saved, g.ids, delta, g.ids.length > 1 ? g.pivot : undefined) });
       setOverlay({ readout: { at: point, text: `${formatDegrees(delta)} → ${formatDegrees(((lead.rotation + delta) % 360_000 + 360_000) % 360_000)}` } });
+    } else if (g.kind === 'wall') {
+      const world = toWorld(v, point);
+      const startScreen = toScreen(v, g.start);
+      if (!g.moved && Math.hypot(point.x - startScreen.x, point.y - startScreen.y) < DRAG_THRESHOLD) return;
+      gesture.current = { ...g, moved: true };
+      const raw = { x: world.x - g.start.x, y: world.y - g.start.y };
+      const lock = event.shiftKey ? (Math.abs(raw.x) >= Math.abs(raw.y) ? 'y' : 'x') : null;
+      const step = event.ctrlKey || event.metaKey ? 1 : gridStep;
+      const delta = { x: lock === 'x' ? 0 : Math.round(raw.x / step) * step, y: lock === 'y' ? 0 : Math.round(raw.y / step) * step };
+      dispatch({ type: 'preview', command: moveWall(saved, g.id, delta) ?? null });
+      setOverlay({ readout: { at: point, text: `${formatLength(delta.x)}, ${formatLength(delta.y)}` } });
+    } else if (g.kind === 'wall-end') {
+      const wall = saved.space.walls?.find((w) => w.id === g.id);
+      if (!wall) return;
+      const other = g.end === 'a' ? wall.b : wall.a;
+      const snap = snapWallPoint(saved, toWorld(v, point), reach, event.ctrlKey || event.metaKey ? 1 : gridStep, other);
+      dispatch({ type: 'preview', command: moveWallEnd(saved, g.id, g.end, snap.point) ?? null });
+      setOverlay({ readout: { at: point, text: `${formatMetres(Math.round(Math.hypot(snap.point.x - other.x, snap.point.y - other.y)))} m` } });
+    } else if (g.kind === 'opening') {
+      if (!g.moved && Math.hypot(point.x - g.start.x, point.y - g.start.y) < DRAG_THRESHOLD) return;
+      gesture.current = { ...g, moved: true };
+      const opening = saved.space.openings?.find((o) => o.id === g.id);
+      const wall = opening && saved.space.walls?.find((w) => w.id === opening.wall);
+      if (!opening || !wall) return;
+      const step = event.ctrlKey || event.metaKey ? 1 : gridStep;
+      const offset = Math.round((alongWall(wall, toWorld(v, point)).along - g.grab) / step) * step;
+      const command = updateOpening(saved, g.id, { offset });
+      dispatch({ type: 'preview', command: command ?? null });
+      const shown = command && command.type === 'space.set' ? command.space.openings?.find((o) => o.id === g.id)?.offset : undefined;
+      setOverlay({ readout: { at: point, text: `${formatMetres(shown ?? opening.offset)} m from the start` } });
     } else if (g.kind === 'marquee') {
       setOverlay({ marquee: { a: g.start, b: point } });
     } else if (g.kind === 'pan') {
@@ -268,8 +464,10 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
     gesture.current = null;
     svgRef.current?.releasePointerCapture(event.pointerId);
     setOverlay({});
-    if (g.kind === 'move' || g.kind === 'rotate') {
+    if (g.kind === 'move' || g.kind === 'rotate' || g.kind === 'wall-end' || (g.kind === 'wall' && g.moved) || (g.kind === 'opening' && g.moved)) {
       dispatch({ type: cancelled ? 'preview-cancel' : 'preview-commit' });
+    } else if (g.kind === 'wall') {
+      if (!g.toggled && selectedIds.length > 1) dispatch({ type: 'select', ids: [g.id] });
     } else if (g.kind === 'press') {
       // A plain click inside a group picks just that item.
       if (!g.toggled && selectedIds.length > 1) dispatch({ type: 'select', ids: [g.id] });
@@ -344,7 +542,19 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
     <>
       <svg
         ref={svgRef}
-        className={`plan${readOnly ? ' preview' : ''}`}
+        className={`plan${readOnly ? ' preview' : ''}${tool !== 'select' ? ` tool-${tool}` : ''}`}
+        onDoubleClick={() => {
+          if (tool === 'wall' && chain) {
+            dispatch({ type: 'preview', command: null });
+            setChain(null);
+            setTyped('');
+          }
+        }}
+        onPointerLeave={() => {
+          if (tool === 'select' || gesture.current) return;
+          setCursor(null);
+          dispatch({ type: 'preview', command: null });
+        }}
         aria-label="Plan"
         data-selected={selectedIds.join(' ')}
         onPointerDown={onBackgroundDown}
@@ -373,8 +583,8 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             <line x1="0" y1="0" x2="0" y2="6" className="clear-hatch-line" />
           </pattern>
         </defs>
-        <path d={pathOf(v, project.space.boundary)} className="wall" style={{ strokeWidth: wall * 2 }} />
-        <path d={pathOf(v, project.space.boundary)} className="floor" />
+        {!walled && <path d={pathOf(v, project.space.boundary)} className="wall" style={{ strokeWidth: wall * 2 }} />}
+        <path d={pathOf(v, project.space.boundary)} className={`floor${walled ? ' walled' : ''}`} />
         {openEnd === 'east' &&
           (() => {
             const a = toScreen(v, { x: roomBounds.maxX, y: roomBounds.minY });
@@ -425,6 +635,7 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             <title>{`${o.kind === 'column' ? 'Column' : 'Blocked zone'} ${o.id}`}</title>
           </path>
         ))}
+        <PlanWalls v={v} project={project} selected={selected} onWallDown={onWallDown} onOpeningDown={onOpeningDown} />
         {project.space.doors.map((d) => {
           const closed = add(d.hinge, rotate({ x: d.width, y: 0 }, d.angle));
           const open = add(d.hinge, rotate({ x: d.width, y: 0 }, d.angle + (d.swing === 'left' ? 90_000 : -90_000)));
@@ -486,8 +697,9 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             </g>
           );
         })}
+        {walled && <RoomAreas v={v} project={project} />}
         {(project.space.zones ?? []).map((zone) => {
-          if (!zoneStyle(zone.kind).room) return null;
+          if (walled || !zoneStyle(zone.kind).room) return null;
           // A room: its name and floor area in the top-left corner, on a paper halo over any furniture.
           const b = boundsOf(zone.polygon);
           const corner = toScreen(v, { x: b.minX, y: b.maxY });
@@ -573,6 +785,48 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
             height={Math.abs(overlay.marquee.a.y - overlay.marquee.b.y)}
           />
         )}
+        {tool === 'select' && !readOnly && selectedIds.length === 1 && (() => {
+          const wall = project.space.walls?.find((w) => w.id === selectedIds[0]);
+          if (!wall) return null;
+          // Both ends of the chosen wall can be dragged; its length reads along it.
+          const a = toScreen(v, wall.a);
+          const b = toScreen(v, wall.b);
+          const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+          const upright = angle > 90 || angle < -90 ? angle + 180 : angle;
+          const text = `${formatMetres(Math.round(Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y)))} m`;
+          return (
+            <g className="wall-handles">
+              <g transform={`translate(${mid.x.toFixed(1)},${mid.y.toFixed(1)}) rotate(${upright.toFixed(2)})`} pointerEvents="none">
+                <text className="wall-length" y={-(wall.thickness * v.scale) / 2 - 6} textAnchor="middle" data-testid="wall-length">
+                  {text}
+                </text>
+              </g>
+              {(['a', 'b'] as const).map((end) => {
+                const at = end === 'a' ? a : b;
+                return <circle key={end} cx={at.x} cy={at.y} r={6} className="wall-end" data-wall-end={end} onPointerDown={(e) => onWallEndDown(e, wall.id, end)} />;
+              })}
+            </g>
+          );
+        })()}
+        {tool === 'wall' && cursor && (() => {
+          const at = toScreen(v, cursor.point);
+          const from = chain ? toScreen(v, chain.from) : null;
+          const length = chain ? typedLength(typed, span) ?? Math.round(Math.hypot(cursor.point.x - chain.from.x, cursor.point.y - chain.from.y)) : undefined;
+          const label = length === undefined ? '' : typed ? `${typed}▌ → ${formatMetres(length)} m${typedLengthGuessed(typed) ? ' · add m or cm to be sure' : ''}` : `${formatMetres(length)} m`;
+          return (
+            <g className="draw-cursor" pointerEvents="none">
+              {from && <line x1={from.x} y1={from.y} x2={at.x} y2={at.y} className="draw-line" />}
+              <circle cx={at.x} cy={at.y} r={cursor.to === 'end' ? 7 : 4.5} className={`draw-snap ${cursor.to}`} />
+              {label && (
+                <g className="readout" transform={`translate(${at.x + 14},${at.y + 22})`}>
+                  <rect x={-6} y={-13} width={label.length * 6.4 + 12} height={19} rx={3} />
+                  <text data-testid="draw-length">{label}</text>
+                </g>
+              )}
+            </g>
+          );
+        })()}
         {overlay.readout && (
           <g className="readout" transform={`translate(${overlay.readout.at.x + 14},${overlay.readout.at.y + 22})`}>
             <rect x={-6} y={-13} width={overlay.readout.text.length * 6.2 + 12} height={19} rx={3} />
@@ -584,6 +838,29 @@ export function PlanCanvas({ project, saved, issues, selectedIds, controls, view
         <span className="bar" style={{ width: barMetres * pxPerMetre }} />
         {barMetres} m<span style={{ marginLeft: 14 }}>N ↑</span>
       </div>
+      {!readOnly && onTool && (
+        <div className="draw-tools" role="toolbar" aria-label="Draw">
+          {([
+            ['select', 'Select and move · Esc', <Cursor key="i" size={16} />],
+            ['wall', 'Draw walls · W', <WallIcon key="i" size={16} />],
+            ['door', 'Put a door in a wall · D', <Door key="i" size={16} />],
+            ['window', 'Put a window in a wall', <FrameCorners key="i" size={16} />],
+          ] as const).map(([id, label, icon]) => (
+            <button key={id} type="button" title={label} aria-label={label} aria-pressed={tool === id} data-tool={id} disabled={id !== 'select' && id !== 'wall' && !walled} onClick={() => onTool(id)}>
+              {icon}
+            </button>
+          ))}
+        </div>
+      )}
+      {tool !== 'select' && (
+            <span className="draw-hint" role="status">
+              {tool === 'wall'
+                ? chain
+                  ? 'Click the next corner, or type a length (3.15 m or 315 cm) and press Enter · double-click or Esc to stop'
+                  : 'Click where the wall starts · it snaps to wall ends and stays square'
+                : `Click a wall to put a ${tool} in it · Esc to cancel`}
+            </span>
+      )}
       <div className="floating-tools" role="toolbar" aria-label="Zoom">
         <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => onViewport(zoomAt(v, 1 / 1.25, { x: size.width / 2, y: size.height / 2 }))}>
           <Minus size={15} />

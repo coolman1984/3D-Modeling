@@ -1,4 +1,4 @@
-import { boundsOf, checkProject, itemPolygon, type Project } from '@space-planner/core';
+import { boundsOf, checkProject, itemPolygon, wallSolids, type Project } from '@space-planner/core';
 import { checkPack } from '@space-planner/starter';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { api } from '../api.js';
@@ -58,10 +58,11 @@ export function ProjectThumb({ project, width, height, dark = false }: { project
   const lines = dark ? ({ '--ink-2': 'rgba(233,230,224,.75)', '--ink-3': 'rgba(233,230,224,.45)', '--paper': '#161a22' } as CSSProperties) : undefined;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" style={lines}>
-      <path d={pathOf(v, project.space.boundary)} fill={dark ? 'transparent' : 'var(--paper)'} stroke={ink} strokeWidth={dark ? 2 : 1.5} />
+      <path d={pathOf(v, project.space.boundary)} fill={dark ? 'transparent' : 'var(--paper)'} stroke={project.space.walls?.length ? 'none' : ink} strokeWidth={dark ? 2 : 1.5} />
       {project.space.obstacles.map((o) => (
         <path key={o.id} d={pathOf(v, o.polygon)} fill={ink} />
       ))}
+      {project.space.walls?.length ? <path d={wallSolids(project.space).map((w) => pathOf(v, w.polygon)).join('')} fill={ink} /> : null}
       {items.map((item) => {
         const definition = project.catalog[item.definitionId];
         if (!definition) return null;

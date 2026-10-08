@@ -42,7 +42,9 @@ describe('home catalog', () => {
 
   it('refuses impossible shells', () => {
     expect(() => newHome('x', 1, 5)).toThrow(RangeError);
-    expect(newHome('Flat', 9, 7).space.doors).toHaveLength(1);
+    const flat = newHome('Flat', 9, 7).space;
+    expect(flat.walls).toHaveLength(4);
+    expect(flat.openings?.map((o) => [o.id, o.meta?.role])).toEqual([['front-door', 'entrance']]);
   });
 });
 

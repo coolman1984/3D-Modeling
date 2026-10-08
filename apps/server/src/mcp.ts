@@ -7,9 +7,11 @@
  * Without --url it reads the address the app wrote to data/server.json.
  */
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { DESIGN_PROMPTS, DESIGN_SKILLS, designSkill } from '@space-planner/starter';
 
 const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
@@ -38,25 +40,49 @@ export async function handleMessage(message: JsonRpcRequest, options: BridgeOpti
       const asked = String(message.params?.protocolVersion ?? '');
       return reply({
         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
-        capabilities: { tools: {} },
-        serverInfo: { name: 'space-planner', version: '1.0.0' },
+        capabilities: { tools: {}, prompts: {}, resources: {} },
+        serverInfo: { name: 'space-planner', version: '1.1.0' },
         instructions:
-          'Space Planner tools. Start with list_projects / get_project. Lengths are metres or cm as named; x east, y north; rotation degrees counter-clockwise (0 = front faces north).',
+          'Atrium space planner with an interior designer\'s skills. To design a flat from a client\'s measurements: read design_guide("workflow"), then build_apartment, furnish_options, apply_furnishing or furnish_apartment_options, check_project. Otherwise start with list_projects / get_project. Lengths are metres or cm as named; x east, y north; rotation degrees counter-clockwise (0 = front faces north). The design guides are also resources (atrium://skills/…) and prompts.',
       });
     }
     case 'ping':
       return reply({});
+    case 'prompts/list':
+      return reply({ prompts: DESIGN_PROMPTS.map(({ name, title, description, arguments: args }) => ({ name, title, description, arguments: args })) });
+    case 'prompts/get': {
+      const prompt = DESIGN_PROMPTS.find((p) => p.name === message.params?.name);
+      if (!prompt) return fail(-32602, `Unknown prompt: ${String(message.params?.name)}`);
+      const args = (message.params?.arguments ?? {}) as Record<string, string>;
+      const missing = prompt.arguments.filter((a) => a.required && !args[a.name]).map((a) => a.name);
+      if (missing.length) return fail(-32602, `Missing argument: ${missing.join(', ')}`);
+      return reply({ description: prompt.description, messages: [{ role: 'user', content: { type: 'text', text: prompt.build(args) } }] });
+    }
+    case 'resources/list':
+      return reply({ resources: DESIGN_SKILLS.map((s) => ({ uri: `atrium://skills/${s.id}`, name: s.id, title: s.title, description: s.description, mimeType: 'text/markdown' })) });
+    case 'resources/read': {
+      const uri = String(message.params?.uri ?? '');
+      const skill = DESIGN_SKILLS.find((s) => `atrium://skills/${s.id}` === uri);
+      if (!skill) return fail(-32002, `Resource not found: ${uri}`);
+      return reply({ contents: [{ uri, mimeType: 'text/markdown', text: skill.text }] });
+    }
     case 'tools/list': {
       try {
         const response = await doFetch(`${options.url}/api/tools`);
         const tools = (await response.json()) as Array<{ name: string; description: string; inputSchema: object }>;
         return reply({ tools });
       } catch {
-        return fail(-32000, `Space Planner is not running at ${options.url}. Start it with the start file in the project folder.`);
+        return fail(-32000, `Atrium is not running at ${options.url}. Open the Atrium program (or start it), then try again. If it runs on another address, give it with --url.`);
       }
     }
     case 'tools/call': {
       const name = String(message.params?.name ?? '');
+      if (name === 'design_guide') {
+        // The guides are text carried by this bridge: they answer even when the program is closed.
+        const topic = String((message.params?.arguments as Record<string, unknown> | undefined)?.topic ?? '');
+        const text = topic === 'all' ? DESIGN_SKILLS.map((x) => x.text).join('\n\n') : designSkill(topic)?.text ?? DESIGN_SKILLS.map((x) => `${x.id}: ${x.title} — ${x.description}`).join('\n');
+        return reply({ content: [{ type: 'text', text }], isError: false });
+      }
       try {
         const response = await doFetch(`${options.url}/api/tools/${encodeURIComponent(name)}`, {
           method: 'POST',
@@ -67,7 +93,7 @@ export async function handleMessage(message: JsonRpcRequest, options: BridgeOpti
         return reply({ content: [{ type: 'text', text: result.text }], isError: result.isError });
       } catch {
         return reply({
-          content: [{ type: 'text', text: `Space Planner is not running at ${options.url}. Start it with the start file in the project folder.` }],
+          content: [{ type: 'text', text: `Atrium is not running at ${options.url}. Open the Atrium program (or start it), then try again. If it runs on another address, give it with --url.` }],
           isError: true,
         });
       }
@@ -82,28 +108,51 @@ function argument(name: string): string | undefined {
   return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-function discoverUrl(): string {
-  const fromArgs = argument('--url') ?? process.env.PLANNER_URL;
-  if (fromArgs) return fromArgs.replace(/\/+$/, '');
+/** Where the program writes its address: next to this file (a project folder), and where the installed program keeps its data. */
+function serverFiles(): string[] {
   const here = dirname(fileURLToPath(import.meta.url));
-  const dataDir = argument('--data') ?? process.env.PLANNER_DATA ?? join(here, '..', '..', '..', 'data');
-  const file = join(dataDir, 'server.json');
-  if (existsSync(file)) {
+  const explicit = argument('--data') ?? process.env.PLANNER_DATA;
+  const home = homedir();
+  return [
+    ...(explicit ? [join(explicit, 'server.json')] : []),
+    join(here, '..', '..', '..', 'data', 'server.json'),
+    ...(process.env.APPDATA ? [join(process.env.APPDATA, 'Atrium', 'data', 'server.json')] : []),
+    join(home, 'AppData', 'Roaming', 'Atrium', 'data', 'server.json'),
+    join(home, 'Library', 'Application Support', 'Atrium', 'data', 'server.json'),
+    join(home, '.config', 'Atrium', 'data', 'server.json'),
+  ];
+}
+
+/** The program's address: given, or written by a running program, or tried on the usual ports (4650 installed, 4600 project folder). */
+async function discoverUrl(): Promise<string> {
+  const given = argument('--url') ?? process.env.PLANNER_URL;
+  if (given) return given.replace(/\/+$/, '');
+  const candidates: string[] = [];
+  for (const file of serverFiles()) {
+    if (!existsSync(file)) continue;
     try {
       const info = JSON.parse(readFileSync(file, 'utf8')) as { url?: string };
-      if (info.url) return info.url;
+      if (info.url) candidates.push(info.url);
     } catch {
-      // fall through to the default
+      // not readable: try the next place
     }
   }
-  return 'http://127.0.0.1:4600';
+  candidates.push('http://127.0.0.1:4650', 'http://127.0.0.1:4600');
+  for (const url of candidates) {
+    try {
+      const response = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(700) });
+      if (response.ok) return url;
+    } catch {
+      // not answering here
+    }
+  }
+  return candidates[0]!;
 }
 
 function main(): void {
-  const options: BridgeOptions = {
-    url: discoverUrl(),
-    actor: argument('--actor') ?? process.env.PLANNER_ACTOR ?? 'agent:mcp',
-  };
+  const actor = argument('--actor') ?? process.env.PLANNER_ACTOR ?? 'agent:mcp';
+  // The address is found on the first message that needs it, so the bridge answers at once (skills and prompts work with the program closed).
+  let found: Promise<string> | undefined;
   const rl = createInterface({ input: process.stdin });
   rl.on('line', (line) => {
     if (!line.trim()) return;
@@ -114,9 +163,13 @@ function main(): void {
       process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })}\n`);
       return;
     }
-    void handleMessage(message, options).then((response) => {
-      if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
-    });
+    // A program that was closed when the bridge started may be open now: look again after a failure.
+    void (found ??= discoverUrl())
+      .then((url) => handleMessage(message, { url, actor }))
+      .then((response) => {
+        if (response && JSON.stringify(response).includes('is not running at')) found = undefined;
+        if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
+      });
   });
 }
 
