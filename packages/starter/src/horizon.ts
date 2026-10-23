@@ -788,7 +788,7 @@ export function horizonExportContainer(): Project {
     { id: 'tv-qn75', name: 'Mini-LED 75″ Q8 carton', size: [182, 20, 112], massKg: 42, quantity: 20, meta: { stackable: false, allowTilt: false, print: 'Mini-LED|75″' } },
     { id: 'tv-q65', name: 'Quantum-dot 65″ Q6 carton', size: [158, 17, 98], massKg: 27, quantity: 90, meta: { ...tv, maxLoadOnTop: kg(30), print: 'Quantum-dot|65″' } },
     { id: 'tv-du55', name: 'UHD LED 55″ U7 carton', size: [136, 14, 85], massKg: 17, quantity: 150, meta: { ...tv, maxLoadOnTop: kg(40), print: 'UHD LED|55″' } },
-    { id: 'mon-27', name: 'Gaming monitor 27″ monitor carton', size: [70, 17, 48], massKg: 7, quantity: 120, meta: { stackable: true, allowTilt: true, maxLoadOnTop: kg(35), print: 'Odyssey|27″' } },
+    { id: 'mon-27', name: 'Gaming monitor 27″ monitor carton', size: [70, 17, 48], massKg: 7, quantity: 120, meta: { stackable: true, allowTilt: true, maxLoadOnTop: kg(35), print: 'Gaming|27″' } },
   ], 'largest-first');
   return { ...project, space: { ...project.space, meta: { ...project.space.meta, company: 'horizon-electronics' } } };
 }

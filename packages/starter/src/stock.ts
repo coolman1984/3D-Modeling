@@ -10,7 +10,7 @@ import { DEFAULT_FORKLIFT, dockApproach, rackSpecOf, type RackSpec } from './war
  * the save instead of thousands of items that the core would report as overlapping their rack.
  *
  * Bay entry `s01` = levels bottom-up joined by `|`, positions west to east joined by `,`, each a
- * material id or empty: `"Q655,Q655,|CU70043,,|,,"`.
+ * material id or empty: `"Q655,Q655,|U743,,|,,"`.
  */
 
 const cm = (v: number) => fromUnit(v, 'cm');
